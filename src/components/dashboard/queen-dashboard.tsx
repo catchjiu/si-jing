@@ -9,8 +9,10 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  Flame,
   HandHeart,
   ImageIcon,
+  Target,
 } from "lucide-react"
 import type {
   DesireRequest,
@@ -136,6 +138,21 @@ export function QueenDashboard({
   const metrics = [
     {
       href: "/dashboard/tasks",
+      label: "Completion",
+      value: `${stats.completionRate}%`,
+      hint: `${stats.completedToday} of ${stats.totalToday} today`,
+      icon: Target,
+    },
+    {
+      href: "/dashboard/tasks",
+      label: "Streak",
+      value: stats.streak,
+      hint: "consecutive days",
+      icon: Flame,
+      accent: "orange" as const,
+    },
+    {
+      href: "/dashboard/tasks",
       label: "Tasks",
       value: stats.tasksAssigned,
       icon: ClipboardList,
@@ -172,8 +189,8 @@ export function QueenDashboard({
         </p>
       </div>
 
-      {/* Compact metrics — 2×2 on phone, 4 across on larger */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+      {/* Compact metrics */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3">
         {metrics.map((m) => {
           const Icon = m.icon
           return (
@@ -194,23 +211,33 @@ export function QueenDashboard({
                 <Icon
                   className={cn(
                     "size-3.5 shrink-0",
-                    m.danger ? "text-red-400" : "text-gold/70"
+                    m.danger
+                      ? "text-red-400"
+                      : m.accent === "orange"
+                        ? "text-orange-400"
+                        : "text-gold/70"
                   )}
                 />
               </div>
               <p
                 className={cn(
                   "mt-1.5 font-heading text-2xl tabular-nums sm:text-3xl",
-                  m.danger ? "text-red-300" : "text-gold"
+                  m.danger
+                    ? "text-red-300"
+                    : m.accent === "orange"
+                      ? "text-orange-400"
+                      : "text-gold"
                 )}
               >
                 {m.value}
               </p>
+              {"hint" in m && m.hint && (
+                <p className="mt-1 text-[10px] text-muted-foreground">{m.hint}</p>
+              )}
             </Link>
           )
         })}
       </div>
-
       {/* Action chips — only when something needs a decision */}
       {attention.length > 0 && (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-none">

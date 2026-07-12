@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
 import { isLikelyUnplayableOnIos } from "@/lib/voice-format";
+import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -71,11 +71,11 @@ export function VoicePlayer({
     if (iosBlocked) return;
 
     const load = async () => {
-      const supabase = createClient();
-      const { data } = await supabase.storage
-        .from("voice")
-        .createSignedUrl(filePath, 3600);
-      if (!cancelled) setUrl(data?.signedUrl ?? null);
+      const signed = await signObjectUrl({
+        bucket: "voice",
+        path: filePath,
+      });
+      if (!cancelled) setUrl(signed);
     };
     void load();
     return () => {

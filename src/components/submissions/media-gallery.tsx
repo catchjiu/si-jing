@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Image from "next/image"
 import { getYouTubeEmbedUrl } from "@/lib/youtube"
 import type { SubmissionMedia } from "@/lib/types"
-import { createClient } from "@/lib/supabase/client"
+import { signObjectUrl } from "@/lib/storage/client"
 import { cn } from "@/lib/utils"
 import { GeoMapLinks } from "@/components/location/geo-map-links"
 
@@ -21,14 +21,15 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
   const [items, setItems] = useState<MediaItem[]>(media)
 
   const loadSignedUrls = useCallback(async () => {
-    const supabase = createClient()
     const enriched = await Promise.all(
       media.map(async (item) => {
         if (item.media_type === "image" && item.file_path) {
-          const { data } = await supabase.storage
-            .from("submissions")
-            .createSignedUrl(item.file_path, 3600)
-          return { ...item, signedUrl: data?.signedUrl }
+          const signedUrl =
+            (await signObjectUrl({
+              bucket: "submissions",
+              path: item.file_path,
+            })) ?? undefined
+          return { ...item, signedUrl }
         }
         return item
       })

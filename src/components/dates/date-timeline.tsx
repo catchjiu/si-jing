@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
@@ -44,14 +45,15 @@ type DatePostRow = DatePostWithSignedUrl & {
 async function withSignedUrls(
   posts: DatePostRow[]
 ): Promise<DatePostRow[]> {
-  const supabase = createClient();
   return Promise.all(
     posts.map(async (p) => {
       if (!p.file_path) return p;
-      const { data } = await supabase.storage
-        .from("date_posts")
-        .createSignedUrl(p.file_path, 3600);
-      return { ...p, signedUrl: data?.signedUrl };
+      const signedUrl =
+        (await signObjectUrl({
+          bucket: "date_posts",
+          path: p.file_path,
+        })) ?? undefined;
+      return { ...p, signedUrl };
     })
   );
 }
@@ -197,14 +199,13 @@ export function DateTimeline({
         }
         mediaKind = isVideo ? "video" : "image";
         const ext = uploadFile.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
-        filePath = `${profile.id}/${dateId}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("date_posts")
-          .upload(filePath, uploadFile, {
-            upsert: false,
-            contentType: uploadFile.type || undefined,
-          });
-        if (uploadError) throw uploadError;
+        filePath = await presignAndUpload({
+          bucket: "date_posts",
+          file: uploadFile,
+          contentType: uploadFile.type || (isVideo ? "video/mp4" : "image/jpeg"),
+          ext,
+          relativePath: `${profile.id}/${dateId}/${Date.now()}.${ext}`,
+        });
 
         const { error } = await supabase.from("date_posts").insert({
           date_id: dateId,
@@ -270,7 +271,7 @@ export function DateTimeline({
     setDeleting(post.id);
     const supabase = createClient();
     if (post.file_path) {
-      await supabase.storage.from("date_posts").remove([post.file_path]);
+      await removeObject({ bucket: "date_posts", path: post.file_path });
     }
     const { error } = await supabase
       .from("date_posts")

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ExternalLink, Heart, Loader2, Trash2 } from "lucide-react";
+import { ExternalLink, Heart, Loader2, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
+import { removeObject } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import type { WishlistItemWithSignedUrl } from "@/lib/types";
 import {
@@ -22,12 +23,14 @@ import { GeoMapLinks } from "@/components/location/geo-map-links";
 interface WishlistGalleryProps {
   items: WishlistItemWithSignedUrl[];
   onDeleted?: (id: string) => void;
+  onEdit?: (item: WishlistItemWithSignedUrl) => void;
   className?: string;
 }
 
 export function WishlistGallery({
   items,
   onDeleted,
+  onEdit,
   className,
 }: WishlistGalleryProps) {
   const { isQueen } = useAuth();
@@ -50,7 +53,11 @@ export function WishlistGallery({
         .eq("id", active.id);
       if (error) throw error;
 
-      await supabase.storage.from("wishlist").remove([active.image_path]);
+      try {
+        await removeObject({ bucket: "wishlist", path: active.image_path });
+      } catch {
+        // Row is gone; storage cleanup is best-effort
+      }
 
       toast.success("Wishlist item removed");
       onDeleted?.(active.id);
@@ -123,7 +130,7 @@ export function WishlistGallery({
           {active && (
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
-                {active.signedUrl && (
+                {active.signedUrl ? (
                   <Image
                     src={active.signedUrl}
                     alt={active.title || "Wishlist item"}
@@ -132,6 +139,10 @@ export function WishlistGallery({
                     className="object-contain"
                     sizes="100vw"
                   />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    <Heart className="h-10 w-10" />
+                  </div>
                 )}
               </div>
               <div className="space-y-4 p-5">
@@ -166,20 +177,33 @@ export function WishlistGallery({
                   location_source={active.location_source}
                 />
                 {isQueen && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={deleting}
-                    onClick={() => void handleDelete()}
-                    className="w-full sm:w-auto"
-                  >
-                    {deleting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Remove item
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-gold/40 text-gold hover:bg-gold/10"
+                      onClick={() => {
+                        onEdit?.(active);
+                        setActive(null);
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={deleting}
+                      onClick={() => void handleDelete()}
+                    >
+                      {deleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Remove
+                    </Button>
+                  </div>
                 )}
               </div>
             </>

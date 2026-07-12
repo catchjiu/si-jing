@@ -9,6 +9,7 @@ import type { CapturedVoice } from "@/lib/voice";
 import { uploadVoiceNote } from "@/lib/voice";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
+import { presignAndUpload } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,16 +97,13 @@ export function RewardForm({
         );
       }
       const ext = uploadFile.name.split(".").pop() || "jpg";
-      const filePath = `${profile.id}/${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("rewards")
-        .upload(filePath, uploadFile, {
-          upsert: false,
-          contentType: uploadFile.type || undefined,
-        });
-
-      if (uploadError) throw uploadError;
+      const filePath = await presignAndUpload({
+        bucket: "rewards",
+        file: uploadFile,
+        contentType: uploadFile.type || "image/jpeg",
+        ext,
+        relativePath: `${profile.id}/${Date.now()}.${ext}`,
+      });
 
       const { data: reward, error: insertError } = await supabase
         .from("rewards")

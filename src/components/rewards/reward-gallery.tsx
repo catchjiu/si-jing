@@ -6,6 +6,7 @@ import { Gift } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
+import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import type { RewardWithSignedUrl } from "@/lib/types";
 import {
@@ -175,13 +176,14 @@ export function useRewardSignedUrls(rewards: RewardWithSignedUrl[]) {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const supabase = createClient();
       const enriched = await Promise.all(
         rewards.map(async (r) => {
-          const { data } = await supabase.storage
-            .from("rewards")
-            .createSignedUrl(r.image_path, 3600);
-          return { ...r, signedUrl: data?.signedUrl };
+          const signedUrl =
+            (await signObjectUrl({
+              bucket: "rewards",
+              path: r.image_path,
+            })) ?? undefined;
+          return { ...r, signedUrl };
         })
       );
       if (!cancelled) setItems(enriched);

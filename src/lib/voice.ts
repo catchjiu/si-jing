@@ -1,6 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VoiceEntityType } from "@/lib/types";
 import { extensionForMime, normalizeVoiceBlob } from "@/lib/voice-format";
+import { createClient } from "@/lib/supabase/client";
+import { presignAndUpload } from "@/lib/storage/client";
 
 export type CapturedVoice = {
   blob: Blob;
@@ -8,7 +9,7 @@ export type CapturedVoice = {
 };
 
 export async function uploadVoiceNote(
-  supabase: SupabaseClient,
+  _supabase: ReturnType<typeof createClient> | unknown,
   opts: {
     userId: string;
     entityType: VoiceEntityType;
@@ -21,16 +22,17 @@ export async function uploadVoiceNote(
   const blob = await normalizeVoiceBlob(opts.blob);
   const mime = blob.type || "audio/wav";
   const ext = extensionForMime(mime);
-  const path = `${userId}/${entityType}/${entityId}/${Date.now()}.${ext}`;
+  const relativePath = `${userId}/${entityType}/${entityId}/${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from("voice")
-    .upload(path, blob, {
-      contentType: mime,
-      upsert: false,
-    });
-  if (uploadError) throw uploadError;
+  const path = await presignAndUpload({
+    bucket: "voice",
+    file: blob,
+    contentType: mime,
+    ext,
+    relativePath,
+  });
 
+  const supabase = createClient();
   const { error: insertError } = await supabase.from("voice_notes").insert({
     created_by: userId,
     entity_type: entityType,

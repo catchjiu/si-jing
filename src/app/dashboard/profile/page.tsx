@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/types";
 import { PushEnableCard } from "@/components/push/push-enable";
+import { presignAndUpload } from "@/lib/storage/client";
 
 export default function ProfilePage() {
   const { profile, role, refreshProfile, loading: authLoading } = useAuth();
@@ -120,26 +121,18 @@ export default function ProfilePage() {
 
     const supabase = createClient();
     const uploadFile = await downsizeImageIfNeeded(file);
-    const path = `avatars/${profile.id}/${Date.now()}-${uploadFile.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("submissions")
-      .upload(path, uploadFile, {
-        upsert: true,
-        contentType: uploadFile.type || undefined,
-      });
-
-    if (uploadError) {
-      toast.error("Avatar upload failed");
-      return;
-    }
-
-    const { data } = await supabase.storage
-      .from("submissions")
-      .createSignedUrl(path, 60 * 60 * 24 * 365);
+    const ext = uploadFile.name.split(".").pop() || "jpg";
+    const path = await presignAndUpload({
+      bucket: "submissions",
+      file: uploadFile,
+      contentType: uploadFile.type || "image/jpeg",
+      ext,
+      relativePath: `${profile.id}/avatars/${Date.now()}.${ext}`,
+    });
 
     const { error } = await supabase
       .from("users")
-      .update({ avatar_url: data?.signedUrl ?? path })
+      .update({ avatar_url: path })
       .eq("id", profile.id);
 
     if (error) {

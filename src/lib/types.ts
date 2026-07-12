@@ -347,6 +347,9 @@ export type QueenDashboardStats = {
   tasksAssigned: number;
   pendingSubmissions: number;
   completionRate: number;
+  completedToday: number;
+  totalToday: number;
+  streak: number;
   pendingRequests: number;
   activePunishments: number;
   unackedRules: number;

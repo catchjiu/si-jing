@@ -7,18 +7,20 @@ import { useAuth } from "@/contexts/auth-context";
 import { RewardForm } from "@/components/rewards/reward-form";
 import { RewardGallery } from "@/components/rewards/reward-gallery";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import { signObjectUrl } from "@/lib/storage/client";
 import type { Profile, Reward, RewardWithSignedUrl } from "@/lib/types";
 
 async function withSignedUrls(
   rewards: Reward[]
 ): Promise<RewardWithSignedUrl[]> {
-  const supabase = createClient();
   return Promise.all(
     rewards.map(async (r) => {
-      const { data } = await supabase.storage
-        .from("rewards")
-        .createSignedUrl(r.image_path, 3600);
-      return { ...r, signedUrl: data?.signedUrl };
+      const signedUrl =
+        (await signObjectUrl({
+          bucket: "rewards",
+          path: r.image_path,
+        })) ?? undefined;
+      return { ...r, signedUrl };
     })
   );
 }

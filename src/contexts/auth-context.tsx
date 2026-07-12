@@ -11,6 +11,8 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, UserRole } from "@/lib/types";
+import { isR2Path } from "@/lib/storage/paths";
+import { signObjectUrl } from "@/lib/storage/client";
 
 type AuthContextValue = {
   user: User | null;
@@ -24,6 +26,17 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+async function withResolvedAvatar(profile: Profile): Promise<Profile> {
+  const avatar = profile.avatar_url;
+  if (!avatar || !isR2Path(avatar)) return profile;
+  const url = await signObjectUrl({
+    bucket: "submissions",
+    path: avatar,
+    expiresIn: 60 * 60 * 24,
+  });
+  return { ...profile, avatar_url: url ?? avatar };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
@@ -40,7 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (data) {
-        setProfile(data as Profile);
+        const resolved = await withResolvedAvatar(data as Profile);
+        setProfile(resolved);
       } else {
         setProfile(null);
       }

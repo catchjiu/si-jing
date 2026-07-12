@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { unpinEvidence } from "@/lib/evidence-pins";
 import type { EvidencePin } from "@/lib/types";
+import { isStorageBucket } from "@/lib/storage/paths";
+import { signObjectUrl } from "@/lib/storage/client";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import {
   Dialog,
@@ -116,10 +118,11 @@ export default function EvidencePage() {
         const sub = bySub.get(m.submission_id);
         let signedUrl: string | undefined;
         if (m.file_path) {
-          const { data } = await supabase.storage
-            .from("submissions")
-            .createSignedUrl(m.file_path, 3600);
-          signedUrl = data?.signedUrl;
+          signedUrl =
+            (await signObjectUrl({
+              bucket: "submissions",
+              path: m.file_path,
+            })) ?? undefined;
         }
         mapped.push({
           id: `sub-${m.id}`,
@@ -140,11 +143,12 @@ export default function EvidencePage() {
 
     for (const p of (pins ?? []) as EvidencePin[]) {
       let signedUrl: string | undefined;
-      if (p.file_path && p.storage_bucket) {
-        const { data } = await supabase.storage
-          .from(p.storage_bucket)
-          .createSignedUrl(p.file_path, 3600);
-        signedUrl = data?.signedUrl;
+      if (p.file_path && p.storage_bucket && isStorageBucket(p.storage_bucket)) {
+        signedUrl =
+          (await signObjectUrl({
+            bucket: p.storage_bucket,
+            path: p.file_path,
+          })) ?? undefined;
       }
       mapped.push({
         id: `pin-${p.id}`,

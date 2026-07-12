@@ -2,22 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Heart } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { WishlistForm } from "@/components/wishlist/wishlist-form";
 import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
+import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
 async function withSignedUrls(
   items: WishlistItem[]
 ): Promise<WishlistItemWithSignedUrl[]> {
-  const supabase = createClient();
   return Promise.all(
     items.map(async (item) => {
-      const { data } = await supabase.storage
-        .from("wishlist")
-        .createSignedUrl(item.image_path, 3600);
-      return { ...item, signedUrl: data?.signedUrl };
+      try {
+        const signedUrl =
+          (await signObjectUrl({
+            bucket: "wishlist",
+            path: item.image_path,
+          })) ?? undefined;
+        return { ...item, signedUrl };
+      } catch {
+        // Keep the row even if signing fails — never drop persisted items
+        return { ...item, signedUrl: undefined };
+      }
     })
   );
 }
@@ -26,21 +34,31 @@ export default function WishlistPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const [items, setItems] = useState<WishlistItemWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<WishlistItemWithSignedUrl | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
     const supabase = createClient();
 
-    const { data } = await supabase
-      .from("wishlist_items")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("wishlist_items")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    const list = (data ?? []) as WishlistItem[];
-    const signed = await withSignedUrls(list);
-    setItems(signed);
-    setLoading(false);
+      if (error) throw error;
+
+      const list = (data ?? []) as WishlistItem[];
+      const signed = await withSignedUrls(list);
+      setItems(signed);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Could not load wishlist";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   }, [profile]);
 
   useEffect(() => {
@@ -49,9 +67,15 @@ export default function WishlistPage() {
 
   const onDeleted = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+    if (editing?.id === id) setEditing(null);
   };
 
-  if (authLoading || loading) {
+  const onUpdated = (item: WishlistItemWithSignedUrl) => {
+    setItems((prev) => prev.map((row) => (row.id === item.id ? item : row)));
+    setEditing(null);
+  };
+
+  if (authLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
@@ -69,13 +93,32 @@ export default function WishlistPage() {
         </p>
       </div>
 
-      {isQueen && <WishlistForm onSuccess={load} />}
+      {isQueen && (
+        <WishlistForm
+          key={editing?.id ?? "create"}
+          editingItem={editing}
+          onCancelEdit={() => setEditing(null)}
+          onSuccess={load}
+          onUpdated={onUpdated}
+        />
+      )}
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">
           {isSlave ? "Her wishlist" : "Items"}
         </h2>
-        <WishlistGallery items={items} onDeleted={onDeleted} />
+        {loading && items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <WishlistGallery
+            items={items}
+            onDeleted={onDeleted}
+            onEdit={(item) => {
+              setEditing(item);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        )}
       </section>
     </div>
   );

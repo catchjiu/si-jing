@@ -1,35 +1,78 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Heart, ImagePlus, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
+import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import type { WishlistItemWithSignedUrl } from "@/lib/types";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface WishlistFormProps {
+  editingItem?: WishlistItemWithSignedUrl | null;
+  onCancelEdit?: () => void;
   onSuccess?: () => void;
+  onUpdated?: (item: WishlistItemWithSignedUrl) => void;
   className?: string;
 }
 
-export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
+export function WishlistForm({
+  editingItem = null,
+  onCancelEdit,
+  onSuccess,
+  onUpdated,
+  className,
+}: WishlistFormProps) {
   const { profile, isQueen } = useAuth();
+  const isEditing = !!editingItem;
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTitle(editingItem?.title ?? "");
+    setNotes(editingItem?.notes ?? "");
+    setLinkUrl(editingItem?.link_url ?? "");
+    setFile(null);
+    setPreview(null);
+
+    if (!editingItem) {
+      setExistingImageUrl(null);
+      return;
+    }
+
+    if (editingItem.signedUrl) {
+      setExistingImageUrl(editingItem.signedUrl);
+      return;
+    }
+
+    void signObjectUrl({
+      bucket: "wishlist",
+      path: editingItem.image_path,
+    }).then((url) => {
+      if (!cancelled) setExistingImageUrl(url);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editingItem]);
 
   const setImage = useCallback(
     (next: File | null) => {
@@ -57,10 +100,10 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isQueen || !profile) {
-      toast.error("Only the Queen can add wishlist items");
+      toast.error("Only the Queen can manage wishlist items");
       return;
     }
-    if (!file) {
+    if (!isEditing && !file) {
       toast.error("Attach an item image");
       return;
     }
@@ -68,7 +111,6 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
     const trimmedLink = linkUrl.trim();
     if (trimmedLink) {
       try {
-        // Validate absolute URL
         new URL(trimmedLink);
       } catch {
         toast.error("Enter a valid link URL (including https://)");
@@ -80,55 +122,112 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
     const supabase = createClient();
 
     try {
-      const geo = await resolveImageLocation(file);
-      if (geo) {
-        toast.message(
-          geo.source === "exif"
-            ? "Photo location from image metadata"
-            : "Photo location from device GPS"
-        );
-      }
-      const uploadFile = await downsizeImageIfNeeded(file);
-      if (uploadFile.size < file.size) {
-        toast.message(
-          `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
-        );
-      }
-      const ext = uploadFile.name.split(".").pop() || "jpg";
-      const filePath = `${profile.id}/${Date.now()}.${ext}`;
+      let imagePath = editingItem?.image_path ?? null;
+      let latitude = editingItem?.latitude ?? null;
+      let longitude = editingItem?.longitude ?? null;
+      let accuracy_m = editingItem?.accuracy_m ?? null;
+      let location_source = editingItem?.location_source ?? null;
+      let signedUrl = editingItem?.signedUrl;
 
-      const { error: uploadError } = await supabase.storage
-        .from("wishlist")
-        .upload(filePath, uploadFile, {
-          upsert: false,
-          contentType: uploadFile.type || undefined,
+      if (file) {
+        const geo = await resolveImageLocation(file);
+        if (geo) {
+          toast.message(
+            geo.source === "exif"
+              ? "Photo location from image metadata"
+              : "Photo location from device GPS"
+          );
+        }
+        const uploadFile = await downsizeImageIfNeeded(file);
+        if (uploadFile.size < file.size) {
+          toast.message(
+            `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+          );
+        }
+        const ext = uploadFile.name.split(".").pop() || "jpg";
+        const previousPath = imagePath;
+        imagePath = await presignAndUpload({
+          bucket: "wishlist",
+          file: uploadFile,
+          contentType: uploadFile.type || "image/jpeg",
+          ext,
+          relativePath: `${profile.id}/${Date.now()}.${ext}`,
         });
+        latitude = geo?.latitude ?? null;
+        longitude = geo?.longitude ?? null;
+        accuracy_m = geo?.accuracy_m ?? null;
+        location_source = geo?.source ?? null;
+        signedUrl =
+          (await signObjectUrl({
+            bucket: "wishlist",
+            path: imagePath,
+          })) ?? undefined;
 
-      if (uploadError) throw uploadError;
+        if (isEditing && previousPath && previousPath !== imagePath) {
+          try {
+            await removeObject({ bucket: "wishlist", path: previousPath });
+          } catch {
+            // Best-effort cleanup of replaced image
+          }
+        }
+      }
 
-      const { error: insertError } = await supabase.from("wishlist_items").insert({
-        created_by: profile.id,
-        title: title.trim() || null,
-        notes: notes.trim() || null,
-        link_url: trimmedLink || null,
-        image_path: filePath,
-        latitude: geo?.latitude ?? null,
-        longitude: geo?.longitude ?? null,
-        accuracy_m: geo?.accuracy_m ?? null,
-        location_source: geo?.source ?? null,
-      });
+      if (!imagePath) {
+        throw new Error("Image is required");
+      }
 
-      if (insertError) throw insertError;
+      if (isEditing && editingItem) {
+        const { data, error } = await supabase
+          .from("wishlist_items")
+          .update({
+            title: title.trim() || null,
+            notes: notes.trim() || null,
+            link_url: trimmedLink || null,
+            image_path: imagePath,
+            latitude,
+            longitude,
+            accuracy_m,
+            location_source,
+          })
+          .eq("id", editingItem.id)
+          .select("*")
+          .single();
 
-      toast.success("Wishlist item added");
-      setTitle("");
-      setNotes("");
-      setLinkUrl("");
-      setImage(null);
-      onSuccess?.();
+        if (error) throw error;
+
+        toast.success("Wishlist item updated");
+        onUpdated?.({
+          ...(data as WishlistItemWithSignedUrl),
+          signedUrl: signedUrl ?? existingImageUrl ?? undefined,
+        });
+        onCancelEdit?.();
+      } else {
+        const { error: insertError } = await supabase
+          .from("wishlist_items")
+          .insert({
+            created_by: profile.id,
+            title: title.trim() || null,
+            notes: notes.trim() || null,
+            link_url: trimmedLink || null,
+            image_path: imagePath,
+            latitude,
+            longitude,
+            accuracy_m,
+            location_source,
+          });
+
+        if (insertError) throw insertError;
+
+        toast.success("Wishlist item added");
+        setTitle("");
+        setNotes("");
+        setLinkUrl("");
+        setImage(null);
+        onSuccess?.();
+      }
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Could not add wishlist item";
+        err instanceof Error ? err.message : "Could not save wishlist item";
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -136,6 +235,8 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
   };
 
   if (!isQueen) return null;
+
+  const displayPreview = preview || existingImageUrl;
 
   return (
     <form
@@ -145,16 +246,32 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
         className
       )}
     >
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gold/30 bg-royal/30">
-          <Heart className="h-5 w-5 text-gold" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gold/30 bg-royal/30">
+            <Heart className="h-5 w-5 text-gold" />
+          </div>
+          <div>
+            <h3 className="font-heading text-xl text-ivory">
+              {isEditing ? "Edit wishlist item" : "Add to wishlist"}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {isEditing
+                ? "Update details or replace the photo"
+                : "Share something you like so he can know your taste"}
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="font-heading text-xl text-ivory">Add to wishlist</h3>
-          <p className="text-xs text-muted-foreground">
-            Share something you like so he can know your taste
-          </p>
-        </div>
+        {isEditing && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancelEdit}
+            className="text-muted-foreground hover:text-ivory"
+          >
+            Cancel
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -193,23 +310,36 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label>Item image</Label>
-        {preview ? (
+        <Label>{isEditing ? "Item image (optional replace)" : "Item image"}</Label>
+        {displayPreview ? (
           <div className="relative overflow-hidden rounded-lg border border-gold/20">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={preview}
+              src={displayPreview}
               alt="Wishlist preview"
               className="max-h-80 w-full object-contain bg-void"
             />
-            <button
-              type="button"
-              onClick={() => setImage(null)}
-              className="absolute right-2 top-2 rounded-full bg-void/80 p-1.5 text-ivory hover:text-gold"
-              aria-label="Remove image"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="absolute right-2 top-2 flex gap-2">
+              {file && (
+                <button
+                  type="button"
+                  onClick={() => setImage(null)}
+                  className="rounded-full bg-void/80 p-1.5 text-ivory hover:text-gold"
+                  aria-label="Remove new image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              <label className="cursor-pointer rounded-full bg-void/80 px-2.5 py-1.5 text-xs text-ivory hover:text-gold">
+                Replace
+                <input
+                  type="file"
+                  accept={ACCEPTED_TYPES.join(",")}
+                  className="sr-only"
+                  onChange={(e) => pickFile(e.target.files)}
+                />
+              </label>
+            </div>
           </div>
         ) : (
           <label
@@ -246,18 +376,18 @@ export function WishlistForm({ onSuccess, className }: WishlistFormProps) {
 
       <Button
         type="submit"
-        disabled={submitting || !file}
+        disabled={submitting || (!isEditing && !file)}
         className="w-full bg-gold text-void hover:bg-gold-muted"
       >
         {submitting ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Adding…
+            {isEditing ? "Saving…" : "Adding…"}
           </>
         ) : (
           <>
             <Heart className="mr-2 h-4 w-4" />
-            Add to wishlist
+            {isEditing ? "Save changes" : "Add to wishlist"}
           </>
         )}
       </Button>

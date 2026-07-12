@@ -22,6 +22,7 @@ import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
@@ -82,7 +83,6 @@ async function withSignedUrls(
   teases: TeaseWithSignedUrl[],
   { isQueen }: { isQueen: boolean }
 ): Promise<TeaseWithSignedUrl[]> {
-  const supabase = createClient();
   return Promise.all(
     teases.map(async (t) => {
       if (!t.image_path) return t;
@@ -95,10 +95,13 @@ async function withSignedUrls(
         return { ...t, signedUrl: undefined };
       }
       // Blurred (and non-timed clear) teases: show in grid for both roles
-      const { data } = await supabase.storage
-        .from("teases")
-        .createSignedUrl(t.image_path, isQueen ? 3600 : 600);
-      return { ...t, signedUrl: data?.signedUrl };
+      const signedUrl =
+        (await signObjectUrl({
+          bucket: "teases",
+          path: t.image_path,
+          expiresIn: isQueen ? 3600 : 600,
+        })) ?? undefined;
+      return { ...t, signedUrl };
     })
   );
 }
@@ -225,14 +228,13 @@ export default function TeasesPage() {
           );
         }
         const ext = uploadFile.name.split(".").pop() || "jpg";
-        imagePath = `${profile.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("teases")
-          .upload(imagePath, uploadFile, {
-            upsert: false,
-            contentType: uploadFile.type || undefined,
-          });
-        if (uploadError) throw uploadError;
+        imagePath = await presignAndUpload({
+          bucket: "teases",
+          file: uploadFile,
+          contentType: uploadFile.type || "image/jpeg",
+          ext,
+          relativePath: `${profile.id}/${Date.now()}.${ext}`,
+        });
       }
 
       const taskGated = taskLabels.length > 0;
@@ -381,18 +383,21 @@ export default function TeasesPage() {
       return;
 
     setOpening(tease.id);
-    const supabase = createClient();
-    const { data } = await supabase.storage
-      .from("teases")
-      .createSignedUrl(tease.image_path, Math.max(tease.view_duration_seconds ?? 60, 60));
+    const expiresIn = Math.max(tease.view_duration_seconds ?? 60, 60);
+    const signedUrl = await signObjectUrl({
+      bucket: "teases",
+      path: tease.image_path,
+      expiresIn,
+    });
 
-    if (!data?.signedUrl) {
+    if (!signedUrl) {
       setOpening(null);
       toast.error("Could not open tease");
       return;
     }
 
     const now = new Date().toISOString();
+    const supabase = createClient();
     await supabase
       .from("teases")
       .update({
@@ -401,7 +406,7 @@ export default function TeasesPage() {
       })
       .eq("id", tease.id);
 
-    setActiveView({ tease, url: data.signedUrl });
+    setActiveView({ tease, url: signedUrl });
     setOpening(null);
   };
 

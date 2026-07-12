@@ -10,7 +10,8 @@ import { formatRelative } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { SignedAvatarImage } from "@/components/ui/signed-avatar-image"
 
 interface CommentThreadProps {
   submissionId: string
@@ -180,7 +181,10 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
         <div className="flex gap-3 py-3">
           <Avatar size="sm">
             {node.author?.avatar_url && (
-              <AvatarImage src={node.author.avatar_url} alt={node.author.username} />
+              <SignedAvatarImage
+                avatarUrl={node.author.avatar_url}
+                alt={node.author.username}
+              />
             )}
             <AvatarFallback className="bg-[color:var(--purple,#2d1b69)] text-[color:var(--gold,#d4af37)]">
               {initials}

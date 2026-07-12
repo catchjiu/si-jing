@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Profile, VoiceEntityType, VoiceNote } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
+import { removeObject } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
@@ -90,7 +91,7 @@ export function VoiceNotes({
 
   const remove = async (note: VoiceNoteWithAuthor) => {
     const supabase = createClient();
-    await supabase.storage.from("voice").remove([note.file_path]);
+    await removeObject({ bucket: "voice", path: note.file_path });
     const { error } = await supabase
       .from("voice_notes")
       .delete()

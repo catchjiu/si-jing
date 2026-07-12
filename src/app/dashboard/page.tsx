@@ -158,13 +158,24 @@ export default async function DashboardPage() {
     const pendingSubmissions = submissions.filter(
       (s) => s.status === "pending"
     ).length;
-    const completed = tasks.filter((t) => t.status === "approved").length;
+
+    const slaveTasks = slaveId
+      ? tasks.filter((t) => t.assigned_to === slaveId)
+      : tasks;
+    const today = new Date();
+    const todayTasks = slaveTasks.filter((t) =>
+      isSameDay(parseISO(t.deadline), today)
+    );
+    const { done: todayDone, total: todayTotal } = dayProgress(todayTasks);
 
     const stats: QueenDashboardStats = {
       tasksAssigned: tasks.length,
       pendingSubmissions,
       completionRate:
-        tasks.length === 0 ? 0 : Math.round((completed / tasks.length) * 100),
+        todayTotal === 0 ? 0 : Math.round((todayDone / todayTotal) * 100),
+      completedToday: todayDone,
+      totalToday: todayTotal,
+      streak: computeStreak(slaveTasks),
       pendingRequests: pendingRequests.length,
       activePunishments: activePunishments.length,
       unackedRules,

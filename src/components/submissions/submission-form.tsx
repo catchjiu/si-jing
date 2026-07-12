@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
 import { downsizeImageIfNeeded } from "@/lib/image-compress"
 import { resolveImageLocation } from "@/lib/location"
+import { presignAndUpload } from "@/lib/storage/client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -125,15 +126,13 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
             )
           }
           const ext = uploadFile.name.split(".").pop() || "jpg"
-          const filePath = `${profile.id}/${submissionId}/${Date.now()}.${ext}`
-          const { error: uploadError } = await supabase.storage
-            .from("submissions")
-            .upload(filePath, uploadFile, {
-              upsert: false,
-              contentType: uploadFile.type || undefined,
-            })
-
-          if (uploadError) throw uploadError
+          const filePath = await presignAndUpload({
+            bucket: "submissions",
+            file: uploadFile,
+            contentType: uploadFile.type || "image/jpeg",
+            ext,
+            relativePath: `${profile.id}/${submissionId}/${Date.now()}.${ext}`,
+          })
 
           const { error: mediaError } = await supabase
             .from("submission_media")
