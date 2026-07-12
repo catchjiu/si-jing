@@ -228,6 +228,45 @@ export type Database = {
           },
         ]
       }
+      request_messages: {
+        Row: {
+          id: string
+          request_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          request_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          request_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "request_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_notes: {
         Row: {
           id: string
@@ -426,6 +465,10 @@ export type Database = {
           viewed_at: string | null
           is_blurred: boolean
           unblurred_at: string | null
+          view_duration_seconds: number | null
+          view_started_at: string | null
+          expired_at: string | null
+          screenshot_flagged_at: string | null
           created_at: string
         }
         Insert: {
@@ -440,6 +483,10 @@ export type Database = {
           viewed_at?: string | null
           is_blurred?: boolean
           unblurred_at?: string | null
+          view_duration_seconds?: number | null
+          view_started_at?: string | null
+          expired_at?: string | null
+          screenshot_flagged_at?: string | null
           created_at?: string
         }
         Update: {
@@ -454,6 +501,10 @@ export type Database = {
           viewed_at?: string | null
           is_blurred?: boolean
           unblurred_at?: string | null
+          view_duration_seconds?: number | null
+          view_started_at?: string | null
+          expired_at?: string | null
+          screenshot_flagged_at?: string | null
           created_at?: string
         }
         Relationships: [

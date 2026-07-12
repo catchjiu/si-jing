@@ -89,6 +89,14 @@ export type DesireRequest = {
   updated_at: string;
 };
 
+export type RequestMessage = {
+  id: string;
+  request_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+};
+
 export type VoiceEntityType =
   | "task"
   | "submission"
@@ -158,6 +166,10 @@ export type Tease = {
   viewed_at: string | null;
   is_blurred: boolean;
   unblurred_at: string | null;
+  view_duration_seconds: number | null;
+  view_started_at: string | null;
+  expired_at: string | null;
+  screenshot_flagged_at: string | null;
   created_at: string;
 };
 

@@ -1,0 +1,195 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Eye, ShieldAlert, Timer } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+type ProtectedTeaseViewerProps = {
+  imageUrl: string;
+  watermark: string;
+  durationSeconds: number | null;
+  title?: string | null;
+  onSessionEnd: (reason: "expired" | "left" | "closed") => void;
+  onSuspiciousCapture?: () => void;
+  className?: string;
+};
+
+/**
+ * Best-effort protection for ephemeral teases.
+ * True screenshot blocking is not possible in iOS Safari; we blank on leave,
+ * disable save/long-press affordances, watermark, and burn timed views.
+ */
+export function ProtectedTeaseViewer({
+  imageUrl,
+  watermark,
+  durationSeconds,
+  title,
+  onSessionEnd,
+  onSuspiciousCapture,
+  className,
+}: ProtectedTeaseViewerProps) {
+  const [blanked, setBlanked] = useState(false);
+  const [remaining, setRemaining] = useState(durationSeconds);
+  const endedRef = useRef(false);
+  const flaggedRef = useRef(false);
+
+  const end = useCallback(
+    (reason: "expired" | "left" | "closed") => {
+      if (endedRef.current) return;
+      endedRef.current = true;
+      setBlanked(true);
+      onSessionEnd(reason);
+    },
+    [onSessionEnd]
+  );
+
+  const flagAndBlank = useCallback(() => {
+    setBlanked(true);
+    if (!flaggedRef.current) {
+      flaggedRef.current = true;
+      onSuspiciousCapture?.();
+    }
+  }, [onSuspiciousCapture]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden") {
+        flagAndBlank();
+        if (durationSeconds) end("left");
+      }
+    };
+    const onBlur = () => {
+      flagAndBlank();
+      if (durationSeconds) end("left");
+    };
+    const onPageHide = () => {
+      flagAndBlank();
+      if (durationSeconds) end("left");
+    };
+
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [durationSeconds, end, flagAndBlank]);
+
+  useEffect(() => {
+    if (!durationSeconds || blanked) return;
+    setRemaining(durationSeconds);
+    const started = Date.now();
+    const id = window.setInterval(() => {
+      const left = Math.max(
+        0,
+        durationSeconds - Math.floor((Date.now() - started) / 1000)
+      );
+      setRemaining(left);
+      if (left <= 0) {
+        window.clearInterval(id);
+        end("expired");
+      }
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [durationSeconds, blanked, end]);
+
+  useEffect(() => {
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener("contextmenu", block);
+    document.addEventListener("dragstart", block);
+    document.addEventListener("selectstart", block);
+    return () => {
+      document.removeEventListener("contextmenu", block);
+      document.removeEventListener("dragstart", block);
+      document.removeEventListener("selectstart", block);
+    };
+  }, []);
+
+  return (
+    <div
+      className={cn(
+        "fixed inset-0 z-[100] flex flex-col bg-void",
+        "select-none [-webkit-touch-callout:none] [-webkit-user-select:none]",
+        className
+      )}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-gold/15 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate font-heading text-ivory">
+            {title || "Tease"}
+          </p>
+          <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <ShieldAlert className="size-3" />
+            Protected view · leave blanks the image
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {durationSeconds != null && remaining != null && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 px-2.5 py-1 text-xs text-gold">
+              <Timer className="size-3.5" />
+              {remaining}s
+            </span>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-muted"
+            onClick={() => end("closed")}
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative flex-1 overflow-hidden bg-black">
+        {blanked ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+            <Eye className="size-8 text-muted-foreground" />
+            <p className="font-heading text-ivory">View ended</p>
+            <p className="text-sm text-muted-foreground">
+              {durationSeconds
+                ? "This timed tease has burned out."
+                : "Image blanked after leaving the screen."}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-contain pointer-events-none select-none [-webkit-touch-callout:none]"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex flex-wrap content-around justify-around gap-8 overflow-hidden opacity-40"
+            >
+              {Array.from({ length: 12 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="rotate-[-24deg] text-[11px] font-medium tracking-wide text-white/80"
+                >
+                  {watermark}
+                </span>
+              ))}
+            </div>
+            {/* Transparent shield against long-press save on some iOS builds */}
+            <div
+              className="absolute inset-0"
+              onContextMenu={(e) => e.preventDefault()}
+              onTouchStart={(e) => {
+                if (e.touches.length > 1) e.preventDefault();
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

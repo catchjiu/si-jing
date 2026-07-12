@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrandLogo } from "@/components/brand-logo"
+import { NotificationBell } from "@/components/layout/notification-bell"
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -112,6 +113,15 @@ export function DashboardNav() {
 
       <Separator className="bg-gold/10" />
 
+      <div className="flex items-center justify-between gap-2 px-4 py-3">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          Alerts
+        </p>
+        <NotificationBell />
+      </div>
+
+      <Separator className="bg-gold/10" />
+
       <nav className="flex flex-col gap-1 px-3 py-4">
         {navLinks.map(({ href, label, icon: Icon }) => {
           const isActive =
@@ -160,16 +170,19 @@ export function DashboardNav() {
           <BrandLogo size="sm" />
           <span className="font-heading text-ivory">Queen Sisi</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-ivory"
-          onClick={() => setMobileOpen((o) => !o)}
-          aria-expanded={mobileOpen}
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-        >
-          {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-ivory"
+            onClick={() => setMobileOpen((o) => !o)}
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          >
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </Button>
+        </div>
       </header>
 
       {/* Mobile drawer portal-like overlay (not a flex sibling that steals width) */}

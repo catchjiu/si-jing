@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import { RequestThread } from "@/components/requests/request-thread";
 
 interface RequestCardProps {
   request: DesireRequest;
@@ -153,6 +154,12 @@ export function RequestCard({
           <p className="text-sm text-ivory/90 whitespace-pre-wrap">
             {request.queen_response}
           </p>
+        </div>
+      )}
+
+      {request.status !== "withdrawn" && (
+        <div className="mt-4 border-t border-gold/10 pt-4">
+          <RequestThread requestId={request.id} />
         </div>
       )}
 

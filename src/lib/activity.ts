@@ -1,0 +1,408 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { UserRole } from "@/lib/types";
+
+export type ActivityItem = {
+  id: string;
+  at: string;
+  title: string;
+  body?: string;
+  href: string;
+  kind: string;
+};
+
+type ProfileRef = { id: string; role: UserRole };
+
+function pushItem(
+  items: ActivityItem[],
+  item: ActivityItem | null | undefined
+) {
+  if (item) items.push(item);
+}
+
+export async function fetchRecentActivity(
+  supabase: SupabaseClient,
+  profile: ProfileRef,
+  limit = 5
+): Promise<ActivityItem[]> {
+  const items: ActivityItem[] = [];
+
+  if (profile.role === "queen") {
+    const [
+      submissions,
+      requests,
+      messages,
+      checkIns,
+      punishments,
+      teases,
+      rewards,
+    ] = await Promise.all([
+      supabase
+        .from("submissions")
+        .select("id, status, submitted_at, task:tasks(title)")
+        .order("submitted_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("requests")
+        .select("id, title, status, created_at, responded_at")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("request_messages")
+        .select(
+          "id, content, created_at, request_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("check_ins")
+        .select("id, title, status, responded_at, closes_at, created_at")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("punishments")
+        .select("id, title, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("teases")
+        .select(
+          "id, title, viewed_at, screenshot_flagged_at, unblurred_at, expired_at, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("rewards")
+        .select("id, title, viewed_at, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    for (const s of submissions.data ?? []) {
+      const taskTitle =
+        (s.task as { title?: string } | null)?.title ?? "a task";
+      pushItem(items, {
+        id: `sub-${s.id}`,
+        at: s.submitted_at as string,
+        title: "New submission",
+        body: taskTitle,
+        href: `/dashboard/submissions/${s.id}`,
+        kind: "submission",
+      });
+    }
+
+    for (const r of requests.data ?? []) {
+      pushItem(items, {
+        id: `req-${r.id}`,
+        at: r.created_at as string,
+        title: "New request",
+        body: r.title as string,
+        href: "/dashboard/requests",
+        kind: "request",
+      });
+    }
+
+    for (const m of messages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role === "queen") continue;
+      pushItem(items, {
+        id: `rmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Message from D",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/requests",
+        kind: "request_message",
+      });
+    }
+
+    for (const c of checkIns.data ?? []) {
+      if (c.status === "completed" && c.responded_at) {
+        pushItem(items, {
+          id: `ci-done-${c.id}`,
+          at: c.responded_at as string,
+          title: "Check-in completed",
+          body: c.title as string,
+          href: "/dashboard/check-ins",
+          kind: "check_in",
+        });
+      } else if (c.status === "missed") {
+        pushItem(items, {
+          id: `ci-miss-${c.id}`,
+          at: (c.closes_at as string) || (c.created_at as string),
+          title: "Check-in missed",
+          body: c.title as string,
+          href: "/dashboard/check-ins",
+          kind: "check_in_missed",
+        });
+      }
+    }
+
+    for (const p of punishments.data ?? []) {
+      pushItem(items, {
+        id: `pun-pending-${p.id}`,
+        at: p.created_at as string,
+        title: "Pending punishment",
+        body: (p.title as string) || "Needs confirmation",
+        href: "/dashboard/punishments",
+        kind: "punishment_pending",
+      });
+    }
+
+    for (const t of teases.data ?? []) {
+      if (t.screenshot_flagged_at) {
+        pushItem(items, {
+          id: `tease-cap-${t.id}`,
+          at: t.screenshot_flagged_at as string,
+          title: "Tease capture alert",
+          body: (t.title as string) || "D may have left mid-view",
+          href: "/dashboard/teases",
+          kind: "tease_capture",
+        });
+      }
+      if (t.viewed_at) {
+        pushItem(items, {
+          id: `tease-view-${t.id}`,
+          at: t.viewed_at as string,
+          title: "Tease viewed",
+          body: (t.title as string) || "D opened a tease",
+          href: "/dashboard/teases",
+          kind: "tease_viewed",
+        });
+      }
+    }
+
+    for (const r of rewards.data ?? []) {
+      if (r.viewed_at) {
+        pushItem(items, {
+          id: `rew-view-${r.id}`,
+          at: r.viewed_at as string,
+          title: "Reward opened",
+          body: (r.title as string) || "D viewed a reward",
+          href: "/dashboard/rewards",
+          kind: "reward_viewed",
+        });
+      }
+    }
+  } else {
+    const [
+      tasks,
+      submissions,
+      rewards,
+      punishments,
+      requests,
+      messages,
+      checkIns,
+      teases,
+      rules,
+    ] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, title, status, created_at, updated_at, assigned_to, parent_task_id, is_recurring")
+        .eq("assigned_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(12),
+      supabase
+        .from("submissions")
+        .select("id, status, submitted_at, feedback, task_id, task:tasks(title)")
+        .eq("submitted_by", profile.id)
+        .in("status", ["approved", "rejected"])
+        .order("submitted_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("rewards")
+        .select("id, title, created_at, viewed_at")
+        .eq("sent_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("punishments")
+        .select("id, title, status, created_at, starts_at")
+        .eq("issued_to", profile.id)
+        .in("status", ["active", "pending"])
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("requests")
+        .select("id, title, status, queen_response, responded_at, created_at")
+        .eq("requested_by", profile.id)
+        .order("updated_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("request_messages")
+        .select(
+          "id, content, created_at, request_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("check_ins")
+        .select("id, title, status, opens_at, created_at")
+        .eq("assigned_to", profile.id)
+        .eq("status", "open")
+        .order("opens_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("teases")
+        .select(
+          "id, title, is_blurred, unblurred_at, unlocks_at, expired_at, created_at"
+        )
+        .eq("sent_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("rules")
+        .select("id, title, created_at, is_active")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    for (const t of tasks.data ?? []) {
+      // Skip recurring templates (shown via dated occurrences)
+      if (t.is_recurring && !t.parent_task_id) continue;
+      pushItem(items, {
+        id: `task-${t.id}`,
+        at: t.created_at as string,
+        title: "New task",
+        body: t.title as string,
+        href: `/dashboard/task/${t.id}`,
+        kind: "task",
+      });
+    }
+
+    for (const s of submissions.data ?? []) {
+      const taskTitle =
+        (s.task as { title?: string } | null)?.title ?? "your submission";
+      pushItem(items, {
+        id: `rev-${s.id}`,
+        at: s.submitted_at as string,
+        title: s.status === "approved" ? "Submission approved" : "Submission rejected",
+        body: taskTitle,
+        href: `/dashboard/submissions/${s.id}`,
+        kind: "review",
+      });
+    }
+
+    for (const r of rewards.data ?? []) {
+      pushItem(items, {
+        id: `rew-${r.id}`,
+        at: r.created_at as string,
+        title: "New reward",
+        body: (r.title as string) || "A gift from Queen",
+        href: "/dashboard/rewards",
+        kind: "reward",
+      });
+    }
+
+    for (const p of punishments.data ?? []) {
+      pushItem(items, {
+        id: `pun-${p.id}`,
+        at: (p.starts_at as string) || (p.created_at as string),
+        title: p.status === "pending" ? "Suggested punishment" : "Punishment active",
+        body: (p.title as string) || "Consequence issued",
+        href: "/dashboard/punishments",
+        kind: "punishment",
+      });
+    }
+
+    for (const r of requests.data ?? []) {
+      if (r.responded_at && r.queen_response) {
+        pushItem(items, {
+          id: `req-reply-${r.id}`,
+          at: r.responded_at as string,
+          title: `Request ${r.status}`,
+          body: r.title as string,
+          href: "/dashboard/requests",
+          kind: "request_reply",
+        });
+      }
+    }
+
+    for (const m of messages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role !== "queen") continue;
+      pushItem(items, {
+        id: `rmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Message from Queen",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/requests",
+        kind: "request_message",
+      });
+    }
+
+    for (const c of checkIns.data ?? []) {
+      pushItem(items, {
+        id: `ci-open-${c.id}`,
+        at: (c.opens_at as string) || (c.created_at as string),
+        title: "Check-in open",
+        body: c.title as string,
+        href: "/dashboard/check-ins",
+        kind: "check_in_open",
+      });
+    }
+
+    for (const t of teases.data ?? []) {
+      if (t.expired_at) continue;
+      if (!t.is_blurred && t.unblurred_at) {
+        pushItem(items, {
+          id: `tease-rev-${t.id}`,
+          at: t.unblurred_at as string,
+          title: "Tease revealed",
+          body: (t.title as string) || "Queen revealed a tease",
+          href: "/dashboard/teases",
+          kind: "tease_revealed",
+        });
+      } else {
+        pushItem(items, {
+          id: `tease-new-${t.id}`,
+          at: t.created_at as string,
+          title: "New tease",
+          body: (t.title as string) || "Something waiting for you",
+          href: "/dashboard/teases",
+          kind: "tease_new",
+        });
+      }
+    }
+
+    for (const rule of rules.data ?? []) {
+      pushItem(items, {
+        id: `rule-${rule.id}`,
+        at: rule.created_at as string,
+        title: "Protocol rule",
+        body: rule.title as string,
+        href: "/dashboard/protocol",
+        kind: "rule",
+      });
+    }
+  }
+
+  // Dedupe by id, sort newest first, take limit
+  const seen = new Set<string>();
+  return items
+    .filter((i) => {
+      if (seen.has(i.id)) return false;
+      seen.add(i.id);
+      return true;
+    })
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, limit);
+}
+
+const SEEN_KEY = "queen-sisi:activity-seen-at";
+
+export function getActivitySeenAt(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SEEN_KEY);
+}
+
+export function markActivitySeen(iso = new Date().toISOString()) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SEEN_KEY, iso);
+}
+
+export function countUnseen(items: ActivityItem[], seenAt: string | null) {
+  if (!seenAt) return items.length;
+  const t = new Date(seenAt).getTime();
+  return items.filter((i) => new Date(i.at).getTime() > t).length;
+}
