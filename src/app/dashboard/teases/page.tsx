@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { EyeOff, ImagePlus, Loader2, Lock, Sparkles, X } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  ImagePlus,
+  Loader2,
+  Lock,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
@@ -16,15 +24,21 @@ import { cn } from "@/lib/utils";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
+function isTimeUnlocked(unlocksAt: string) {
+  return new Date(unlocksAt) <= new Date();
+}
+
 async function withSignedUrls(
-  teases: TeaseWithSignedUrl[]
+  teases: TeaseWithSignedUrl[],
+  { isQueen }: { isQueen: boolean }
 ): Promise<TeaseWithSignedUrl[]> {
   const supabase = createClient();
   return Promise.all(
     teases.map(async (t) => {
       if (!t.image_path) return t;
-      const unlocked = new Date(t.unlocks_at) <= new Date();
-      if (!unlocked) return { ...t, signedUrl: undefined };
+      const unlocked = isTimeUnlocked(t.unlocks_at);
+      // Queen always sees the image; D only after time unlock (blurred or clear)
+      if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
       const { data } = await supabase.storage
         .from("teases")
         .createSignedUrl(t.image_path, 3600);
@@ -41,9 +55,11 @@ export default function TeasesPage() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [unlockLocal, setUnlockLocal] = useState("");
+  const [startBlurred, setStartBlurred] = useState(true);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -52,13 +68,15 @@ export default function TeasesPage() {
     let query = supabase
       .from("teases")
       .select("*")
-      .order("unlocks_at", { ascending: true });
+      .order("created_at", { ascending: false });
     if (isSlave) query = query.eq("sent_to", profile.id);
     const { data } = await query;
-    const signed = await withSignedUrls((data ?? []) as TeaseWithSignedUrl[]);
+    const signed = await withSignedUrls((data ?? []) as TeaseWithSignedUrl[], {
+      isQueen: !!isQueen,
+    });
     setItems(signed);
     setLoading(false);
-  }, [profile, isSlave]);
+  }, [profile, isSlave, isQueen]);
 
   useEffect(() => {
     if (!authLoading && profile) void load();
@@ -82,14 +100,15 @@ export default function TeasesPage() {
     if (preview) URL.revokeObjectURL(preview);
     setFile(next);
     setPreview(next ? URL.createObjectURL(next) : null);
+    if (next) setStartBlurred(true);
   };
 
   const createTease = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isQueen || !profile || !recipient) return;
-    const unlocks = unlockLocal ? new Date(unlockLocal) : null;
-    if (!unlocks || Number.isNaN(unlocks.getTime())) {
-      toast.error("Pick an unlock time");
+    const unlocks = unlockLocal ? new Date(unlockLocal) : new Date();
+    if (Number.isNaN(unlocks.getTime())) {
+      toast.error("Pick a valid unlock time");
       return;
     }
     if (!title.trim() && !message.trim() && !file) {
@@ -110,6 +129,8 @@ export default function TeasesPage() {
         if (uploadError) throw uploadError;
       }
 
+      const blurred = !!imagePath && startBlurred;
+
       const { error } = await supabase.from("teases").insert({
         sent_by: profile.id,
         sent_to: recipient.id,
@@ -117,13 +138,16 @@ export default function TeasesPage() {
         message: message.trim() || null,
         image_path: imagePath,
         unlocks_at: unlocks.toISOString(),
+        is_blurred: blurred,
+        unblurred_at: blurred ? null : new Date().toISOString(),
       });
       if (error) throw error;
 
-      toast.success("Tease queued");
+      toast.success(blurred ? "Blurred tease queued" : "Tease queued");
       setTitle("");
       setMessage("");
       setUnlockLocal("");
+      setStartBlurred(true);
       setImage(null);
       void load();
     } catch (err) {
@@ -133,9 +157,29 @@ export default function TeasesPage() {
     }
   };
 
+  const setBlurred = async (tease: TeaseWithSignedUrl, blurred: boolean) => {
+    if (!isQueen) return;
+    setToggling(tease.id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("teases")
+      .update({
+        is_blurred: blurred,
+        unblurred_at: blurred ? null : new Date().toISOString(),
+      })
+      .eq("id", tease.id);
+    setToggling(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(blurred ? "Image blurred again" : "Image revealed");
+    void load();
+  };
+
   const markViewed = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || tease.viewed_at) return;
-    if (new Date(tease.unlocks_at) > new Date()) return;
+    if (!isTimeUnlocked(tease.unlocks_at) || tease.is_blurred) return;
     const supabase = createClient();
     await supabase
       .from("teases")
@@ -157,8 +201,8 @@ export default function TeasesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Schedule delayed messages and images that unlock later"
-            : "Locked gifts — wait for the unlock"}
+            ? "Send a blurred tease — reveal the picture when you decide"
+            : "Blurred gifts — Queen decides when you may see clearly"}
         </p>
       </div>
 
@@ -186,14 +230,16 @@ export default function TeasesPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Unlocks at</Label>
+            <Label>Available from (optional)</Label>
             <Input
               type="datetime-local"
               value={unlockLocal}
               onChange={(e) => setUnlockLocal(e.target.value)}
               className="border-gold/20 bg-void/60"
-              required
             />
+            <p className="text-xs text-muted-foreground">
+              Leave empty to make it available now (still blurred if you choose)
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Image (optional)</Label>
@@ -203,7 +249,10 @@ export default function TeasesPage() {
                 <img
                   src={preview}
                   alt="Preview"
-                  className="max-h-64 w-full object-contain bg-void"
+                  className={cn(
+                    "max-h-64 w-full object-contain bg-void transition",
+                    startBlurred && "scale-110 blur-2xl"
+                  )}
                 />
                 <button
                   type="button"
@@ -231,6 +280,19 @@ export default function TeasesPage() {
               </label>
             )}
           </div>
+          {file && (
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gold/15 bg-void/40 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={startBlurred}
+                onChange={(e) => setStartBlurred(e.target.checked)}
+                className="size-4 accent-[var(--gold,#d4af37)]"
+              />
+              <span className="text-sm text-ivory">
+                Start blurred — I will reveal it later
+              </span>
+            </label>
+          )}
           <Button
             type="submit"
             disabled={submitting}
@@ -251,58 +313,124 @@ export default function TeasesPage() {
           <p className="text-sm text-muted-foreground">No teases yet.</p>
         ) : (
           items.map((t) => {
-            const unlocked = new Date(t.unlocks_at) <= new Date();
+            const timeReady = isTimeUnlocked(t.unlocks_at);
+            const showImage = isQueen || timeReady;
+            const visuallyBlurred = !!t.image_path && t.is_blurred;
+            const fullyRevealed = showImage && !visuallyBlurred;
+
             return (
               <article
                 key={t.id}
                 className={cn(
                   "overflow-hidden rounded-xl border bg-charcoal/80",
-                  unlocked ? "border-gold/30" : "border-gold/15"
+                  fullyRevealed ? "border-gold/30" : "border-gold/15"
                 )}
-                onClick={() => unlocked && void markViewed(t)}
+                onClick={() => fullyRevealed && void markViewed(t)}
               >
-                <div className="relative aspect-[4/5] bg-void">
-                  {!unlocked ? (
+                <div className="relative aspect-[4/5] bg-void overflow-hidden">
+                  {!showImage ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
                       <Lock className="h-8 w-8 text-gold/50" />
                       <p className="font-heading text-ivory">
                         {t.title || "Locked tease"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Unlocks {formatDeadline(t.unlocks_at)}
+                        Available {formatDeadline(t.unlocks_at)}
                       </p>
                     </div>
                   ) : t.signedUrl ? (
-                    <Image
-                      src={t.signedUrl}
-                      alt={t.title || "Tease"}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      sizes="50vw"
-                    />
+                    <>
+                      <Image
+                        src={t.signedUrl}
+                        alt={t.title || "Tease"}
+                        fill
+                        unoptimized
+                        className={cn(
+                          "object-cover transition duration-700",
+                          visuallyBlurred &&
+                            "scale-125 blur-3xl brightness-75 saturate-50"
+                        )}
+                        sizes="50vw"
+                      />
+                      {visuallyBlurred && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-void/20 p-4 text-center">
+                          <EyeOff className="h-7 w-7 text-gold/80" />
+                          <p className="font-heading text-ivory drop-shadow">
+                            {t.title || "Blurred tease"}
+                          </p>
+                          <p className="text-xs text-ivory/70">
+                            {isQueen
+                              ? "D sees this blurred until you reveal"
+                              : "Waiting for Queen to reveal"}
+                          </p>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="flex h-full items-center justify-center p-4">
                       <Sparkles className="h-8 w-8 text-gold/40" />
                     </div>
                   )}
                 </div>
-                {unlocked && (
-                  <div className="space-y-1 p-4">
+
+                <div className="space-y-3 p-4">
+                  <div className="space-y-1">
                     <p className="font-heading text-ivory">
-                      {t.title || "Unlocked"}
+                      {t.title || (fullyRevealed ? "Unlocked" : "Tease")}
                     </p>
-                    {t.message && (
-                      <p className="whitespace-pre-wrap text-sm text-ivory/80">
+                    {(fullyRevealed || isQueen) && t.message && (
+                      <p
+                        className={cn(
+                          "whitespace-pre-wrap text-sm text-ivory/80",
+                          visuallyBlurred && isSlave && "blur-sm select-none"
+                        )}
+                      >
                         {t.message}
                       </p>
                     )}
+                    {!fullyRevealed && isSlave && t.message && (
+                      <p className="text-xs text-muted-foreground italic">
+                        Message hidden until reveal
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      Unlocked {formatRelative(t.unlocks_at)}
+                      {visuallyBlurred
+                        ? "Blurred"
+                        : t.unblurred_at
+                          ? `Revealed ${formatRelative(t.unblurred_at)}`
+                          : timeReady
+                            ? `Available ${formatRelative(t.unlocks_at)}`
+                            : `Available ${formatDeadline(t.unlocks_at)}`}
                       {t.viewed_at ? " · viewed" : ""}
                     </p>
                   </div>
-                )}
+
+                  {isQueen && t.image_path && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={toggling === t.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void setBlurred(t, !t.is_blurred);
+                      }}
+                      className={
+                        t.is_blurred
+                          ? "bg-gold text-void hover:bg-gold-muted"
+                          : "border border-muted bg-transparent text-ivory hover:bg-void/60"
+                      }
+                    >
+                      {toggling === t.id ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : t.is_blurred ? (
+                        <Eye className="mr-2 h-3.5 w-3.5" />
+                      ) : (
+                        <EyeOff className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      {t.is_blurred ? "Reveal image" : "Blur again"}
+                    </Button>
+                  )}
+                </div>
               </article>
             );
           })

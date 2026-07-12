@@ -424,6 +424,8 @@ export type Database = {
           unlocks_at: string
           unlocked_notified_at: string | null
           viewed_at: string | null
+          is_blurred: boolean
+          unblurred_at: string | null
           created_at: string
         }
         Insert: {
@@ -436,6 +438,8 @@ export type Database = {
           unlocks_at: string
           unlocked_notified_at?: string | null
           viewed_at?: string | null
+          is_blurred?: boolean
+          unblurred_at?: string | null
           created_at?: string
         }
         Update: {
@@ -448,6 +452,8 @@ export type Database = {
           unlocks_at?: string
           unlocked_notified_at?: string | null
           viewed_at?: string | null
+          is_blurred?: boolean
+          unblurred_at?: string | null
           created_at?: string
         }
         Relationships: [
