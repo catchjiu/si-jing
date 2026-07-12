@@ -1,0 +1,442 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import { toast } from "sonner";
+import {
+  ImagePlus,
+  Loader2,
+  Link2,
+  Send,
+  Trash2,
+  Video,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/auth-context";
+import { formatRelative } from "@/lib/format";
+import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
+import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl } from "@/lib/types";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+
+type Props = {
+  dateId: string;
+  dateTitle?: string | null;
+  canPost: boolean;
+  onPosted?: () => void;
+};
+
+async function withSignedUrls(
+  posts: DatePost[]
+): Promise<DatePostWithSignedUrl[]> {
+  const supabase = createClient();
+  return Promise.all(
+    posts.map(async (p) => {
+      if (!p.file_path) return p;
+      const { data } = await supabase.storage
+        .from("date_posts")
+        .createSignedUrl(p.file_path, 3600);
+      return { ...p, signedUrl: data?.signedUrl };
+    })
+  );
+}
+
+export function DateTimeline({
+  dateId,
+  dateTitle,
+  canPost,
+  onPosted,
+}: Props) {
+  const { profile, isQueen } = useAuth();
+  const [posts, setPosts] = useState<DatePostWithSignedUrl[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [body, setBody] = useState("");
+  const [youtube, setYoutube] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("date_posts")
+      .select("*")
+      .eq("date_id", dateId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+    const signed = await withSignedUrls((data ?? []) as DatePost[]);
+    setPosts(signed);
+    setLoading(false);
+  }, [dateId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`date-posts:${dateId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "date_posts",
+          filter: `date_id=eq.${dateId}`,
+        },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [dateId, load]);
+
+  const clearMedia = () => {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+  };
+
+  const pickFile = (f: File | null) => {
+    clearMedia();
+    if (!f) return;
+    const isImage = IMAGE_TYPES.includes(f.type);
+    const isVideo = VIDEO_TYPES.includes(f.type);
+    if (!isImage && !isVideo) {
+      toast.error("Use an image or video file");
+      return;
+    }
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setYoutube("");
+  };
+
+  const publish = async () => {
+    if (!canPost || !profile) return;
+    const text = body.trim();
+    const yt = youtube.trim();
+    if (!text && !file && !yt) {
+      toast.error("Write something, attach media, or add a YouTube link");
+      return;
+    }
+    if (yt && !isValidYouTubeUrl(yt)) {
+      toast.error("Enter a valid YouTube URL");
+      return;
+    }
+
+    setSubmitting(true);
+    const supabase = createClient();
+    try {
+      let mediaKind: DatePostMediaKind = "text";
+      let filePath: string | null = null;
+      let youtubeUrl: string | null = null;
+
+      if (file) {
+        const isVideo = VIDEO_TYPES.includes(file.type);
+        mediaKind = isVideo ? "video" : "image";
+        const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
+        filePath = `${profile.id}/${dateId}/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("date_posts")
+          .upload(filePath, file, { upsert: false });
+        if (uploadError) throw uploadError;
+      } else if (yt) {
+        mediaKind = "youtube";
+        youtubeUrl = yt;
+      }
+
+      const { error } = await supabase.from("date_posts").insert({
+        date_id: dateId,
+        author_id: profile.id,
+        body: text || null,
+        media_kind: mediaKind,
+        file_path: filePath,
+        youtube_url: youtubeUrl,
+      });
+      if (error) throw error;
+
+      toast.success("Posted to timeline");
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "New date timeline post",
+          body: dateTitle || text.slice(0, 80) || "D posted on a date",
+          url: "/dashboard/dates",
+          target: "queen",
+        })
+      );
+      setBody("");
+      setYoutube("");
+      clearMedia();
+      void load();
+      onPosted?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not post");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const remove = async (post: DatePostWithSignedUrl) => {
+    if (!profile) return;
+    if (post.author_id !== profile.id && !isQueen) return;
+    setDeleting(post.id);
+    const supabase = createClient();
+    if (post.file_path) {
+      await supabase.storage.from("date_posts").remove([post.file_path]);
+    }
+    const { error } = await supabase
+      .from("date_posts")
+      .delete()
+      .eq("id", post.id);
+    setDeleting(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Post removed");
+    void load();
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
+        Timeline
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading posts…</p>
+      ) : posts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {canPost
+            ? "No posts yet — share thoughts, photos, videos, or a YouTube link."
+            : "No timeline posts yet."}
+        </p>
+      ) : (
+        <ol className="relative space-y-4 border-l border-gold/20 pl-4">
+          {posts.map((post) => {
+            const embed =
+              post.youtube_url && isValidYouTubeUrl(post.youtube_url)
+                ? getYouTubeEmbedUrl(post.youtube_url)
+                : null;
+            const canDelete =
+              profile?.id === post.author_id || !!isQueen;
+
+            return (
+              <li key={post.id} className="relative space-y-2">
+                <span className="absolute -left-[1.35rem] top-1.5 size-2.5 rounded-full bg-gold" />
+                <div className="rounded-lg border border-gold/10 bg-void/50 p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatRelative(post.created_at)}
+                      {post.media_kind !== "text" ? ` · ${post.media_kind}` : ""}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      {isQueen && (
+                        <KeepInEvidenceButton
+                          sourceType="date_post"
+                          sourceId={post.id}
+                          mediaKind={
+                            post.media_kind === "text"
+                              ? "text"
+                              : post.media_kind
+                          }
+                          title={
+                            dateTitle
+                              ? `Date · ${dateTitle}`
+                              : "Date timeline"
+                          }
+                          caption={post.body}
+                          youtubeUrl={post.youtube_url}
+                          filePath={post.file_path}
+                          storageBucket={
+                            post.file_path ? "date_posts" : null
+                          }
+                          label="Keep"
+                          className="h-7 px-2 text-[11px]"
+                        />
+                      )}
+                      {canDelete && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={deleting === post.id}
+                          className="size-7 text-muted-foreground hover:text-red-300"
+                          onClick={() => void remove(post)}
+                          aria-label="Delete post"
+                        >
+                          {deleting === post.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {post.body && (
+                    <p className="whitespace-pre-wrap text-sm text-ivory/90">
+                      {post.body}
+                    </p>
+                  )}
+
+                  {post.media_kind === "image" && post.signedUrl && (
+                    <div className="relative aspect-[4/5] max-h-80 overflow-hidden rounded-md border border-gold/15">
+                      <Image
+                        src={post.signedUrl}
+                        alt="Timeline photo"
+                        fill
+                        unoptimized
+                        className="object-cover"
+                        sizes="400px"
+                      />
+                    </div>
+                  )}
+
+                  {post.media_kind === "video" && post.signedUrl && (
+                    <video
+                      src={post.signedUrl}
+                      controls
+                      playsInline
+                      className="max-h-80 w-full rounded-md border border-gold/15 bg-black"
+                    />
+                  )}
+
+                  {embed && (
+                    <div className="aspect-video overflow-hidden rounded-md border border-gold/15">
+                      <iframe
+                        src={embed}
+                        title="YouTube"
+                        className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {canPost && (
+        <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-3">
+          <div className="space-y-2">
+            <Label>New post</Label>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              placeholder="What’s happening… how you feel…"
+              className="border-gold/20 bg-void/60"
+            />
+          </div>
+
+          {preview && file ? (
+            <div className="relative overflow-hidden rounded-md border border-gold/15">
+              {VIDEO_TYPES.includes(file.type) ? (
+                <video
+                  src={preview}
+                  controls
+                  className="max-h-48 w-full bg-black"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="max-h-48 w-full object-contain bg-void"
+                />
+              )}
+              <button
+                type="button"
+                onClick={clearMedia}
+                className="absolute right-2 top-2 rounded-full bg-void/80 p-1.5 text-ivory"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <label
+                className={cn(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gold/20 px-3 py-1.5 text-xs text-ivory hover:border-gold/40"
+                )}
+              >
+                <ImagePlus className="h-3.5 w-3.5 text-gold" />
+                Photo
+                <input
+                  type="file"
+                  accept={IMAGE_TYPES.join(",")}
+                  className="sr-only"
+                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gold/20 px-3 py-1.5 text-xs text-ivory hover:border-gold/40">
+                <Video className="h-3.5 w-3.5 text-gold" />
+                Video
+                <input
+                  type="file"
+                  accept={VIDEO_TYPES.join(",")}
+                  className="sr-only"
+                  onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            </div>
+          )}
+
+          {!file && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Link2 className="h-3.5 w-3.5" />
+                YouTube URL (optional)
+              </Label>
+              <Input
+                value={youtube}
+                onChange={(e) => {
+                  setYoutube(e.target.value);
+                  if (e.target.value.trim()) clearMedia();
+                }}
+                placeholder="https://youtube.com/watch?v=…"
+                className="border-gold/20 bg-void/60"
+              />
+            </div>
+          )}
+
+          <Button
+            type="button"
+            disabled={submitting}
+            onClick={() => void publish()}
+            className="bg-gold text-void hover:bg-gold-muted"
+          >
+            {submitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            Post to timeline
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -627,6 +627,107 @@ export type Database = {
           },
         ]
       }
+      evidence_pins: {
+        Row: {
+          id: string
+          pinned_by: string
+          source_type: string
+          source_id: string
+          media_kind: string
+          title: string
+          caption: string | null
+          youtube_url: string | null
+          file_path: string | null
+          storage_bucket: string | null
+          meta: Record<string, unknown> | null
+          pinned_at: string
+        }
+        Insert: {
+          id?: string
+          pinned_by: string
+          source_type: string
+          source_id: string
+          media_kind: string
+          title: string
+          caption?: string | null
+          youtube_url?: string | null
+          file_path?: string | null
+          storage_bucket?: string | null
+          meta?: Record<string, unknown> | null
+          pinned_at?: string
+        }
+        Update: {
+          id?: string
+          pinned_by?: string
+          source_type?: string
+          source_id?: string
+          media_kind?: string
+          title?: string
+          caption?: string | null
+          youtube_url?: string | null
+          file_path?: string | null
+          storage_bucket?: string | null
+          meta?: Record<string, unknown> | null
+          pinned_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_pins_pinned_by_fkey"
+            columns: ["pinned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      date_posts: {
+        Row: {
+          id: string
+          date_id: string
+          author_id: string
+          body: string | null
+          media_kind: string
+          file_path: string | null
+          youtube_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date_id: string
+          author_id: string
+          body?: string | null
+          media_kind?: string
+          file_path?: string | null
+          youtube_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date_id?: string
+          author_id?: string
+          body?: string | null
+          media_kind?: string
+          file_path?: string | null
+          youtube_url?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_posts_date_id_fkey"
+            columns: ["date_id"]
+            isOneToOne: false
+            referencedRelation: "queen_dates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teases: {
         Row: {
           id: string

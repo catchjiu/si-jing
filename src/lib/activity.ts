@@ -36,6 +36,8 @@ export async function fetchRecentActivity(
       teases,
       rewards,
       dates,
+      teaseMessages,
+      voiceNotes,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -82,6 +84,20 @@ export async function fetchRecentActivity(
         .select("id, title, reacted_at, scheduled_at, created_at")
         .not("reacted_at", "is", null)
         .order("reacted_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("tease_messages")
+        .select(
+          "id, content, created_at, tease_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("voice_notes")
+        .select(
+          "id, entity_type, entity_id, created_at, created_by, author:users!created_by(role, username)"
+        )
+        .order("created_at", { ascending: false })
         .limit(8),
     ]);
 
@@ -202,6 +218,43 @@ export async function fetchRecentActivity(
         kind: "date_reaction",
       });
     }
+
+    for (const m of teaseMessages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role === "queen") continue;
+      pushItem(items, {
+        id: `tmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Beg on tease",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/teases",
+        kind: "tease_message",
+      });
+    }
+
+    for (const v of voiceNotes.data ?? []) {
+      const author = v.author as { role?: string; username?: string } | null;
+      if (author?.role === "queen") continue;
+      const href =
+        v.entity_type === "date"
+          ? "/dashboard/dates"
+          : v.entity_type === "tease"
+            ? "/dashboard/teases"
+            : "/dashboard";
+      pushItem(items, {
+        id: `voice-${v.id}`,
+        at: v.created_at as string,
+        title: "Voice from D",
+        body:
+          v.entity_type === "tease"
+            ? "Voice beg on a tease"
+            : v.entity_type === "date"
+              ? "Voice on a date"
+              : "New voice message",
+        href,
+        kind: "voice_note",
+      });
+    }
   } else {
     const [
       tasks,
@@ -214,6 +267,8 @@ export async function fetchRecentActivity(
       teases,
       rules,
       dates,
+      teaseMessages,
+      voiceNotes,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -279,6 +334,20 @@ export async function fetchRecentActivity(
         .from("queen_dates")
         .select("id, title, scheduled_at, created_at")
         .eq("assigned_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("tease_messages")
+        .select(
+          "id, content, created_at, tease_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("voice_notes")
+        .select(
+          "id, entity_type, entity_id, created_at, created_by, author:users!created_by(role, username)"
+        )
         .order("created_at", { ascending: false })
         .limit(8),
     ]);
@@ -410,6 +479,43 @@ export async function fetchRecentActivity(
         body: (d.title as string) || "Queen scheduled a date",
         href: "/dashboard/dates",
         kind: "date_new",
+      });
+    }
+
+    for (const m of teaseMessages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role !== "queen") continue;
+      pushItem(items, {
+        id: `tmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Queen replied on tease",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/teases",
+        kind: "tease_message",
+      });
+    }
+
+    for (const v of voiceNotes.data ?? []) {
+      const author = v.author as { role?: string; username?: string } | null;
+      if (author?.role !== "queen") continue;
+      const href =
+        v.entity_type === "date"
+          ? "/dashboard/dates"
+          : v.entity_type === "tease"
+            ? "/dashboard/teases"
+            : "/dashboard";
+      pushItem(items, {
+        id: `voice-${v.id}`,
+        at: v.created_at as string,
+        title: "Voice from Queen",
+        body:
+          v.entity_type === "tease"
+            ? "Voice reply on a tease"
+            : v.entity_type === "date"
+              ? "Voice on a date"
+              : "New voice message",
+        href,
+        kind: "voice_note",
       });
     }
   }

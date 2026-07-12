@@ -54,6 +54,7 @@ export function VoiceRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const startRef = useRef<number>(0);
+  const recordedMsRef = useRef<number>(0);
 
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -98,8 +99,10 @@ export function VoiceRecorder({
       };
       recorder.onstop = () => {
         const next = new Blob(chunksRef.current, { type: mime });
-        const durationMs = Date.now() - startRef.current;
+        const durationMs = Math.max(200, Date.now() - startRef.current);
+        recordedMsRef.current = durationMs;
         setBlob(next);
+        setElapsed(durationMs);
         setPreviewUrl(URL.createObjectURL(next));
         stream.getTracks().forEach((t) => t.stop());
         if (captureOnly) {
@@ -147,9 +150,34 @@ export function VoiceRecorder({
         entityType,
         entityId,
         blob,
-        durationMs: elapsed || null,
+        durationMs: recordedMsRef.current || elapsed || null,
       });
       toast.success("Voice message sent");
+      const target =
+        profile.role === "queen"
+          ? "slave"
+          : profile.role === "slave"
+            ? "queen"
+            : "both";
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title:
+            profile.role === "queen" ? "Voice from Queen" : "Voice from D",
+          body:
+            entityType === "tease"
+              ? "New voice on a tease"
+              : entityType === "date"
+                ? "New voice on a date"
+                : "New voice message",
+          url:
+            entityType === "tease"
+              ? "/dashboard/teases"
+              : entityType === "date"
+                ? "/dashboard/dates"
+                : "/dashboard",
+          target,
+        })
+      );
       clear();
       onUploaded?.();
     } catch (err) {

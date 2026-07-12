@@ -195,6 +195,10 @@ export function TeaseBegThread({
         entityId={teaseId}
         compact
         title={isSlave ? "Voice beg" : `Voice on ${teaseTitle || "tease"}`}
+        allowEvidencePin
+        evidenceTitle={
+          teaseTitle ? `Tease · ${teaseTitle}` : "Tease voice"
+        }
       />
     </div>
   );

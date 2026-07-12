@@ -12,9 +12,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
-import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import type { Profile, QueenDate } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import { DateTimeline } from "@/components/dates/date-timeline";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,19 +24,15 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type ReactionDraft = {
-  thoughts: string;
+type LevelsDraft = {
   arousal: number;
   jealousy: number;
-  youtube: string;
 };
 
-function draftFromDate(d: QueenDate): ReactionDraft {
+function levelsFromDate(d: QueenDate): LevelsDraft {
   return {
-    thoughts: d.thoughts_text ?? "",
     arousal: d.arousal_level ?? 50,
     jealousy: d.jealousy_level ?? 50,
-    youtube: d.youtube_url ?? "",
   };
 }
 
@@ -48,8 +45,8 @@ export default function DatesPage() {
   const [notes, setNotes] = useState("");
   const [scheduledLocal, setScheduledLocal] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [drafts, setDrafts] = useState<Record<string, ReactionDraft>>({});
-  const [saving, setSaving] = useState<string | null>(null);
+  const [levels, setLevels] = useState<Record<string, LevelsDraft>>({});
+  const [savingLevels, setSavingLevels] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -64,10 +61,10 @@ export default function DatesPage() {
     const { data } = await query;
     const rows = (data ?? []) as QueenDate[];
     setItems(rows);
-    setDrafts((prev) => {
+    setLevels((prev) => {
       const next = { ...prev };
       for (const row of rows) {
-        if (!next[row.id]) next[row.id] = draftFromDate(row);
+        if (!next[row.id]) next[row.id] = levelsFromDate(row);
       }
       return next;
     });
@@ -134,45 +131,32 @@ export default function DatesPage() {
     void load();
   };
 
-  const saveReaction = async (date: QueenDate) => {
+  const saveLevels = async (date: QueenDate) => {
     if (!isSlave || !profile) return;
-    const draft = drafts[date.id] ?? draftFromDate(date);
-    const thoughts = draft.thoughts.trim();
-    const youtube = draft.youtube.trim();
-    if (!thoughts && draft.arousal === 50 && draft.jealousy === 50 && !youtube) {
-      toast.error("Share thoughts, levels, or a YouTube link");
-      return;
-    }
-    if (youtube && !isValidYouTubeUrl(youtube)) {
-      toast.error("Enter a valid YouTube URL");
-      return;
-    }
-
-    setSaving(date.id);
+    const draft = levels[date.id] ?? levelsFromDate(date);
+    setSavingLevels(date.id);
     const supabase = createClient();
-    const firstReaction = !date.reacted_at;
+    const first = !date.reacted_at;
     const { error } = await supabase
       .from("queen_dates")
       .update({
-        thoughts_text: thoughts || null,
         arousal_level: draft.arousal,
         jealousy_level: draft.jealousy,
-        youtube_url: youtube || null,
         reacted_at: date.reacted_at ?? new Date().toISOString(),
       })
       .eq("id", date.id)
       .eq("assigned_to", profile.id);
-    setSaving(null);
+    setSavingLevels(null);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success(firstReaction ? "Reaction saved" : "Reaction updated");
-    if (firstReaction) {
+    toast.success("Levels updated");
+    if (first) {
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Date reaction from D",
-          body: date.title || "D reacted to your date",
+          body: date.title || "D updated how he feels",
           url: "/dashboard/dates",
           target: "queen",
         })
@@ -195,18 +179,11 @@ export default function DatesPage() {
     void load();
   };
 
-  const updateDraft = (id: string, patch: Partial<ReactionDraft>) => {
-    setDrafts((prev) => {
-      const existing =
-        prev[id] ??
-        (() => {
-          const row = items.find((x) => x.id === id);
-          return row
-            ? draftFromDate(row)
-            : { thoughts: "", arousal: 50, jealousy: 50, youtube: "" };
-        })();
-      return { ...prev, [id]: { ...existing, ...patch } };
-    });
+  const updateLevels = (id: string, patch: Partial<LevelsDraft>) => {
+    setLevels((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { arousal: 50, jealousy: 50 }), ...patch },
+    }));
   };
 
   if (authLoading || loading) {
@@ -222,8 +199,8 @@ export default function DatesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Post when you’re on a date — D can share thoughts, heat, and jealousy"
-            : "See Queen’s dates and tell her how it lands"}
+            ? "Post when you’re on a date — D’s timeline fills with posts, media, and voice"
+            : "Follow Queen’s dates and post to the timeline as it unfolds"}
         </p>
       </div>
 
@@ -283,15 +260,7 @@ export default function DatesPage() {
         ) : (
           items.map((d) => {
             const upcoming = new Date(d.scheduled_at) > new Date();
-            const draft = drafts[d.id] ?? draftFromDate(d);
-            const embed =
-              d.youtube_url && isValidYouTubeUrl(d.youtube_url)
-                ? getYouTubeEmbedUrl(d.youtube_url)
-                : null;
-            const draftEmbed =
-              draft.youtube.trim() && isValidYouTubeUrl(draft.youtube)
-                ? getYouTubeEmbedUrl(draft.youtube)
-                : null;
+            const draft = levels[d.id] ?? levelsFromDate(d);
 
             return (
               <article
@@ -319,7 +288,7 @@ export default function DatesPage() {
                           variant="outline"
                           className="border-emerald-500/40 text-emerald-300"
                         >
-                          Reacted
+                          Active
                         </Badge>
                       )}
                     </div>
@@ -334,7 +303,7 @@ export default function DatesPage() {
                     <p className="text-xs text-muted-foreground">
                       Posted {formatRelative(d.created_at)}
                       {d.reacted_at
-                        ? ` · reacted ${formatRelative(d.reacted_at)}`
+                        ? ` · first activity ${formatRelative(d.reacted_at)}`
                         : ""}
                     </p>
                   </div>
@@ -356,157 +325,119 @@ export default function DatesPage() {
                   )}
                 </div>
 
-                {isQueen && d.reacted_at && (
+                {(isQueen || isSlave) && (
                   <div className="space-y-3 rounded-lg border border-gold/10 bg-void/40 p-4">
                     <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
-                      D’s reaction
+                      How D feels
                     </p>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="flex items-center gap-2 text-sm text-ivory">
-                        <Flame className="h-4 w-4 text-gold" />
-                        Turned on ·{" "}
-                        <span className="font-heading text-gold">
-                          {d.arousal_level ?? 0}
-                        </span>
+                    {isQueen ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="flex items-center gap-2 text-sm text-ivory">
+                          <Flame className="h-4 w-4 text-gold" />
+                          Turned on ·{" "}
+                          <span className="font-heading text-gold">
+                            {d.arousal_level ?? "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-ivory">
+                          <HeartCrack className="h-4 w-4 text-gold" />
+                          Jealous ·{" "}
+                          <span className="font-heading text-gold">
+                            {d.jealousy_level ?? "—"}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-ivory">
-                        <HeartCrack className="h-4 w-4 text-gold" />
-                        Jealous ·{" "}
-                        <span className="font-heading text-gold">
-                          {d.jealousy_level ?? 0}
-                        </span>
-                      </div>
-                    </div>
-                    {d.thoughts_text && (
-                      <p className="whitespace-pre-wrap text-sm text-ivory/85">
-                        {d.thoughts_text}
-                      </p>
-                    )}
-                    {embed && (
-                      <div className="overflow-hidden rounded-lg border border-gold/15 aspect-video">
-                        <iframe
-                          src={embed}
-                          title="YouTube"
-                          className="h-full w-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {isSlave && (
-                  <div className="space-y-4 rounded-lg border border-gold/10 bg-void/40 p-4">
-                    <div className="space-y-2">
-                      <Label>Your thoughts</Label>
-                      <Textarea
-                        value={draft.thoughts}
-                        onChange={(e) =>
-                          updateDraft(d.id, { thoughts: e.target.value })
-                        }
-                        rows={3}
-                        placeholder="How does this sit with you…"
-                        className="border-gold/20 bg-void/60"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-end justify-between gap-2">
-                        <Label className="flex items-center gap-1.5">
-                          <Flame className="h-3.5 w-3.5 text-gold" />
-                          How turned on
-                        </Label>
-                        <span className="font-heading text-lg text-gold">
-                          {draft.arousal}
-                        </span>
-                      </div>
-                      <Slider
-                        value={[draft.arousal]}
-                        onValueChange={(v) =>
-                          updateDraft(d.id, { arousal: v[0] ?? 50 })
-                        }
-                        min={0}
-                        max={100}
-                        step={1}
-                        aria-label="Turned on level"
-                        className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
-                      />
-                      <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-                        <span>Cold</span>
-                        <span>Burning</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-end justify-between gap-2">
-                        <Label className="flex items-center gap-1.5">
-                          <HeartCrack className="h-3.5 w-3.5 text-gold" />
-                          How jealous
-                        </Label>
-                        <span className="font-heading text-lg text-gold">
-                          {draft.jealousy}
-                        </span>
-                      </div>
-                      <Slider
-                        value={[draft.jealousy]}
-                        onValueChange={(v) =>
-                          updateDraft(d.id, { jealousy: v[0] ?? 50 })
-                        }
-                        min={0}
-                        max={100}
-                        step={1}
-                        aria-label="Jealousy level"
-                        className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
-                      />
-                      <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-                        <span>Steady</span>
-                        <span>Sick with it</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>YouTube URL (optional)</Label>
-                      <Input
-                        value={draft.youtube}
-                        onChange={(e) =>
-                          updateDraft(d.id, { youtube: e.target.value })
-                        }
-                        placeholder="https://youtube.com/watch?v=…"
-                        className="border-gold/20 bg-void/60"
-                      />
-                      {draftEmbed && (
-                        <div className="overflow-hidden rounded-lg border border-gold/15 aspect-video">
-                          <iframe
-                            src={draftEmbed}
-                            title="YouTube preview"
-                            className="h-full w-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <div className="flex items-end justify-between gap-2">
+                            <Label className="flex items-center gap-1.5">
+                              <Flame className="h-3.5 w-3.5 text-gold" />
+                              How turned on
+                            </Label>
+                            <span className="font-heading text-lg text-gold">
+                              {draft.arousal}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[draft.arousal]}
+                            onValueChange={(v) =>
+                              updateLevels(d.id, { arousal: v[0] ?? 50 })
+                            }
+                            min={0}
+                            max={100}
+                            step={1}
+                            aria-label="Turned on level"
+                            className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
                           />
                         </div>
-                      )}
-                    </div>
-
-                    <Button
-                      type="button"
-                      disabled={saving === d.id}
-                      onClick={() => void saveReaction(d)}
-                      className="bg-gold text-void hover:bg-gold-muted"
-                    >
-                      {saving === d.id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      {d.reacted_at ? "Update reaction" : "Save reaction"}
-                    </Button>
+                        <div className="space-y-2">
+                          <div className="flex items-end justify-between gap-2">
+                            <Label className="flex items-center gap-1.5">
+                              <HeartCrack className="h-3.5 w-3.5 text-gold" />
+                              How jealous
+                            </Label>
+                            <span className="font-heading text-lg text-gold">
+                              {draft.jealousy}
+                            </span>
+                          </div>
+                          <Slider
+                            value={[draft.jealousy]}
+                            onValueChange={(v) =>
+                              updateLevels(d.id, { jealousy: v[0] ?? 50 })
+                            }
+                            min={0}
+                            max={100}
+                            step={1}
+                            aria-label="Jealousy level"
+                            className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={savingLevels === d.id}
+                          onClick={() => void saveLevels(d)}
+                          className="bg-gold text-void hover:bg-gold-muted"
+                        >
+                          {savingLevels === d.id ? (
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          Update levels
+                        </Button>
+                      </>
+                    )}
+                    {isQueen && d.arousal_level != null && (
+                      <KeepInEvidenceButton
+                        sourceType="date"
+                        sourceId={d.id}
+                        mediaKind="reaction"
+                        title={d.title ? `Date · ${d.title}` : "Date levels"}
+                        meta={{
+                          arousal_level: d.arousal_level,
+                          jealousy_level: d.jealousy_level,
+                          scheduled_at: d.scheduled_at,
+                        }}
+                        label="Keep levels"
+                      />
+                    )}
                   </div>
                 )}
+
+                <DateTimeline
+                  dateId={d.id}
+                  dateTitle={d.title}
+                  canPost={!!isSlave}
+                  onPosted={() => void load()}
+                />
 
                 <VoiceNotes
                   entityType="date"
                   entityId={d.id}
                   compact
                   title="Voice"
+                  allowEvidencePin
+                  evidenceTitle={d.title ? `Date · ${d.title}` : "Date voice"}
                 />
               </article>
             );

@@ -10,6 +10,7 @@ import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
 
 type VoiceNoteWithAuthor = VoiceNote & {
@@ -23,6 +24,9 @@ interface VoiceNotesProps {
   title?: string;
   /** Hide the section heading */
   compact?: boolean;
+  /** Queen can pin notes into Evidence (date/tease voices) */
+  allowEvidencePin?: boolean;
+  evidenceTitle?: string;
 }
 
 export function VoiceNotes({
@@ -31,6 +35,8 @@ export function VoiceNotes({
   className,
   title = "Voice messages",
   compact = false,
+  allowEvidencePin = false,
+  evidenceTitle,
 }: VoiceNotesProps) {
   const { profile, isQueen } = useAuth();
   const [notes, setNotes] = useState<VoiceNoteWithAuthor[]>([]);
@@ -127,18 +133,32 @@ export function VoiceNotes({
                       {formatRelative(note.created_at)}
                     </span>
                   </p>
-                  {canDelete && (
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 text-muted-foreground hover:text-red-400"
-                      onClick={() => void remove(note)}
-                      aria-label="Delete voice message"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {allowEvidencePin && isQueen && (
+                      <KeepInEvidenceButton
+                        sourceType="voice_note"
+                        sourceId={note.id}
+                        mediaKind="voice"
+                        title={evidenceTitle || `${title} voice`}
+                        filePath={note.file_path}
+                        storageBucket="voice"
+                        label="Keep"
+                        className="h-8 px-2 text-xs"
+                      />
+                    )}
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="size-8 text-muted-foreground hover:text-red-400"
+                        onClick={() => void remove(note)}
+                        aria-label="Delete voice message"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <VoicePlayer
                   filePath={note.file_path}

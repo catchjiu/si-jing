@@ -169,6 +169,47 @@ export type QueenDate = {
   created_at: string;
 };
 
+export type EvidencePinSourceType = "date" | "tease" | "voice_note" | "date_post";
+export type EvidencePinMediaKind =
+  | "youtube"
+  | "image"
+  | "voice"
+  | "reaction"
+  | "video"
+  | "text";
+
+export type EvidencePin = {
+  id: string;
+  pinned_by: string;
+  source_type: EvidencePinSourceType;
+  source_id: string;
+  media_kind: EvidencePinMediaKind;
+  title: string;
+  caption: string | null;
+  youtube_url: string | null;
+  file_path: string | null;
+  storage_bucket: "teases" | "voice" | "submissions" | "date_posts" | null;
+  meta: Record<string, unknown> | null;
+  pinned_at: string;
+};
+
+export type DatePostMediaKind = "text" | "image" | "video" | "youtube";
+
+export type DatePost = {
+  id: string;
+  date_id: string;
+  author_id: string;
+  body: string | null;
+  media_kind: DatePostMediaKind;
+  file_path: string | null;
+  youtube_url: string | null;
+  created_at: string;
+};
+
+export type DatePostWithSignedUrl = DatePost & {
+  signedUrl?: string;
+};
+
 export type Tease = {
   id: string;
   sent_by: string;

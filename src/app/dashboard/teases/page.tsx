@@ -22,6 +22,7 @@ import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -841,6 +842,16 @@ export default function TeasesPage() {
                         )}
                         {t.is_blurred ? "Reveal fully" : "Blur again"}
                       </Button>
+                      <KeepInEvidenceButton
+                        sourceType="tease"
+                        sourceId={t.id}
+                        mediaKind="image"
+                        title={t.title ? `Tease · ${t.title}` : "Tease image"}
+                        caption={t.message}
+                        filePath={t.image_path}
+                        storageBucket="teases"
+                        label="Keep image"
+                      />
                     </div>
                   )}
 

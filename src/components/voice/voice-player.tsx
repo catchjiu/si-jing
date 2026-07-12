@@ -19,17 +19,31 @@ interface VoicePlayerProps {
   className?: string;
 }
 
+/**
+ * Mobile Safari often reports wrong/infinite audio.duration for MediaRecorder
+ * blobs and keeps "playing" silent padding. Prefer stored durationMs and stop
+ * when we hit it.
+ */
 export function VoicePlayer({
   filePath,
   durationMs,
   className,
 }: VoicePlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const knownDurationRef = useRef<number>(durationMs && durationMs > 0 ? durationMs : 0);
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(durationMs ?? 0);
+  const [duration, setDuration] = useState(
+    durationMs && durationMs > 0 ? durationMs : 0
+  );
+
+  useEffect(() => {
+    knownDurationRef.current =
+      durationMs && durationMs > 0 ? durationMs : knownDurationRef.current;
+    if (durationMs && durationMs > 0) setDuration(durationMs);
+  }, [durationMs]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,26 +64,61 @@ export function VoicePlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onTime = () => {
-      setCurrent(audio.currentTime * 1000);
-      if (audio.duration && Number.isFinite(audio.duration)) {
-        setDuration(audio.duration * 1000);
-        setProgress((audio.currentTime / audio.duration) * 100);
+    const stopAtEnd = () => {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        /* ignore seek errors on some mobile codecs */
       }
-    };
-    const onEnded = () => {
       setPlaying(false);
       setProgress(0);
       setCurrent(0);
     };
 
+    const onTime = () => {
+      const known = knownDurationRef.current;
+      const metaSec =
+        audio.duration && Number.isFinite(audio.duration) && audio.duration > 0
+          ? audio.duration
+          : 0;
+      // Trust recorded duration when present — mobile metadata is often wrong
+      const totalMs =
+        known > 0
+          ? known
+          : metaSec > 0
+            ? metaSec * 1000
+            : 0;
+
+      if (totalMs > 0 && known <= 0) {
+        knownDurationRef.current = totalMs;
+        setDuration(totalMs);
+      } else if (known > 0) {
+        setDuration(known);
+      }
+
+      const elapsedMs = audio.currentTime * 1000;
+      if (totalMs > 0 && elapsedMs >= totalMs - 40) {
+        stopAtEnd();
+        return;
+      }
+
+      const capped = totalMs > 0 ? Math.min(elapsedMs, totalMs) : elapsedMs;
+      setCurrent(capped);
+      setProgress(totalMs > 0 ? Math.min(100, (capped / totalMs) * 100) : 0);
+    };
+
+    const onEnded = () => stopAtEnd();
+
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("loadedmetadata", onTime);
+    audio.addEventListener("durationchange", onTime);
     return () => {
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("loadedmetadata", onTime);
+      audio.removeEventListener("durationchange", onTime);
     };
   }, [url]);
 
@@ -80,10 +129,16 @@ export function VoicePlayer({
       audio.pause();
       setPlaying(false);
     } else {
-      await audio.play();
-      setPlaying(true);
+      try {
+        await audio.play();
+        setPlaying(true);
+      } catch {
+        setPlaying(false);
+      }
     }
   };
+
+  const displayDuration = duration || durationMs || 0;
 
   return (
     <div
@@ -92,7 +147,14 @@ export function VoicePlayer({
         className
       )}
     >
-      {url && <audio ref={audioRef} src={url} preload="metadata" />}
+      {url && (
+        <audio
+          ref={audioRef}
+          src={url}
+          preload="metadata"
+          playsInline
+        />
+      )}
       <Button
         type="button"
         size="icon"
@@ -112,7 +174,7 @@ export function VoicePlayer({
           />
         </div>
         <p className="text-[10px] tabular-nums text-muted-foreground">
-          {formatMs(current)} / {formatMs(duration || durationMs || 0)}
+          {formatMs(current)} / {formatMs(displayDuration)}
         </p>
       </div>
     </div>
