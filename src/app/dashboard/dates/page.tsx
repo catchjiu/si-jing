@@ -16,6 +16,12 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import type { Profile, QueenDate } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { DateTimeline } from "@/components/dates/date-timeline";
+import {
+  DateFeaturedContent,
+  extrasFromDate,
+  type DateExtrasDraft,
+} from "@/components/dates/date-featured-content";
+import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { Button } from "@/components/ui/button";
@@ -45,9 +51,12 @@ export default function DatesPage() {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [thoughtsPrivate, setThoughtsPrivate] = useState("");
+  const [youtubeFeatured, setYoutubeFeatured] = useState("");
   const [scheduledLocal, setScheduledLocal] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [levels, setLevels] = useState<Record<string, LevelsDraft>>({});
+  const [extras, setExtras] = useState<Record<string, DateExtrasDraft>>({});
   const [savingLevels, setSavingLevels] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -67,6 +76,13 @@ export default function DatesPage() {
       const next = { ...prev };
       for (const row of rows) {
         if (!next[row.id]) next[row.id] = levelsFromDate(row);
+      }
+      return next;
+    });
+    setExtras((prev) => {
+      const next = { ...prev };
+      for (const row of rows) {
+        if (!next[row.id]) next[row.id] = extrasFromDate(row);
       }
       return next;
     });
@@ -103,6 +119,11 @@ export default function DatesPage() {
       toast.error("Pick a valid day and time");
       return;
     }
+    const yt = youtubeFeatured.trim();
+    if (yt && !isValidYouTubeUrl(yt)) {
+      toast.error("Enter a valid YouTube URL, or clear it");
+      return;
+    }
 
     setSubmitting(true);
     const supabase = createClient();
@@ -111,6 +132,10 @@ export default function DatesPage() {
       assigned_to: recipient.id,
       title: title.trim() ? formatRoleSpeech(title.trim(), "queen") : null,
       notes: notes.trim() ? formatRoleSpeech(notes.trim(), "queen") : null,
+      thoughts_text: thoughtsPrivate.trim()
+        ? formatRoleSpeech(thoughtsPrivate.trim(), "queen")
+        : null,
+      youtube_url: yt || null,
       scheduled_at: scheduled.toISOString(),
     });
     setSubmitting(false);
@@ -129,6 +154,8 @@ export default function DatesPage() {
     );
     setTitle("");
     setNotes("");
+    setThoughtsPrivate("");
+    setYoutubeFeatured("");
     setScheduledLocal("");
     void load();
   };
@@ -181,6 +208,13 @@ export default function DatesPage() {
     void load();
   };
 
+  const updateExtras = (id: string, patch: Partial<DateExtrasDraft>) => {
+    setExtras((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { thoughts: "", youtube: "" }), ...patch },
+    }));
+  };
+
   const updateLevels = (id: string, patch: Partial<LevelsDraft>) => {
     setLevels((prev) => ({
       ...prev,
@@ -201,8 +235,8 @@ export default function DatesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Post when you’re on a date — D’s timeline fills with posts, media, and voice"
-            : "Follow Queen’s dates and post to the timeline as it unfolds"}
+            ? "Post dates with private notes and a pinned video — timeline is separate"
+            : "Follow Queen’s dates, featured video, and post to the timeline"}
         </p>
       </div>
 
@@ -222,7 +256,7 @@ export default function DatesPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Notes (optional)</Label>
+            <Label>Notes for D (optional)</Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -230,6 +264,40 @@ export default function DatesPage() {
               placeholder="Where / with whom — whatever you want D to know"
               className="border-gold/20 bg-void/60"
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Private thoughts (Queen only, optional)</Label>
+            <Textarea
+              value={thoughtsPrivate}
+              onChange={(e) => setThoughtsPrivate(e.target.value)}
+              rows={2}
+              placeholder="Only you will see this — not on the timeline"
+              className="border-gold/20 bg-void/60"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Featured YouTube (optional)</Label>
+            <Input
+              value={youtubeFeatured}
+              onChange={(e) => setYoutubeFeatured(e.target.value)}
+              placeholder="https://youtube.com/watch?v=…"
+              className="border-gold/20 bg-void/60"
+            />
+            {youtubeFeatured.trim() &&
+              isValidYouTubeUrl(youtubeFeatured) &&
+              getYouTubeEmbedUrl(youtubeFeatured) && (
+                <div className="overflow-hidden rounded-lg border border-gold/15">
+                  <div className="relative aspect-video w-full">
+                    <iframe
+                      src={getYouTubeEmbedUrl(youtubeFeatured)!}
+                      title="YouTube preview"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="absolute inset-0 size-full"
+                    />
+                  </div>
+                </div>
+              )}
           </div>
           <div className="space-y-2">
             <Label>Day & time</Label>
@@ -330,6 +398,14 @@ export default function DatesPage() {
                     </Button>
                   )}
                 </div>
+
+                <DateFeaturedContent
+                  date={d}
+                  isQueen={!!isQueen}
+                  draft={extras[d.id]}
+                  onDraftChange={(patch) => updateExtras(d.id, patch)}
+                  onSaved={() => void load()}
+                />
 
                 {(isQueen || isSlave) && (
                   <div className="space-y-3 rounded-lg border border-gold/10 bg-void/40 p-4">

@@ -66,13 +66,14 @@ export function WishlistGallery({
 
   const markSeen = async (item: WishlistItemWithSignedUrl) => {
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("wishlist_items")
       .update({
         status: "seen",
         seen_at: new Date().toISOString(),
       })
       .eq("id", item.id);
+    if (error) return;
     onChanged?.();
   };
 
