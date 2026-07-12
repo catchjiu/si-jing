@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Task } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -38,7 +39,18 @@ export function TaskDetailActions({ task }: { task: Task }) {
   };
 
   return (
-    <div className="border-t border-gold/10 pt-4">
+    <div className="flex flex-wrap gap-2 border-t border-gold/10 pt-4">
+      <Button
+        asChild
+        variant="outline"
+        className="border-gold/40 text-gold hover:bg-gold/10"
+      >
+        <Link href={`/dashboard/task/${task.id}/edit`}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit task
+        </Link>
+      </Button>
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button

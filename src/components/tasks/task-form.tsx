@@ -57,6 +57,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
   const { profile } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const isEditing = !!task
+  const isOccurrence = !!task?.parent_task_id
 
   const {
     register,
@@ -71,8 +72,10 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
       description: task?.description ?? "",
       deadline: task?.deadline ? toDatetimeLocal(task.deadline) : "",
       difficulty_level: (task?.difficulty_level as DifficultyLevel) ?? "medium",
-      is_recurring: task?.is_recurring ?? false,
-      recurrence_pattern: (task?.recurrence_pattern as RecurrencePattern) ?? null,
+      is_recurring: isOccurrence ? false : (task?.is_recurring ?? false),
+      recurrence_pattern: isOccurrence
+        ? null
+        : ((task?.recurrence_pattern as RecurrencePattern) ?? null),
     },
   })
 
@@ -87,32 +90,64 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
     setSubmitting(true)
     const supabase = createClient()
 
-    const payload = {
-      title: values.title,
-      description: values.description || null,
-      assigned_by: profile.id,
-      assigned_to: assigneeId,
-      deadline: new Date(values.deadline).toISOString(),
-      difficulty_level: values.difficulty_level,
-      is_recurring: values.is_recurring,
-      recurrence_pattern: values.is_recurring ? values.recurrence_pattern : null,
-      status: task?.status ?? "pending",
-      updated_at: new Date().toISOString(),
-    }
-
     try {
       if (isEditing && task) {
         const { error } = await supabase
           .from("tasks")
-          .update(payload)
+          .update(
+            isOccurrence
+              ? {
+                  title: values.title,
+                  description: values.description || null,
+                  deadline: new Date(values.deadline).toISOString(),
+                  difficulty_level: values.difficulty_level,
+                  updated_at: new Date().toISOString(),
+                }
+              : {
+                  title: values.title,
+                  description: values.description || null,
+                  deadline: new Date(values.deadline).toISOString(),
+                  difficulty_level: values.difficulty_level,
+                  is_recurring: values.is_recurring,
+                  recurrence_pattern: values.is_recurring
+                    ? values.recurrence_pattern
+                    : null,
+                  updated_at: new Date().toISOString(),
+                }
+          )
           .eq("id", task.id)
 
         if (error) throw error
+
+        if (!isOccurrence && values.is_recurring) {
+          await supabase.rpc("ensure_recurring_task_occurrences", {
+            look_ahead_days: 7,
+          })
+        }
+
         toast.success("Task updated")
+        void import("@/lib/push-client").then(({ notifyPush }) =>
+          notifyPush({
+            title: "Task updated",
+            body: values.title,
+            url: `/dashboard/task/${task.id}`,
+            target: "slave",
+          })
+        )
       } else {
         const { error } = await supabase.from("tasks").insert({
-          ...payload,
-          // Recurring creates a template; dated occurrences are generated next
+          title: values.title,
+          description: values.description || null,
+          assigned_by: profile.id,
+          assigned_to: assigneeId,
+          deadline: new Date(values.deadline).toISOString(),
+          difficulty_level: values.difficulty_level,
+          is_recurring: values.is_recurring,
+          recurrence_pattern: values.is_recurring
+            ? values.recurrence_pattern
+            : null,
+          status: "pending",
+          updated_at: new Date().toISOString(),
           parent_task_id: null,
           occurrence_key: null,
         })
@@ -184,7 +219,9 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
 
       <div className="space-y-1.5">
         <Label htmlFor="deadline">
-          {isRecurring ? "Due time (repeats each period)" : "Deadline"}
+          {isRecurring && !isOccurrence
+            ? "Due time (repeats each period)"
+            : "Deadline"}
         </Label>
         <Input
           id="deadline"
@@ -193,12 +230,16 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           className="border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]"
           aria-invalid={!!errors.deadline}
         />
-        {isRecurring ? (
+        {isRecurring && !isOccurrence ? (
           <p className="text-xs text-muted-foreground">
             Daily tasks appear every day at this time. Weekly on this weekday.
             Monthly on this day of the month.
           </p>
-        ) : null}
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Change this to extend or shorten how long D has to complete it.
+          </p>
+        )}
         {errors.deadline && (
           <p className="text-xs text-red-400">{errors.deadline.message}</p>
         )}
@@ -223,43 +264,47 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
         </Select>
       </div>
 
-      <div className="flex items-center gap-3">
-        <Checkbox
-          id="is_recurring"
-          checked={isRecurring}
-          onCheckedChange={(checked) =>
-            setValue("is_recurring", checked === true)
-          }
-        />
-        <Label htmlFor="is_recurring" className="cursor-pointer">
-          Recurring task
-        </Label>
-      </div>
+      {!isOccurrence && (
+        <>
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="is_recurring"
+              checked={isRecurring}
+              onCheckedChange={(checked) =>
+                setValue("is_recurring", checked === true)
+              }
+            />
+            <Label htmlFor="is_recurring" className="cursor-pointer">
+              Recurring task
+            </Label>
+          </div>
 
-      {isRecurring && (
-        <div className="space-y-1.5">
-          <Label>Recurrence Pattern</Label>
-          <Select
-            value={watch("recurrence_pattern") ?? ""}
-            onValueChange={(v) =>
-              setValue("recurrence_pattern", v as RecurrencePattern)
-            }
-          >
-            <SelectTrigger className="w-full border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
-              <SelectValue placeholder="Select pattern" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
-          {errors.recurrence_pattern && (
-            <p className="text-xs text-red-400">
-              {errors.recurrence_pattern.message}
-            </p>
+          {isRecurring && (
+            <div className="space-y-1.5">
+              <Label>Recurrence Pattern</Label>
+              <Select
+                value={watch("recurrence_pattern") ?? ""}
+                onValueChange={(v) =>
+                  setValue("recurrence_pattern", v as RecurrencePattern)
+                }
+              >
+                <SelectTrigger className="w-full border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
+                  <SelectValue placeholder="Select pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+              {errors.recurrence_pattern && (
+                <p className="text-xs text-red-400">
+                  {errors.recurrence_pattern.message}
+                </p>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       <Button
@@ -268,7 +313,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
         className="w-full bg-[color:var(--gold,#d4af37)] text-[color:var(--black,#0a0a0a)] hover:bg-[color:var(--gold,#d4af37)]/90"
       >
         {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
-        {isEditing ? "Update Task" : "Assign Task"}
+        {isEditing ? "Save changes" : "Assign Task"}
       </Button>
     </form>
   )

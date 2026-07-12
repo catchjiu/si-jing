@@ -1,14 +1,16 @@
 "use client"
 
 import Link from "next/link"
+import type { ReactNode } from "react"
 import {
+  AlarmClock,
   Ban,
   BookOpen,
+  ChevronRight,
   ClipboardList,
   Clock,
   HandHeart,
   ImageIcon,
-  AlarmClock,
 } from "lucide-react"
 import type {
   DesireRequest,
@@ -21,13 +23,6 @@ import { formatDeadline, formatRelative } from "@/lib/format"
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests"
 import { PUNISHMENT_TYPE_LABELS } from "@/lib/punishments"
 import { cn } from "@/lib/utils"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/tasks/status-badge"
 import { PunishmentCountdown } from "@/components/punishments/punishment-countdown"
@@ -40,6 +35,47 @@ interface QueenDashboardProps {
   stats: QueenDashboardStats
 }
 
+function SectionHeader({
+  title,
+  href,
+  linkLabel = "View all",
+  count,
+}: {
+  title: string
+  href?: string
+  linkLabel?: string
+  count?: number
+}) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between gap-3">
+      <h2 className="font-heading text-lg text-ivory sm:text-xl">
+        {title}
+        {typeof count === "number" && count > 0 && (
+          <span className="ml-2 text-sm font-sans text-muted-foreground">
+            {count}
+          </span>
+        )}
+      </h2>
+      {href && (
+        <Link
+          href={href}
+          className="shrink-0 text-xs text-gold hover:underline sm:text-sm"
+        >
+          {linkLabel}
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function EmptyLine({ children }: { children: ReactNode }) {
+  return (
+    <p className="rounded-lg border border-gold/10 bg-charcoal/40 px-4 py-5 text-center text-sm text-muted-foreground">
+      {children}
+    </p>
+  )
+}
+
 export function QueenDashboard({
   tasks,
   submissions,
@@ -47,356 +83,350 @@ export function QueenDashboard({
   activePunishments,
   stats,
 }: QueenDashboardProps) {
-  const activeTasks = tasks.filter(
-    (t) => !["approved", "rejected"].includes(t.status)
-  )
+  const activeTasks = tasks
+    .filter((t) => !["approved", "rejected"].includes(t.status))
+    .slice(0, 6)
+  const recentSubs = submissions.slice(0, 5)
+  const shownRequests = pendingRequests.slice(0, 4)
+  const shownPunishments = activePunishments.slice(0, 3)
+
+  const attention = [
+    {
+      href: "/dashboard/submissions",
+      label: "Review",
+      value: stats.pendingSubmissions,
+      icon: Clock,
+      tone: "gold" as const,
+      show: stats.pendingSubmissions > 0,
+    },
+    {
+      href: "/dashboard/requests",
+      label: "Requests",
+      value: stats.pendingRequests,
+      icon: HandHeart,
+      tone: "gold" as const,
+      show: stats.pendingRequests > 0,
+    },
+    {
+      href: "/dashboard/punishments",
+      label: "Confirm",
+      value: stats.pendingPunishments,
+      icon: Ban,
+      tone: "amber" as const,
+      show: stats.pendingPunishments > 0,
+    },
+    {
+      href: "/dashboard/check-ins",
+      label: "Check-ins",
+      value: stats.openCheckIns,
+      icon: AlarmClock,
+      tone: "gold" as const,
+      show: stats.openCheckIns > 0,
+    },
+    {
+      href: "/dashboard/protocol",
+      label: "Rules",
+      value: stats.unackedRules,
+      icon: BookOpen,
+      tone: "gold" as const,
+      show: stats.unackedRules > 0,
+    },
+  ].filter((a) => a.show)
+
+  const metrics = [
+    {
+      href: "/dashboard/tasks",
+      label: "Tasks",
+      value: stats.tasksAssigned,
+      icon: ClipboardList,
+    },
+    {
+      href: "/dashboard/submissions",
+      label: "To review",
+      value: stats.pendingSubmissions,
+      icon: Clock,
+    },
+    {
+      href: "/dashboard/requests",
+      label: "Requests",
+      value: stats.pendingRequests,
+      icon: HandHeart,
+    },
+    {
+      href: "/dashboard/punishments",
+      label: "Active",
+      value: stats.activePunishments,
+      icon: Ban,
+      danger: true,
+    },
+  ]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="font-heading text-2xl text-ivory sm:text-3xl">
           Command Center
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tasks, petitions, and active consequences
+          What needs your attention
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Tasks</CardDescription>
-            <ClipboardList className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl text-gold">
-              {stats.tasksAssigned}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Submissions</CardDescription>
-            <Clock className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl text-gold">
-              {stats.pendingSubmissions}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Requests</CardDescription>
-            <HandHeart className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl text-gold">
-              {stats.pendingRequests}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Punishments</CardDescription>
-            <Ban className="size-4 text-red-400" />
-          </CardHeader>
-          <CardContent>
-            <p className="font-heading text-3xl text-red-300">
-              {stats.activePunishments}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Unacked rules</CardDescription>
-            <BookOpen className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/protocol" className="font-heading text-3xl text-gold hover:underline">
-              {stats.unackedRules}
+      {/* Compact metrics — 2×2 on phone, 4 across on larger */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        {metrics.map((m) => {
+          const Icon = m.icon
+          return (
+            <Link
+              key={m.label}
+              href={m.href}
+              className={cn(
+                "rounded-xl border bg-charcoal/80 p-3 transition-colors hover:bg-charcoal sm:p-4",
+                m.danger
+                  ? "border-red-500/25 hover:border-red-500/40"
+                  : "border-gold/15 hover:border-gold/30"
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  {m.label}
+                </p>
+                <Icon
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    m.danger ? "text-red-400" : "text-gold/70"
+                  )}
+                />
+              </div>
+              <p
+                className={cn(
+                  "mt-1.5 font-heading text-2xl tabular-nums sm:text-3xl",
+                  m.danger ? "text-red-300" : "text-gold"
+                )}
+              >
+                {m.value}
+              </p>
             </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Open check-ins</CardDescription>
-            <AlarmClock className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/check-ins" className="font-heading text-3xl text-gold hover:underline">
-              {stats.openCheckIns}
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Pending punish</CardDescription>
-            <Ban className="size-4 text-amber-300" />
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/punishments" className="font-heading text-3xl text-amber-300 hover:underline">
-              {stats.pendingPunishments}
-            </Link>
-          </CardContent>
-        </Card>
-
+          )
+        })}
       </div>
 
-      {/* Active punishments */}
-      <Card className="border-red-500/25 bg-charcoal">
-        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="font-heading text-ivory">
-              Active Punishments
-            </CardTitle>
-            <CardDescription>
-              Ongoing consequences, including contact restrictions
-            </CardDescription>
-          </div>
-          <Link
-            href="/dashboard/punishments"
-            className="text-sm text-gold hover:underline"
-          >
-            Manage
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {activePunishments.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No active punishments.
-            </p>
-          ) : (
-            <ul className="space-y-4">
-              {activePunishments.map((p) => (
-                <li
-                  key={p.id}
-                  className="rounded-xl border border-red-500/30 bg-red-950/20 p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-heading text-lg text-ivory">
-                          {p.title ||
-                            PUNISHMENT_TYPE_LABELS[p.punishment_type] ||
-                            "Punishment"}
-                        </p>
-                        <Badge
-                          variant="outline"
-                          className="border-red-500/40 text-[10px] uppercase tracking-wider text-red-300"
-                        >
-                          {PUNISHMENT_TYPE_LABELS[p.punishment_type] ??
-                            p.punishment_type}
-                        </Badge>
-                      </div>
-                      {p.reason && (
-                        <p className="text-sm text-muted-foreground">
-                          {p.reason}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {p.clearance_mode === "task_debt"
-                          ? "Clears when debt tasks are approved"
-                          : `Ends ${formatDeadline(p.ends_at)}`}
-                      </p>
-                    </div>
-                  </div>
-                  {p.clearance_mode !== "task_debt" && (
-                    <div className="mt-4">
-                      <p className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Time remaining
-                      </p>
-                      <PunishmentCountdown endsAt={p.ends_at} size="sm" />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {/* Action chips — only when something needs a decision */}
+      {attention.length > 0 && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-none">
+          {attention.map((a) => {
+            const Icon = a.icon
+            return (
+              <Link
+                key={a.href + a.label}
+                href={a.href}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors",
+                  a.tone === "amber"
+                    ? "border-amber-500/35 bg-amber-950/30 text-amber-200 hover:bg-amber-950/50"
+                    : "border-gold/30 bg-gold/10 text-gold hover:bg-gold/15"
+                )}
+              >
+                <Icon className="size-3.5" />
+                <span>
+                  {a.value} {a.label}
+                </span>
+                <ChevronRight className="size-3.5 opacity-60" />
+              </Link>
+            )
+          })}
+        </div>
+      )}
 
-      {/* Pending requests */}
-      <Card className="border-gold/15 bg-charcoal">
-        <CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="font-heading text-ivory">
-              Pending Requests
-            </CardTitle>
-            <CardDescription>Petitions awaiting your word</CardDescription>
-          </div>
-          <Link
-            href="/dashboard/requests"
-            className="text-sm text-gold hover:underline"
-          >
-            View all
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {pendingRequests.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No open requests.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {pendingRequests.map((request) => (
-                <Link
-                  key={request.id}
-                  href="/dashboard/requests"
-                  className={cn(
-                    "flex items-center gap-4 rounded-lg border border-gold/15 p-4",
-                    "transition-all duration-300 hover:border-gold/35 hover:bg-void/40"
-                  )}
-                >
-                  <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-royal/30">
-                    <HandHeart className="size-5 text-gold/70" />
-                  </div>
-                  <div className="min-w-0 flex-1">
+      {/* Two-column content on desktop; stacked on mobile */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        {/* Left: petitions + punishments */}
+        <div className="space-y-6">
+          <section>
+            <SectionHeader
+              title="Requests"
+              href="/dashboard/requests"
+              count={pendingRequests.length}
+            />
+            {shownRequests.length === 0 ? (
+              <EmptyLine>No open requests.</EmptyLine>
+            ) : (
+              <ul className="space-y-2">
+                {shownRequests.map((request) => (
+                  <li key={request.id}>
+                    <Link
+                      href="/dashboard/requests"
+                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:gap-4 sm:px-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-ivory">
+                            {request.title}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className="border-muted text-[10px] uppercase tracking-wider text-muted-foreground"
+                          >
+                            {REQUEST_TYPE_LABELS[request.request_type]}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatRelative(request.created_at)}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p
+                          className={cn(
+                            "font-heading text-xl tabular-nums sm:text-2xl",
+                            desireColor(request.desire_level)
+                          )}
+                        >
+                          {request.desire_level}
+                        </p>
+                        <p
+                          className={cn(
+                            "hidden text-[10px] uppercase tracking-wider sm:block",
+                            desireColor(request.desire_level)
+                          )}
+                        >
+                          {desireLabel(request.desire_level)}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <SectionHeader
+              title="Punishments"
+              href="/dashboard/punishments"
+              linkLabel="Manage"
+              count={activePunishments.length}
+            />
+            {shownPunishments.length === 0 ? (
+              <EmptyLine>No active punishments.</EmptyLine>
+            ) : (
+              <ul className="space-y-2">
+                {shownPunishments.map((p) => (
+                  <li
+                    key={p.id}
+                    className="rounded-xl border border-red-500/25 bg-red-950/15 px-3 py-3 sm:px-4"
+                  >
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-medium text-ivory">
-                        {request.title}
+                      <p className="min-w-0 flex-1 truncate font-heading text-base text-ivory sm:text-lg">
+                        {p.title ||
+                          PUNISHMENT_TYPE_LABELS[p.punishment_type] ||
+                          "Punishment"}
                       </p>
                       <Badge
                         variant="outline"
-                        className="border-muted text-[10px] uppercase tracking-wider text-muted-foreground"
+                        className="border-red-500/40 text-[10px] uppercase tracking-wider text-red-300"
                       >
-                        {REQUEST_TYPE_LABELS[request.request_type]}
+                        {PUNISHMENT_TYPE_LABELS[p.punishment_type] ??
+                          p.punishment_type}
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {formatRelative(request.created_at)}
+                      {p.clearance_mode === "task_debt"
+                        ? "Clears when debt tasks are approved"
+                        : `Ends ${formatDeadline(p.ends_at)}`}
                     </p>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={cn(
-                        "font-heading text-2xl tabular-nums",
-                        desireColor(request.desire_level)
-                      )}
-                    >
-                      {request.desire_level}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-[10px] uppercase tracking-wider",
-                        desireColor(request.desire_level)
-                      )}
-                    >
-                      {desireLabel(request.desire_level)}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    {p.clearance_mode !== "task_debt" && (
+                      <div className="mt-3">
+                        <PunishmentCountdown endsAt={p.ends_at} size="sm" />
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
 
-      {/* Active tasks table */}
-      <Card className="border-gold/15 bg-charcoal">
-        <CardHeader>
-          <CardTitle className="font-heading text-ivory">Active Tasks</CardTitle>
-          <CardDescription>
-            {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
-            progress
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {activeTasks.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No active tasks. Assign a new task to begin.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gold/10 text-left text-muted-foreground">
-                    <th className="pb-3 pr-4 font-medium">Task</th>
-                    <th className="pb-3 pr-4 font-medium">Deadline</th>
-                    <th className="pb-3 pr-4 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Submissions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeTasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      className="border-b border-gold/5 transition-colors hover:bg-void/40"
+        {/* Right: tasks + submissions */}
+        <div className="space-y-6">
+          <section>
+            <SectionHeader
+              title="Active tasks"
+              href="/dashboard/tasks"
+              count={
+                tasks.filter((t) => !["approved", "rejected"].includes(t.status))
+                  .length
+              }
+            />
+            {activeTasks.length === 0 ? (
+              <EmptyLine>No active tasks.</EmptyLine>
+            ) : (
+              <ul className="space-y-2">
+                {activeTasks.map((task) => (
+                  <li key={task.id}>
+                    <Link
+                      href={`/dashboard/task/${task.id}`}
+                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:px-4"
                     >
-                      <td className="py-3 pr-4">
-                        <Link
-                          href={`/dashboard/task/${task.id}`}
-                          className="font-medium text-ivory hover:text-gold"
-                        >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-ivory">
                           {task.title}
-                        </Link>
-                      </td>
-                      <td className="py-3 pr-4 text-muted-foreground">
-                        {formatDeadline(task.deadline)}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <StatusBadge status={task.status} type="task" />
-                      </td>
-                      <td className="py-3 text-muted-foreground">
-                        {task.submission_count ?? 0}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Due {formatDeadline(task.deadline)}
+                          {(task.submission_count ?? 0) > 0
+                            ? ` · ${task.submission_count} submission${
+                                task.submission_count === 1 ? "" : "s"
+                              }`
+                            : ""}
+                        </p>
+                      </div>
+                      <StatusBadge status={task.status} type="task" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-      {/* Recent submissions feed */}
-      <Card className="border-gold/15 bg-charcoal">
-        <CardHeader>
-          <CardTitle className="font-heading text-ivory">
-            Recent Submissions
-          </CardTitle>
-          <CardDescription>Latest proof awaiting your review</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {submissions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No submissions yet.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {submissions.slice(0, 8).map((submission) => (
-                <Link
-                  key={submission.id}
-                  href={`/dashboard/submissions/${submission.id}`}
-                  className={cn(
-                    "flex items-center gap-4 rounded-lg border border-gold/10 p-4",
-                    "transition-all duration-300 hover:border-gold/30 hover:bg-void/40"
-                  )}
-                >
-                  <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-royal/30">
-                    <ImageIcon className="size-5 text-gold/60" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-ivory">
-                      {submission.task?.title ?? "Submission"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatRelative(submission.submitted_at)}
-                    </p>
-                  </div>
-                  <StatusBadge status={submission.status} type="submission" />
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <section>
+            <SectionHeader
+              title="Submissions"
+              href="/dashboard/submissions"
+              count={stats.pendingSubmissions || undefined}
+            />
+            {recentSubs.length === 0 ? (
+              <EmptyLine>No submissions yet.</EmptyLine>
+            ) : (
+              <ul className="space-y-2">
+                {recentSubs.map((submission) => (
+                  <li key={submission.id}>
+                    <Link
+                      href={`/dashboard/submissions/${submission.id}`}
+                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:px-4"
+                    >
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-royal/25">
+                        <ImageIcon className="size-4 text-gold/60" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-ivory">
+                          {submission.task?.title ?? "Submission"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatRelative(submission.submitted_at)}
+                        </p>
+                      </div>
+                      <StatusBadge
+                        status={submission.status}
+                        type="submission"
+                      />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   )
 }
