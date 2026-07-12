@@ -6,18 +6,13 @@ import { Plus, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { TaskFilters } from "@/components/tasks/task-filters";
-import { StatusBadge } from "@/components/tasks/status-badge";
-import { Countdown } from "@/components/tasks/countdown";
+import { DayAgenda } from "@/components/tasks/day-agenda";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { formatDeadline } from "@/lib/format";
 import {
   ensureRecurringOccurrences,
   filterListableTasks,
-  recurrenceLabel,
 } from "@/lib/tasks";
 import type { Task, TaskFiltersState } from "@/lib/types";
-import { format, isSameDay, parseISO } from "date-fns";
 
 export default function TasksPage() {
   const { isQueen, profile, loading: authLoading } = useAuth();
@@ -73,28 +68,13 @@ export default function TasksPage() {
     });
   }, [tasks, filters]);
 
-  const grouped = useMemo(() => {
-    const groups: { label: string; dateKey: string; tasks: Task[] }[] = [];
-    for (const task of filtered) {
-      const day = parseISO(task.deadline);
-      const dateKey = format(day, "yyyy-MM-dd");
-      const label = isSameDay(day, new Date())
-        ? `Today · ${format(day, "MMM d")}`
-        : format(day, "EEEE · MMM d, yyyy");
-      const existing = groups.find((g) => g.dateKey === dateKey);
-      if (existing) existing.tasks.push(task);
-      else groups.push({ label, dateKey, tasks: [task] });
-    }
-    return groups;
-  }, [filtered]);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-heading text-3xl text-ivory">Tasks</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Sorted by date · daily & weekly duties appear each period
+            Day-by-day schedule · daily & weekly duties appear each period
           </p>
         </div>
         <div className="flex gap-2">
@@ -121,74 +101,11 @@ export default function TasksPage() {
 
       {loading ? (
         <p className="text-muted-foreground text-sm">Loading tasks…</p>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-gold/15 bg-charcoal/60 p-10 text-center text-muted-foreground">
-          No tasks match your filters.
-        </div>
       ) : (
-        <div className="space-y-8">
-          {grouped.map((group) => (
-            <section key={group.dateKey} className="space-y-3">
-              <h2 className="font-heading text-lg text-gold">{group.label}</h2>
-              <div className="overflow-x-auto rounded-xl border border-gold/15 bg-charcoal/60">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead className="border-b border-gold/10 text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Title</th>
-                      <th className="px-4 py-3 font-medium">Deadline</th>
-                      <th className="px-4 py-3 font-medium">Countdown</th>
-                      <th className="px-4 py-3 font-medium">Difficulty</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.tasks.map((task) => {
-                      const recur = recurrenceLabel(task);
-                      return (
-                        <tr
-                          key={task.id}
-                          className="border-b border-gold/5 transition-colors hover:bg-void/40"
-                        >
-                          <td className="px-4 py-3">
-                            <Link
-                              href={`/dashboard/task/${task.id}`}
-                              className="font-medium text-ivory hover:text-gold transition-colors"
-                            >
-                              {task.title}
-                            </Link>
-                            {recur && (
-                              <Badge
-                                variant="outline"
-                                className="ml-2 border-royal/50 bg-royal/20 text-[10px] uppercase tracking-wider text-ivory/80"
-                              >
-                                {recur}
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {formatDeadline(task.deadline)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Countdown
-                              deadline={task.deadline}
-                              showLabels={false}
-                            />
-                          </td>
-                          <td className="px-4 py-3 capitalize text-muted-foreground">
-                            {task.difficulty_level ?? "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <StatusBadge status={task.status} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
-        </div>
+        <DayAgenda
+          tasks={filtered}
+          activeOnly={filters.status === "all"}
+        />
       )}
     </div>
   );
