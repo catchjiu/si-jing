@@ -8,6 +8,9 @@ const sizes = {
   hero: 168,
 } as const;
 
+/** Bump this when replacing the brand image so caches refresh. */
+const BRAND_SRC = "/brand/queen.jpg";
+
 type BrandLogoProps = {
   size?: keyof typeof sizes;
   className?: string;
@@ -19,19 +22,19 @@ type BrandLogoProps = {
 export function BrandLogo({
   size = "md",
   className,
-  rounded = "full",
+  rounded = "lg",
   priority = false,
 }: BrandLogoProps) {
   const px = sizes[size];
   return (
     <Image
-      src="/brand/logo.jpg"
+      src={BRAND_SRC}
       alt="Queen Sisi"
       width={px}
       height={px}
       priority={priority}
       className={cn(
-        "object-cover shrink-0 border border-gold/30 bg-white",
+        "object-cover shrink-0 border border-gold/30 bg-void",
         rounded === "full" && "rounded-full",
         rounded === "lg" && "rounded-xl",
         rounded === "none" && "rounded-none",

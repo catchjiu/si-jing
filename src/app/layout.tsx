@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   description: "Private task sanctum",
   robots: "noindex, nofollow",
   icons: {
-    icon: [{ url: "/brand/logo.jpg", type: "image/jpeg" }],
-    apple: [{ url: "/brand/logo.jpg", type: "image/jpeg" }],
+    icon: [{ url: "/brand/queen.jpg", type: "image/jpeg" }],
+    apple: [{ url: "/brand/queen.jpg", type: "image/jpeg" }],
   },
 };
 
