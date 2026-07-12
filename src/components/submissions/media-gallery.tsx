@@ -23,7 +23,7 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
   const loadSignedUrls = useCallback(async () => {
     const enriched = await Promise.all(
       media.map(async (item) => {
-        if (item.media_type === "image" && item.file_path) {
+        if (item.file_path && (item.media_type === "image" || item.media_type === "video")) {
           const signedUrl =
             (await signObjectUrl({
               bucket: "submissions",
@@ -75,6 +75,22 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
                   className="absolute inset-0 size-full"
                 />
               </div>
+            </div>
+          )
+        }
+
+        if (item.media_type === "video" && item.signedUrl) {
+          return (
+            <div
+              key={item.id}
+              className="col-span-full overflow-hidden rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]"
+            >
+              <video
+                src={item.signedUrl}
+                controls
+                playsInline
+                className="aspect-video w-full"
+              />
             </div>
           )
         }

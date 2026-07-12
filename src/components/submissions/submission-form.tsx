@@ -5,11 +5,12 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { CheckCircle2, ImagePlus, Loader2, Upload, X } from "lucide-react"
+import { CheckCircle2, Film, ImagePlus, Loader2, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
 import { downsizeImageIfNeeded } from "@/lib/image-compress"
+import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress"
 import { resolveImageLocation } from "@/lib/location"
 import { presignAndUpload } from "@/lib/storage/client"
 import { formatRoleSpeech } from "@/lib/role-speech"
@@ -37,8 +38,9 @@ interface SubmissionFormProps {
   className?: string
 }
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...VIDEO_TYPES]
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormProps) {
   const { profile } = useAuth()
@@ -68,8 +70,12 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         toast.error(`${file.name}: unsupported file type`)
         return false
       }
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`${file.name}: file too large (max 10MB)`)
+      const isVideo = VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])
+      const maxSize = isVideo ? 50 * 1024 * 1024 : MAX_IMAGE_SIZE
+      if (file.size > maxSize) {
+        toast.error(
+          `${file.name}: file too large (max ${isVideo ? "50MB" : "10MB"})`
+        )
         return false
       }
       return true
@@ -119,18 +125,33 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
       if (options.withMedia) {
         for (const file of files) {
-          const geo = await resolveImageLocation(file)
-          const uploadFile = await downsizeImageIfNeeded(file)
-          if (uploadFile.size < file.size) {
-            toast.message(
-              `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
-            )
+          const isVideo = VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])
+          let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null
+          let uploadFile = file
+
+          if (isVideo) {
+            const prepared = await prepareVideoForUpload(file)
+            uploadFile = prepared.file
+            if (prepared.compressed) {
+              toast.message(
+                `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+              )
+            }
+          } else {
+            geo = await resolveImageLocation(file)
+            uploadFile = await downsizeImageIfNeeded(file)
+            if (uploadFile.size < file.size) {
+              toast.message(
+                `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+              )
+            }
           }
-          const ext = uploadFile.name.split(".").pop() || "jpg"
+
+          const ext = uploadFile.name.split(".").pop() || (isVideo ? "mp4" : "jpg")
           const filePath = await presignAndUpload({
             bucket: "submissions",
             file: uploadFile,
-            contentType: uploadFile.type || "image/jpeg",
+            contentType: uploadFile.type || (isVideo ? "video/mp4" : "image/jpeg"),
             ext,
             relativePath: `${profile.id}/${submissionId}/${Date.now()}.${ext}`,
           })
@@ -139,7 +160,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
             .from("submission_media")
             .insert({
               submission_id: submissionId,
-              media_type: "image",
+              media_type: isVideo ? "video" : "image",
               file_path: filePath,
               youtube_url: null,
               latitude: geo?.latitude ?? null,
@@ -189,7 +210,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
   async function onSubmit(values: SubmissionFormValues) {
     if (files.length === 0 && !values.youtube_url?.trim()) {
-      toast.error("Add at least one image or a YouTube URL")
+      toast.error("Add at least one image, video, or a YouTube URL")
       return
     }
 
@@ -240,9 +261,9 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         />
       </div>
 
-      {/* Image upload */}
+      {/* Image / video upload */}
       <div className="space-y-2">
-        <Label>Images</Label>
+        <Label>Images &amp; videos</Label>
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -260,10 +281,10 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         >
           <Upload className="mb-2 size-8 text-[color:var(--gold,#d4af37)]/50" />
           <p className="text-sm text-[color:var(--white,#f5f5f5)]/60">
-            Drag & drop images here, or click to browse
+            Drag & drop images or videos here, or click to browse
           </p>
           <p className="mt-1 text-xs text-[color:var(--white,#f5f5f5)]/30">
-            JPEG, PNG, WebP, GIF — max 10MB each
+            Images: JPEG, PNG, WebP, GIF — max 10MB · Videos: MP4, WebM, MOV — max 50MB
           </p>
           <input
             id="file-input"
@@ -282,7 +303,11 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
                 key={`${file.name}-${index}`}
                 className="flex items-center gap-2 rounded-lg border border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--black,#0a0a0a)] px-3 py-2"
               >
-                <ImagePlus className="size-4 shrink-0 text-[color:var(--gold,#d4af37)]" />
+                {VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number]) ? (
+                  <Film className="size-4 shrink-0 text-gold" />
+                ) : (
+                  <ImagePlus className="size-4 shrink-0 text-[color:var(--gold,#d4af37)]" />
+                )}
                 <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
                 <button
                   type="button"

@@ -20,6 +20,7 @@ import type {
   QueenDashboardStats,
   SubmissionWithRelations,
   TaskWithRelations,
+  UserStatus,
 } from "@/lib/types"
 import { formatDeadline, formatRelative } from "@/lib/format"
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests"
@@ -28,6 +29,8 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/tasks/status-badge"
 import { PunishmentCountdown } from "@/components/punishments/punishment-countdown"
+import { MoodDisplay } from "@/components/mood/mood-picker"
+import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 
 interface QueenDashboardProps {
   tasks: TaskWithRelations[]
@@ -35,6 +38,7 @@ interface QueenDashboardProps {
   pendingRequests: DesireRequest[]
   activePunishments: Punishment[]
   stats: QueenDashboardStats
+  slaveStatus?: UserStatus | null
 }
 
 function SectionHeader({
@@ -84,6 +88,7 @@ export function QueenDashboard({
   pendingRequests,
   activePunishments,
   stats,
+  slaveStatus,
 }: QueenDashboardProps) {
   const activeTasks = tasks
     .filter((t) => !["approved", "rejected"].includes(t.status))
@@ -188,6 +193,17 @@ export function QueenDashboard({
           What needs your attention
         </p>
       </div>
+
+      {slaveStatus && (
+        <MoodDisplay
+          moodLevel={slaveStatus.mood_level}
+          moodEmoji={slaveStatus.mood_emoji}
+          username="D"
+          updatedAt={slaveStatus.updated_at}
+        />
+      )}
+
+      <StreakMilestonesPanel currentStreak={stats.streak} />
 
       {/* Compact metrics */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3">
@@ -400,6 +416,9 @@ export function QueenDashboard({
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Due {formatDeadline(task.deadline)}
+                          {task.status === "in_progress" && task.started_at && (
+                            <> · In progress since {formatRelative(task.started_at)}</>
+                          )}
                           {(task.submission_count ?? 0) > 0
                             ? ` · ${task.submission_count} submission${
                                 task.submission_count === 1 ? "" : "s"

@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button"
 import { ContactRestrictionBanner } from "@/components/punishments/punishment-countdown"
 import { DayAgenda } from "@/components/tasks/day-agenda"
 import { groupTasksByDay } from "@/lib/day-groups"
+import { MoodPicker } from "@/components/mood/mood-picker"
+import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 
 interface SlaveDashboardProps {
   tasks: Task[]
@@ -72,6 +74,10 @@ export function SlaveDashboard({
           onExpired={() => router.refresh()}
         />
       ))}
+
+      <MoodPicker onUpdated={() => router.refresh()} />
+
+      <StreakMilestonesPanel currentStreak={stats.streak} />
 
       {(stats.unackedRules > 0 || stats.openCheckIns > 0) && (
         <div className="flex flex-wrap gap-2">

@@ -17,6 +17,10 @@ import type {
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { Badge } from "@/components/ui/badge";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import {
+  TaskBeginButton,
+  TaskElapsedDisplay,
+} from "@/components/tasks/task-begin-button";
 
 export default async function TaskDetailPage({
   params,
@@ -117,8 +121,17 @@ export default async function TaskDetailPage({
             <div className="mt-2">
               <Countdown deadline={task.deadline} />
             </div>
+            {isQueen && <TaskElapsedDisplay startedAt={task.started_at ?? null} className="mt-3" />}
           </div>
         </div>
+
+        {isAssignee && (
+          <TaskBeginButton
+            taskId={task.id}
+            status={task.status}
+            startedAt={task.started_at ?? null}
+          />
+        )}
 
         {task.description && (
           <p className="text-sm leading-relaxed text-ivory/80 whitespace-pre-wrap border-t border-gold/10 pt-4">

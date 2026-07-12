@@ -113,6 +113,7 @@ export default function WishlistPage() {
           <WishlistGallery
             items={items}
             onDeleted={onDeleted}
+            onChanged={load}
             onEdit={(item) => {
               setEditing(item);
               window.scrollTo({ top: 0, behavior: "smooth" });

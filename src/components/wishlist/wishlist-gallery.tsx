@@ -8,8 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { removeObject } from "@/lib/storage/client";
+import { WISHLIST_STATUS_LABELS, wishlistStatusClass } from "@/lib/wishlist";
 import { cn } from "@/lib/utils";
-import type { WishlistItemWithSignedUrl } from "@/lib/types";
+import type { WishlistItemWithSignedUrl, WishlistStatus } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
 
@@ -25,6 +36,7 @@ interface WishlistGalleryProps {
   items: WishlistItemWithSignedUrl[];
   onDeleted?: (id: string) => void;
   onEdit?: (item: WishlistItemWithSignedUrl) => void;
+  onChanged?: () => void;
   className?: string;
 }
 
@@ -32,11 +44,62 @@ export function WishlistGallery({
   items,
   onDeleted,
   onEdit,
+  onChanged,
   className,
 }: WishlistGalleryProps) {
-  const { isQueen } = useAuth();
+  const { isQueen, isSlave } = useAuth();
   const [active, setActive] = useState<WishlistItemWithSignedUrl | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [fulfillmentNotes, setFulfillmentNotes] = useState("");
+  const [statusDraft, setStatusDraft] = useState<WishlistStatus>("new");
+
+  const openItem = (item: WishlistItemWithSignedUrl) => {
+    setActive(item);
+    setStatusDraft(item.status ?? "new");
+    setFulfillmentNotes(item.fulfillment_notes ?? "");
+    if (isSlave && item.status === "new") {
+      void markSeen(item);
+    }
+  };
+
+  const markSeen = async (item: WishlistItemWithSignedUrl) => {
+    const supabase = createClient();
+    await supabase
+      .from("wishlist_items")
+      .update({
+        status: "seen",
+        seen_at: new Date().toISOString(),
+      })
+      .eq("id", item.id);
+    onChanged?.();
+  };
+
+  const saveFulfillment = async () => {
+    if (!isQueen || !active) return;
+    setStatusBusy(true);
+    const supabase = createClient();
+    const updates = {
+      status: statusDraft,
+      fulfillment_notes: fulfillmentNotes.trim() || null,
+      fulfilled_at:
+        statusDraft === "fulfilled"
+          ? active.fulfilled_at ?? new Date().toISOString()
+          : active.fulfilled_at,
+    };
+    const { error } = await supabase
+      .from("wishlist_items")
+      .update(updates)
+      .eq("id", active.id);
+    setStatusBusy(false);
+    if (error) {
+      toast.error("Could not update status");
+      return;
+    }
+    toast.success("Wishlist updated");
+    setActive({ ...active, ...updates } as WishlistItemWithSignedUrl);
+    onChanged?.();
+  };
 
   const emptyMessage = isQueen
     ? "Add items you love so he can study your taste."
@@ -95,7 +158,7 @@ export function WishlistGallery({
           <button
             key={item.id}
             type="button"
-            onClick={() => setActive(item)}
+            onClick={() => openItem(item)}
             className="group overflow-hidden rounded-xl border border-gold/15 bg-charcoal/80 text-left transition-all duration-300 hover:border-gold/30"
           >
             <div className="relative aspect-[4/5] bg-void">
@@ -115,9 +178,20 @@ export function WishlistGallery({
               )}
             </div>
             <div className="space-y-1 p-3">
-              <p className="truncate font-heading text-ivory">
-                {item.title || "Wishlist item"}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate font-heading text-ivory">
+                  {item.title || "Wishlist item"}
+                </p>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "shrink-0 text-[9px] uppercase tracking-wider",
+                    wishlistStatusClass(item.status ?? "new")
+                  )}
+                >
+                  {WISHLIST_STATUS_LABELS[item.status ?? "new"]}
+                </Badge>
+              </div>
               <p className="text-xs text-muted-foreground">
                 {formatRelative(item.created_at)}
               </p>
@@ -180,6 +254,78 @@ export function WishlistGallery({
                   accuracy_m={active.accuracy_m}
                   location_source={active.location_source}
                 />
+
+                <div className="rounded-lg border border-gold/15 bg-void/40 p-3 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] uppercase tracking-wider",
+                        wishlistStatusClass(active.status ?? "new")
+                      )}
+                    >
+                      {WISHLIST_STATUS_LABELS[active.status ?? "new"]}
+                    </Badge>
+                    {active.fulfilled_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Fulfilled {formatRelative(active.fulfilled_at)}
+                      </span>
+                    )}
+                  </div>
+                  {active.fulfillment_notes && (
+                    <p className="text-sm text-ivory/80 whitespace-pre-wrap">
+                      {active.fulfillment_notes}
+                    </p>
+                  )}
+                  {isQueen && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select
+                          value={statusDraft}
+                          onValueChange={(v) =>
+                            setStatusDraft(v as WishlistStatus)
+                          }
+                        >
+                          <SelectTrigger className="border-gold/20 bg-void/60">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(
+                              Object.keys(WISHLIST_STATUS_LABELS) as WishlistStatus[]
+                            ).map((s) => (
+                              <SelectItem key={s} value={s}>
+                                {WISHLIST_STATUS_LABELS[s]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Fulfillment notes</Label>
+                        <Textarea
+                          value={fulfillmentNotes}
+                          onChange={(e) => setFulfillmentNotes(e.target.value)}
+                          rows={2}
+                          placeholder="Ordered from… arrived on…"
+                          className="border-gold/20 bg-void/60"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        disabled={statusBusy}
+                        onClick={() => void saveFulfillment()}
+                        className="bg-gold text-void hover:bg-gold-muted"
+                      >
+                        {statusBusy && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Save status
+                      </Button>
+                    </>
+                  )}
+                </div>
+
                 {isQueen && (
                   <div className="flex flex-wrap gap-2">
                     <Button

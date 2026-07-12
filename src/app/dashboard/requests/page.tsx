@@ -5,6 +5,7 @@ import { HandHeart } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { RequestForm } from "@/components/requests/request-form";
+import { QueenDirectiveForm } from "@/components/requests/queen-directive-form";
 import { RequestCard } from "@/components/requests/request-card";
 import { LocationRequestPanel } from "@/components/location/location-request-panel";
 import type { DesireRequest } from "@/lib/types";
@@ -25,7 +26,9 @@ export default function RequestsPage() {
       .order("created_at", { ascending: false });
 
     if (isSlave) {
-      query = query.eq("requested_by", profile.id);
+      query = query.or(
+        `requested_by.eq.${profile.id},assigned_to.eq.${profile.id}`
+      );
     }
 
     const { data } = await query;
@@ -53,18 +56,19 @@ export default function RequestsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Petitions from D — and location requests both ways"
-            : "Ask Queen for what you need, and share location when asked"}
+            ? "Petitions from D, your directives to him, and location requests"
+            : "Ask Queen, respond to her directives, and share location when asked"}
         </p>
       </div>
 
       <LocationRequestPanel />
 
+      {isQueen && <QueenDirectiveForm onSuccess={load} />}
       {isSlave && <RequestForm onSuccess={load} />}
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">
-          {isQueen ? "Awaiting your word" : "Pending"}
+          {isQueen ? "Awaiting response" : "Pending"}
           {pending.length > 0 ? ` (${pending.length})` : ""}
         </h2>
         {pending.length === 0 ? (

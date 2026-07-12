@@ -29,6 +29,7 @@ export type Task = Omit<
   parent_task_id?: string | null;
   occurrence_key?: string | null;
   punishment_id?: string | null;
+  started_at?: string | null;
 };
 
 export type Submission = Omit<Tables<"submissions">, "status"> & {
@@ -61,6 +62,8 @@ export type RewardWithSignedUrl = Reward & {
   signedUrl?: string;
 };
 
+export type WishlistStatus = "new" | "seen" | "ordered" | "fulfilled";
+
 export type WishlistItem = {
   id: string;
   created_by: string;
@@ -73,6 +76,10 @@ export type WishlistItem = {
   accuracy_m: number | null;
   location_source: ImageLocationSource | null;
   created_at: string;
+  status: WishlistStatus;
+  seen_at: string | null;
+  fulfillment_notes: string | null;
+  fulfilled_at: string | null;
 };
 
 export type WishlistItemWithSignedUrl = WishlistItem & {
@@ -114,8 +121,15 @@ export type Punishment = {
   clearance_mode: PunishmentClearanceMode;
 };
 
-export type RequestType = "contact" | "mercy" | "reward" | "general";
+export type RequestType =
+  | "contact"
+  | "mercy"
+  | "reward"
+  | "general"
+  | "directive"
+  | "question";
 export type RequestStatus = "pending" | "approved" | "denied" | "withdrawn";
+export type RequestDirection = "petition" | "directive";
 
 export type DesireRequest = {
   id: string;
@@ -129,6 +143,10 @@ export type DesireRequest = {
   responded_at: string | null;
   created_at: string;
   updated_at: string;
+  direction: RequestDirection;
+  assigned_to: string | null;
+  slave_response: string | null;
+  slave_responded_at: string | null;
 };
 
 export type RequestMessage = {
@@ -148,7 +166,53 @@ export type VoiceEntityType =
   | "punishment"
   | "check_in"
   | "tease"
-  | "date";
+  | "date"
+  | "journal";
+
+export type StreakMilestone = {
+  id: string;
+  created_by: string;
+  target_days: number;
+  title: string;
+  description: string | null;
+  reward_suggestion: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
+export type StreakMilestoneAward = {
+  id: string;
+  milestone_id: string;
+  awarded_at: string;
+  streak_at_award: number;
+};
+
+export type JournalVisibility = "private" | "shared";
+
+export type JournalEntry = {
+  id: string;
+  author_id: string;
+  body: string;
+  visibility: JournalVisibility;
+  entry_date: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JournalComment = {
+  id: string;
+  entry_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+};
+
+export type UserStatus = {
+  user_id: string;
+  mood_level: number;
+  mood_emoji: string;
+  updated_at: string;
+};
 
 export type VoiceNote = {
   id: string;

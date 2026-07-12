@@ -8,6 +8,8 @@ import {
   filterListableTasks,
 } from "@/lib/tasks";
 import { dayProgress } from "@/lib/day-groups";
+import { computeStreak } from "@/lib/streak";
+import { checkAndAwardStreakMilestones } from "@/lib/streak-milestones";
 import type {
   DesireRequest,
   Profile,
@@ -17,34 +19,8 @@ import type {
   SubmissionWithRelations,
   Task,
   TaskWithRelations,
+  UserStatus,
 } from "@/lib/types";
-
-function computeStreak(tasks: Task[]): number {
-  const approved = tasks
-    .filter((t) => t.status === "approved")
-    .sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    );
-
-  let streak = 0;
-  const dayMs = 24 * 60 * 60 * 1000;
-  let cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
-
-  for (const task of approved) {
-    const d = new Date(task.updated_at);
-    d.setHours(0, 0, 0, 0);
-    const diff = Math.round((cursor.getTime() - d.getTime()) / dayMs);
-    if (diff <= 1) {
-      streak += 1;
-      cursor = d;
-    } else {
-      break;
-    }
-  }
-  return streak;
-}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -162,6 +138,19 @@ export default async function DashboardPage() {
     const slaveTasks = slaveId
       ? tasks.filter((t) => t.assigned_to === slaveId)
       : tasks;
+
+    await checkAndAwardStreakMilestones(supabase, slaveTasks as Task[]);
+
+    const { data: slaveStatusData } = slaveId
+      ? await supabase
+          .from("user_status")
+          .select("*")
+          .eq("user_id", slaveId)
+          .maybeSingle()
+      : { data: null };
+
+    const slaveStatus = slaveStatusData as UserStatus | null;
+
     const today = new Date();
     const todayTasks = slaveTasks.filter((t) =>
       isSameDay(parseISO(t.deadline), today)
@@ -190,11 +179,13 @@ export default async function DashboardPage() {
         pendingRequests={pendingRequests}
         activePunishments={activePunishments}
         stats={stats}
+        slaveStatus={slaveStatus}
       />
     );
   }
 
   const myTasks = tasks.filter((t) => t.assigned_to === profile.id);
+  await checkAndAwardStreakMilestones(supabase, myTasks as Task[]);
   const today = new Date();
   const todayTasks = myTasks.filter((t) =>
     isSameDay(parseISO(t.deadline), today)

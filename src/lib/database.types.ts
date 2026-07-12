@@ -143,6 +143,10 @@ export type Database = {
           accuracy_m: number | null
           location_source: string | null
           created_at: string
+          status: string
+          seen_at: string | null
+          fulfillment_notes: string | null
+          fulfilled_at: string | null
         }
         Insert: {
           id?: string
@@ -156,6 +160,10 @@ export type Database = {
           accuracy_m?: number | null
           location_source?: string | null
           created_at?: string
+          status?: string
+          seen_at?: string | null
+          fulfillment_notes?: string | null
+          fulfilled_at?: string | null
         }
         Update: {
           id?: string
@@ -169,6 +177,10 @@ export type Database = {
           accuracy_m?: number | null
           location_source?: string | null
           created_at?: string
+          status?: string
+          seen_at?: string | null
+          fulfillment_notes?: string | null
+          fulfilled_at?: string | null
         }
         Relationships: [
           {
@@ -301,6 +313,10 @@ export type Database = {
           responded_at: string | null
           created_at: string
           updated_at: string
+          direction: string
+          assigned_to: string | null
+          slave_response: string | null
+          slave_responded_at: string | null
         }
         Insert: {
           id?: string
@@ -314,6 +330,10 @@ export type Database = {
           responded_at?: string | null
           created_at?: string
           updated_at?: string
+          direction?: string
+          assigned_to?: string | null
+          slave_response?: string | null
+          slave_responded_at?: string | null
         }
         Update: {
           id?: string
@@ -327,6 +347,10 @@ export type Database = {
           responded_at?: string | null
           created_at?: string
           updated_at?: string
+          direction?: string
+          assigned_to?: string | null
+          slave_response?: string | null
+          slave_responded_at?: string | null
         }
         Relationships: [
           {
@@ -1198,6 +1222,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          started_at: string | null
         }
         Insert: {
           assigned_by: string
@@ -1215,6 +1240,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          started_at?: string | null
         }
         Update: {
           assigned_by?: string
@@ -1232,6 +1258,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          started_at?: string | null
         }
         Relationships: [
           {
@@ -1290,6 +1317,182 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      streak_milestones: {
+        Row: {
+          id: string
+          created_by: string
+          target_days: number
+          title: string
+          description: string | null
+          reward_suggestion: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          target_days: number
+          title: string
+          description?: string | null
+          reward_suggestion?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          target_days?: number
+          title?: string
+          description?: string | null
+          reward_suggestion?: string | null
+          sort_order?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streak_milestones_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      streak_milestone_awards: {
+        Row: {
+          id: string
+          milestone_id: string
+          awarded_at: string
+          streak_at_award: number
+        }
+        Insert: {
+          id?: string
+          milestone_id: string
+          awarded_at?: string
+          streak_at_award: number
+        }
+        Update: {
+          id?: string
+          milestone_id?: string
+          awarded_at?: string
+          streak_at_award?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streak_milestone_awards_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "streak_milestones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entries: {
+        Row: {
+          id: string
+          author_id: string
+          body: string
+          visibility: string
+          entry_date: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          author_id: string
+          body: string
+          visibility?: string
+          entry_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          author_id?: string
+          body?: string
+          visibility?: string
+          entry_date?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_comments: {
+        Row: {
+          id: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_comments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_status: {
+        Row: {
+          user_id: string
+          mood_level: number
+          mood_emoji: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          mood_level?: number
+          mood_emoji?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          mood_level?: number
+          mood_emoji?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_status_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

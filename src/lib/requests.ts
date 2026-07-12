@@ -18,4 +18,15 @@ export const REQUEST_TYPE_LABELS = {
   mercy: "Mercy",
   reward: "Reward",
   general: "General",
+  directive: "Directive",
+  question: "Question",
 } as const;
+
+export const PETITION_TYPES = [
+  "contact",
+  "mercy",
+  "reward",
+  "general",
+] as const;
+
+export const DIRECTIVE_TYPES = ["directive", "question"] as const;
