@@ -69,117 +69,138 @@ export default function EvidencePage() {
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    let submissionsQuery = supabase
-      .from("submissions")
-      .select("id, task_id, submitted_by, task:tasks(id, title)");
+      let submissionsQuery = supabase
+        .from("submissions")
+        .select("id, task_id, submitted_by, task:tasks(id, title)");
 
-    if (isSlave) {
-      submissionsQuery = submissionsQuery.eq("submitted_by", profile.id);
-    }
+      if (isSlave) {
+        submissionsQuery = submissionsQuery.eq("submitted_by", profile.id);
+      }
 
-    const [{ data: submissions }, { data: pins }] = await Promise.all([
-      submissionsQuery,
-      supabase
-        .from("evidence_pins")
-        .select("*")
-        .order("pinned_at", { ascending: false }),
-    ]);
+      const [{ data: submissions }, { data: pins }] = await Promise.all([
+        submissionsQuery,
+        supabase
+          .from("evidence_pins")
+          .select("*")
+          .order("pinned_at", { ascending: false }),
+      ]);
 
-    const subs = (submissions ?? []) as {
-      id: string;
-      task_id: string;
-      submitted_by: string;
-      task: { id: string; title: string } | null;
-    }[];
-
-    const mapped: EvidenceItem[] = [];
-
-    if (subs.length > 0) {
-      const { data: media } = await supabase
-        .from("submission_media")
-        .select("*")
-        .in(
-          "submission_id",
-          subs.map((s) => s.id)
-        )
-        .order("uploaded_at", { ascending: false });
-
-      const bySub = new Map(subs.map((s) => [s.id, s]));
-      for (const m of (media ?? []) as {
+      const subs = (submissions ?? []) as {
         id: string;
-        media_type: string;
-        file_path: string | null;
-        youtube_url: string | null;
-        uploaded_at: string;
-        submission_id: string;
-      }[]) {
-        const sub = bySub.get(m.submission_id);
-        let signedUrl: string | undefined;
-        if (m.file_path) {
-          signedUrl =
-            (await signObjectUrl({
-              bucket: "submissions",
-              path: m.file_path,
-            })) ?? undefined;
+        task_id: string;
+        submitted_by: string;
+        task: { id: string; title: string } | null;
+      }[];
+
+      const softSign = async (
+        bucket: string,
+        path: string | null
+      ): Promise<string | undefined> => {
+        if (!path || !isStorageBucket(bucket)) return undefined;
+        try {
+          return (
+            (await signObjectUrl({ bucket, path })) ?? undefined
+          );
+        } catch {
+          return undefined;
         }
-        mapped.push({
-          id: `sub-${m.id}`,
-          kind: "submission",
-          media_type: m.media_type,
-          file_path: m.file_path,
-          youtube_url: m.youtube_url,
-          uploaded_at: m.uploaded_at,
-          title: sub?.task?.title ?? "Task",
-          subtitle: "Task submission",
-          submission_id: m.submission_id,
-          task_id: sub?.task_id ?? "",
-          signedUrl,
-          storage_bucket: "submissions",
-        });
+      };
+
+      const mapped: EvidenceItem[] = [];
+
+      if (subs.length > 0) {
+        const { data: media } = await supabase
+          .from("submission_media")
+          .select("*")
+          .in(
+            "submission_id",
+            subs.map((s) => s.id)
+          )
+          .order("uploaded_at", { ascending: false });
+
+        const bySub = new Map(subs.map((s) => [s.id, s]));
+        const mediaRows = (media ?? []) as {
+          id: string;
+          media_type: string;
+          file_path: string | null;
+          youtube_url: string | null;
+          uploaded_at: string;
+          submission_id: string;
+        }[];
+
+        const signedSubs = await Promise.all(
+          mediaRows.map(async (m) => {
+            const sub = bySub.get(m.submission_id);
+            const signedUrl = await softSign("submissions", m.file_path);
+            return {
+              id: `sub-${m.id}`,
+              kind: "submission" as const,
+              media_type: m.media_type,
+              file_path: m.file_path,
+              youtube_url: m.youtube_url,
+              uploaded_at: m.uploaded_at,
+              title: sub?.task?.title ?? "Task",
+              subtitle: "Task submission",
+              submission_id: m.submission_id,
+              task_id: sub?.task_id ?? "",
+              signedUrl,
+              storage_bucket: "submissions",
+            } satisfies EvidenceItem;
+          })
+        );
+        mapped.push(...signedSubs);
       }
+
+      const pinRows = (pins ?? []) as EvidencePin[];
+      const signedPins = await Promise.all(
+        pinRows.map(async (p) => {
+          const signedUrl = await softSign(
+            p.storage_bucket ?? "",
+            p.file_path
+          );
+          return {
+            id: `pin-${p.id}`,
+            kind: "pin" as const,
+            media_type: p.media_kind,
+            file_path: p.file_path,
+            youtube_url: p.youtube_url,
+            uploaded_at: p.pinned_at,
+            title: p.title,
+            subtitle:
+              p.source_type === "date"
+                ? "Pinned from Date"
+                : p.source_type === "date_post"
+                  ? "Pinned from Date timeline"
+                  : p.source_type === "tease"
+                    ? "Pinned from Tease"
+                    : "Pinned voice",
+            signedUrl,
+            storage_bucket: p.storage_bucket,
+            meta: p.meta,
+            pin: p,
+          } satisfies EvidenceItem;
+        })
+      );
+      mapped.push(...signedPins);
+
+      mapped.sort(
+        (a, b) =>
+          new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+      );
+
+      setItems(mapped);
+    } catch (err) {
+      console.error("Evidence load failed", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load evidence"
+      );
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
-
-    for (const p of (pins ?? []) as EvidencePin[]) {
-      let signedUrl: string | undefined;
-      if (p.file_path && p.storage_bucket && isStorageBucket(p.storage_bucket)) {
-        signedUrl =
-          (await signObjectUrl({
-            bucket: p.storage_bucket,
-            path: p.file_path,
-          })) ?? undefined;
-      }
-      mapped.push({
-        id: `pin-${p.id}`,
-        kind: "pin",
-        media_type: p.media_kind,
-        file_path: p.file_path,
-        youtube_url: p.youtube_url,
-        uploaded_at: p.pinned_at,
-        title: p.title,
-        subtitle:
-          p.source_type === "date"
-            ? "Pinned from Date"
-            : p.source_type === "date_post"
-              ? "Pinned from Date timeline"
-              : p.source_type === "tease"
-                ? "Pinned from Tease"
-                : "Pinned voice",
-        signedUrl,
-        storage_bucket: p.storage_bucket,
-        meta: p.meta,
-        pin: p,
-      });
-    }
-
-    mapped.sort(
-      (a, b) =>
-        new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
-    );
-
-    setItems(mapped);
-    setLoading(false);
   }, [profile, isSlave]);
 
   useEffect(() => {

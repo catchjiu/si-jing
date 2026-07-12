@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { RewardCommentThread } from "@/components/rewards/reward-comment-thread";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 interface RewardGalleryProps {
   rewards: RewardWithSignedUrl[];
@@ -140,11 +141,14 @@ export function RewardGallery({
               <div className="space-y-4 p-5">
                 <DialogHeader>
                   <DialogTitle className="font-heading text-gold">
-                    {active.title || "A gift from Queen"}
+                    <RoleSpeech
+                      text={active.title || "A gift from Queen"}
+                      role="queen"
+                    />
                   </DialogTitle>
                   {active.message && (
                     <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
-                      {active.message}
+                      <RoleSpeech text={active.message} role="queen" />
                     </DialogDescription>
                   )}
                 </DialogHeader>

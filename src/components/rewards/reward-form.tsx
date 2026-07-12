@@ -10,6 +10,7 @@ import { uploadVoiceNote } from "@/lib/voice";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload } from "@/lib/storage/client";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,8 +111,8 @@ export function RewardForm({
         .insert({
           sent_by: profile.id,
           sent_to: recipientId,
-          title: title.trim() || null,
-          message: message.trim() || null,
+          title: formatRoleSpeech(title.trim(), "queen") || null,
+          message: formatRoleSpeech(message.trim(), "queen") || null,
           image_path: filePath,
           task_id: taskId ?? null,
           submission_id: submissionId ?? null,

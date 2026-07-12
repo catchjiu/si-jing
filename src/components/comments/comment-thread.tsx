@@ -7,11 +7,13 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import type { CommentWithAuthor } from "@/lib/types"
 import { formatRelative } from "@/lib/format"
+import { formatRoleSpeech } from "@/lib/role-speech"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image"
+import { RoleSpeech } from "@/components/ui/role-speech"
 
 interface CommentThreadProps {
   submissionId: string
@@ -105,7 +107,7 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
       const { error } = await supabase.from("comments").insert({
         submission_id: submissionId,
         commented_by: profile.id,
-        content: content.trim(),
+        content: formatRoleSpeech(content.trim(), profile.role),
         parent_id: parentId,
       })
 
@@ -126,18 +128,18 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
   }
 
   async function handleUpdateComment(commentId: string) {
-    if (!editContent.trim()) return
+    if (!editContent.trim() || !profile) return
 
     setSubmitting(true)
     try {
       const { error } = await supabase
         .from("comments")
         .update({
-          content: editContent.trim(),
+          content: formatRoleSpeech(editContent.trim(), profile.role),
           updated_at: new Date().toISOString(),
         })
         .eq("id", commentId)
-        .eq("commented_by", profile?.id ?? "")
+        .eq("commented_by", profile.id)
 
       if (error) throw error
 
@@ -231,7 +233,7 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
               </div>
             ) : (
               <p className="mt-1 text-sm text-[color:var(--white,#f5f5f5)]/80">
-                {node.content}
+                <RoleSpeech text={node.content} role={node.author?.role} />
               </p>
             )}
 

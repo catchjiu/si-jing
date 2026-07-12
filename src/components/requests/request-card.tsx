@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { DesireRequest } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
 import { formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RequestThread } from "@/components/requests/request-thread";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 interface RequestCardProps {
   request: DesireRequest;
@@ -45,7 +47,9 @@ export function RequestCard({
       .from("requests")
       .update({
         status: decision,
-        queen_response: response.trim() || null,
+        queen_response: response.trim()
+          ? formatRoleSpeech(response.trim(), "queen")
+          : null,
         responded_at: new Date().toISOString(),
       })
       .eq("id", request.id);
@@ -94,7 +98,9 @@ export function RequestCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-heading text-lg text-ivory">{request.title}</h3>
+            <h3 className="font-heading text-lg text-ivory">
+              <RoleSpeech text={request.title} role="slave" />
+            </h3>
             <Badge
               variant="outline"
               className={cn(
@@ -113,7 +119,7 @@ export function RequestCard({
           </div>
           {request.message && (
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {request.message}
+              <RoleSpeech text={request.message} role="slave" />
             </p>
           )}
           <p className="text-xs text-muted-foreground">
@@ -160,7 +166,7 @@ export function RequestCard({
             Queen&apos;s reply
           </p>
           <p className="text-sm text-ivory/90 whitespace-pre-wrap">
-            {request.queen_response}
+            <RoleSpeech text={request.queen_response} role="queen" />
           </p>
         </div>
       )}

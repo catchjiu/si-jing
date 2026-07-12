@@ -14,6 +14,7 @@ import {
   Sparkles,
   Timer,
   X,
+  Repeat2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -22,12 +23,14 @@ import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
+import { RoleSpeech } from "@/components/ui/role-speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -122,6 +125,7 @@ export default function TeasesPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [reteasing, setReteasing] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<{
     tease: TeaseWithSignedUrl;
     url: string;
@@ -255,8 +259,12 @@ export default function TeasesPage() {
         .insert({
           sent_by: profile.id,
           sent_to: recipient.id,
-          title: title.trim() || null,
-          message: message.trim() || null,
+          title: title.trim()
+            ? formatRoleSpeech(title.trim(), "queen")
+            : null,
+          message: message.trim()
+            ? formatRoleSpeech(message.trim(), "queen")
+            : null,
           image_path: imagePath,
           unlocks_at: unlocks.toISOString(),
           is_blurred: blurred,
@@ -307,6 +315,78 @@ export default function TeasesPage() {
       toast.error(err instanceof Error ? err.message : "Could not create tease");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const retease = async (tease: TeaseWithSignedUrl) => {
+    if (!isQueen || !profile || !recipient) return;
+    setReteasing(tease.id);
+    const supabase = createClient();
+    try {
+      const now = new Date().toISOString();
+      const labels = (tease.unlock_tasks ?? [])
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((t) => t.label.trim())
+        .filter(Boolean);
+      const taskGated = labels.length > 0;
+      const blurred = !!tease.image_path && (tease.is_blurred || taskGated);
+      const startAmount = blurred
+        ? taskGated
+          ? Math.max(tease.blur_amount || 20, 75)
+          : tease.blur_amount > 0
+            ? tease.blur_amount
+            : 20
+        : 0;
+
+      const { data: created, error } = await supabase
+        .from("teases")
+        .insert({
+          sent_by: profile.id,
+          sent_to: recipient.id,
+          title: tease.title,
+          message: tease.message,
+          image_path: tease.image_path,
+          unlocks_at: now,
+          is_blurred: blurred,
+          blur_amount: startAmount,
+          unblurred_at: blurred ? null : now,
+          view_duration_seconds: tease.view_duration_seconds,
+          latitude: tease.latitude,
+          longitude: tease.longitude,
+          accuracy_m: tease.accuracy_m,
+          location_source: tease.location_source,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      if (taskGated && created?.id) {
+        const { error: taskError } = await supabase
+          .from("tease_unlock_tasks")
+          .insert(
+            labels.map((label, i) => ({
+              tease_id: created.id,
+              sort_order: i + 1,
+              label,
+            }))
+          );
+        if (taskError) throw taskError;
+      }
+
+      toast.success("Re-teased — sent again");
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "New tease",
+          body: tease.title || "Queen sent a tease again",
+          url: "/dashboard/teases",
+        })
+      );
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not re-tease");
+    } finally {
+      setReteasing(null);
     }
   };
 
@@ -802,7 +882,7 @@ export default function TeasesPage() {
                 <div className="space-y-3 p-4">
                   <div className="space-y-1">
                     <p className="font-heading text-ivory">
-                      {t.title || "Tease"}
+                      <RoleSpeech text={t.title || "Tease"} role="queen" />
                     </p>
                     <GeoMapLinks
                       latitude={t.latitude}
@@ -812,7 +892,7 @@ export default function TeasesPage() {
                     />
                     {(isQueen || fullyRevealed) && t.message && !burned && (
                       <p className="whitespace-pre-wrap text-sm text-ivory/80">
-                        {t.message}
+                        <RoleSpeech text={t.message} role="queen" />
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">
@@ -917,6 +997,24 @@ export default function TeasesPage() {
                         label="Keep image"
                       />
                     </div>
+                  )}
+
+                  {isQueen && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={reteasing === t.id}
+                      onClick={() => void retease(t)}
+                      className="border-gold/40 text-gold hover:bg-gold/10"
+                    >
+                      {reteasing === t.id ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Repeat2 className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      Re-tease
+                    </Button>
                   )}
 
                   <TeaseBegThread

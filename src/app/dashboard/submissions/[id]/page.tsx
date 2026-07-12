@@ -14,6 +14,7 @@ import { SubmissionForm } from "@/components/submissions/submission-form";
 import { formatDeadline } from "@/lib/format";
 import type { SubmissionWithRelations } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 export default function SubmissionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -95,7 +96,10 @@ export default function SubmissionDetailPage() {
       {submission.submission_text && (
         <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-5">
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-ivory/90">
-            {submission.submission_text}
+            <RoleSpeech
+              text={submission.submission_text}
+              role="slave"
+            />
           </p>
         </div>
       )}
@@ -106,7 +110,7 @@ export default function SubmissionDetailPage() {
             Queen&apos;s feedback
           </p>
           <p className="text-sm text-ivory/90 whitespace-pre-wrap">
-            {submission.feedback}
+            <RoleSpeech text={submission.feedback} role="queen" />
           </p>
         </div>
       )}

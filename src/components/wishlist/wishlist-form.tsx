@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,8 +181,12 @@ export function WishlistForm({
         const { data, error } = await supabase
           .from("wishlist_items")
           .update({
-            title: title.trim() || null,
-            notes: notes.trim() || null,
+            title: title.trim()
+              ? formatRoleSpeech(title.trim(), "queen")
+              : null,
+            notes: notes.trim()
+              ? formatRoleSpeech(notes.trim(), "queen")
+              : null,
             link_url: trimmedLink || null,
             image_path: imagePath,
             latitude,
@@ -206,8 +211,12 @@ export function WishlistForm({
           .from("wishlist_items")
           .insert({
             created_by: profile.id,
-            title: title.trim() || null,
-            notes: notes.trim() || null,
+            title: title.trim()
+              ? formatRoleSpeech(title.trim(), "queen")
+              : null,
+            notes: notes.trim()
+              ? formatRoleSpeech(notes.trim(), "queen")
+              : null,
             link_url: trimmedLink || null,
             image_path: imagePath,
             latitude,

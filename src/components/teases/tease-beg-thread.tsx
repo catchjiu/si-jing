@@ -7,11 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 type TeaseMessage = {
   id: string;
@@ -83,7 +85,7 @@ export function TeaseBegThread({
     if (!profile || !draft.trim()) return;
     setSending(true);
     const supabase = createClient();
-    const text = draft.trim();
+    const text = formatRoleSpeech(draft.trim(), profile.role);
     const { error } = await supabase.from("tease_messages").insert({
       tease_id: teaseId,
       author_id: profile.id,
@@ -148,7 +150,7 @@ export function TeaseBegThread({
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-ivory/90">
-                  {m.content}
+                  <RoleSpeech text={m.content} role={m.author?.role} />
                 </p>
               </li>
             );

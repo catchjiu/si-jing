@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 interface WishlistGalleryProps {
   items: WishlistItemWithSignedUrl[];
@@ -148,11 +149,14 @@ export function WishlistGallery({
               <div className="space-y-4 p-5">
                 <DialogHeader>
                   <DialogTitle className="font-heading text-gold">
-                    {active.title || "Wishlist item"}
+                    <RoleSpeech
+                      text={active.title || "Wishlist item"}
+                      role="queen"
+                    />
                   </DialogTitle>
                   {active.notes && (
                     <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
-                      {active.notes}
+                      <RoleSpeech text={active.notes} role="queen" />
                     </DialogDescription>
                   )}
                 </DialogHeader>

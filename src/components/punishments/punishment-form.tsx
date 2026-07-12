@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { PunishmentType } from "@/lib/types";
 import { PUNISHMENT_TYPE_LABELS } from "@/lib/punishments";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,14 +127,21 @@ export function PunishmentForm({
     }
 
     try {
+      const speechTitle = formatRoleSpeech(
+        title.trim() || defaultTitle,
+        "queen"
+      );
+      const speechReason = reason.trim()
+        ? formatRoleSpeech(reason.trim(), "queen")
+        : null;
       const { data: punishment, error } = await supabase
         .from("punishments")
         .insert({
           issued_by: profile.id,
           issued_to: recipientId,
           punishment_type: type,
-          title: title.trim() || defaultTitle,
-          reason: reason.trim() || null,
+          title: speechTitle,
+          reason: speechReason,
           duration_minutes: durationMinutes,
           starts_at: startsAt.toISOString(),
           ends_at: endsAt.toISOString(),
@@ -152,14 +160,17 @@ export function PunishmentForm({
           .map((t) => t.trim())
           .filter(Boolean);
         const titles = Array.from({ length: debtCount }, (_, i) =>
-          customTitles[i] || `Debt ${i + 1}`
+          formatRoleSpeech(customTitles[i] || `Debt ${i + 1}`, "queen")
         );
         const deadline = new Date();
         deadline.setDate(deadline.getDate() + 7);
         const { error: taskError } = await supabase.from("tasks").insert(
           titles.map((t) => ({
             title: t,
-            description: `Task debt for punishment: ${title.trim() || defaultTitle}`,
+            description: formatRoleSpeech(
+              `Task debt for punishment: ${speechTitle}`,
+              "queen"
+            ),
             assigned_by: profile.id,
             assigned_to: recipientId,
             deadline: deadline.toISOString(),

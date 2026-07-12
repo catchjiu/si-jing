@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import type { DifficultyLevel, RecurrencePattern, Task } from "@/lib/types"
+import { formatRoleSpeech } from "@/lib/role-speech"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,6 +90,10 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
 
     setSubmitting(true)
     const supabase = createClient()
+    const speechTitle = formatRoleSpeech(values.title, profile.role)
+    const speechDescription = values.description
+      ? formatRoleSpeech(values.description, profile.role)
+      : null
 
     try {
       if (isEditing && task) {
@@ -97,15 +102,15 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           .update(
             isOccurrence
               ? {
-                  title: values.title,
-                  description: values.description || null,
+                  title: speechTitle,
+                  description: speechDescription,
                   deadline: new Date(values.deadline).toISOString(),
                   difficulty_level: values.difficulty_level,
                   updated_at: new Date().toISOString(),
                 }
               : {
-                  title: values.title,
-                  description: values.description || null,
+                  title: speechTitle,
+                  description: speechDescription,
                   deadline: new Date(values.deadline).toISOString(),
                   difficulty_level: values.difficulty_level,
                   is_recurring: values.is_recurring,
@@ -129,15 +134,15 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
             title: "Task updated",
-            body: values.title,
+            body: speechTitle,
             url: `/dashboard/task/${task.id}`,
             target: "slave",
           })
         )
       } else {
         const { error } = await supabase.from("tasks").insert({
-          title: values.title,
-          description: values.description || null,
+          title: speechTitle,
+          description: speechDescription,
           assigned_by: profile.id,
           assigned_to: assigneeId,
           deadline: new Date(values.deadline).toISOString(),
@@ -168,7 +173,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
             title: "New task",
-            body: values.title,
+            body: speechTitle,
             url: "/dashboard/tasks",
             target: "slave",
           })

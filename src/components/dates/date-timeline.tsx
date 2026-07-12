@@ -7,6 +7,7 @@ import {
   ImagePlus,
   Loader2,
   Link2,
+  MapPin,
   Send,
   Trash2,
   Video,
@@ -17,10 +18,12 @@ import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
-import { resolveImageLocation } from "@/lib/location";
+import { getCurrentPosition, resolveImageLocation } from "@/lib/location";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
+import { RoleSpeech } from "@/components/ui/role-speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,6 +75,7 @@ export function DateTimeline({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingLocation, setSendingLocation] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [dateTimeout, setDateTimeout] = useState(false);
 
@@ -150,6 +154,48 @@ export function DateTimeline({
     setYoutube("");
   };
 
+  const sendLocation = async () => {
+    if (!allowPost || !profile) return;
+    if (dateTimeout) {
+      toast.error("Date timeout is active — posting is blocked");
+      return;
+    }
+
+    setSendingLocation(true);
+    const supabase = createClient();
+    try {
+      const geo = await getCurrentPosition();
+      const text = formatRoleSpeech(
+        body.trim() || "Shared location",
+        profile.role
+      );
+      const { error } = await supabase.from("date_posts").insert({
+        date_id: dateId,
+        author_id: profile.id,
+        body: text,
+        media_kind: "text",
+        file_path: null,
+        youtube_url: null,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+        accuracy_m: geo.accuracy_m,
+        location_source: geo.source,
+      });
+      if (error) throw error;
+
+      toast.success("Location shared on timeline");
+      setBody("");
+      void load();
+      onPosted?.();
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Could not share location";
+      toast.error(msg);
+    } finally {
+      setSendingLocation(false);
+    }
+  };
+
   const publish = async () => {
     if (!allowPost || !profile) return;
     if (dateTimeout) {
@@ -173,6 +219,9 @@ export function DateTimeline({
       let mediaKind: DatePostMediaKind = "text";
       let filePath: string | null = null;
       let youtubeUrl: string | null = null;
+      const speechBody = text
+        ? formatRoleSpeech(text, profile.role)
+        : null;
 
       if (file) {
         const isVideo = VIDEO_TYPES.includes(file.type);
@@ -210,7 +259,7 @@ export function DateTimeline({
         const { error } = await supabase.from("date_posts").insert({
           date_id: dateId,
           author_id: profile.id,
-          body: text || null,
+          body: speechBody,
           media_kind: mediaKind,
           file_path: filePath,
           youtube_url: null,
@@ -226,7 +275,7 @@ export function DateTimeline({
         const { error } = await supabase.from("date_posts").insert({
           date_id: dateId,
           author_id: profile.id,
-          body: text || null,
+          body: speechBody,
           media_kind: mediaKind,
           file_path: null,
           youtube_url: youtubeUrl,
@@ -236,7 +285,7 @@ export function DateTimeline({
         const { error } = await supabase.from("date_posts").insert({
           date_id: dateId,
           author_id: profile.id,
-          body: text || null,
+          body: speechBody,
           media_kind: "text",
           file_path: null,
           youtube_url: null,
@@ -297,7 +346,7 @@ export function DateTimeline({
       ) : posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {allowPost
-            ? "No posts yet — share thoughts, photos, videos, or a YouTube link."
+            ? "No posts yet — share thoughts, photos, videos, location, or a YouTube link."
             : dateTimeout
               ? "Date timeout active — you can view but not post."
               : "No timeline posts yet."}
@@ -379,7 +428,10 @@ export function DateTimeline({
 
                   {post.body && (
                     <p className="whitespace-pre-wrap text-sm text-ivory/90">
-                      {post.body}
+                      <RoleSpeech
+                        text={post.body}
+                        role={post.author?.role}
+                      />
                     </p>
                   )}
 
@@ -508,6 +560,19 @@ export function DateTimeline({
                   onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
                 />
               </label>
+              <button
+                type="button"
+                disabled={submitting || sendingLocation}
+                onClick={() => void sendLocation()}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gold/20 px-3 py-1.5 text-xs text-ivory hover:border-gold/40 disabled:opacity-50"
+              >
+                {sendingLocation ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />
+                ) : (
+                  <MapPin className="h-3.5 w-3.5 text-gold" />
+                )}
+                Location
+              </button>
             </div>
           )}
 
@@ -531,7 +596,7 @@ export function DateTimeline({
 
           <Button
             type="button"
-            disabled={submitting}
+            disabled={submitting || sendingLocation}
             onClick={() => void publish()}
             className="bg-gold text-void hover:bg-gold-muted"
           >

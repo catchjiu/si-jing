@@ -12,10 +12,12 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type { Profile, QueenDate } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { DateTimeline } from "@/components/dates/date-timeline";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { RoleSpeech } from "@/components/ui/role-speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -107,8 +109,8 @@ export default function DatesPage() {
     const { error } = await supabase.from("queen_dates").insert({
       created_by: profile.id,
       assigned_to: recipient.id,
-      title: title.trim() || null,
-      notes: notes.trim() || null,
+      title: title.trim() ? formatRoleSpeech(title.trim(), "queen") : null,
+      notes: notes.trim() ? formatRoleSpeech(notes.trim(), "queen") : null,
       scheduled_at: scheduled.toISOString(),
     });
     setSubmitting(false);
@@ -271,7 +273,11 @@ export default function DatesPage() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-heading text-xl text-ivory">
-                        {d.title || "Date"}
+                        {d.title ? (
+                          <RoleSpeech text={d.title} role="queen" />
+                        ) : (
+                          "Date"
+                        )}
                       </p>
                       <Badge
                         variant="outline"
@@ -297,7 +303,7 @@ export default function DatesPage() {
                     </p>
                     {d.notes && (
                       <p className="whitespace-pre-wrap text-sm text-ivory/80">
-                        {d.notes}
+                        <RoleSpeech text={d.notes} role="queen" />
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">

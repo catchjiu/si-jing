@@ -7,6 +7,7 @@ import { Countdown } from "@/components/tasks/countdown";
 import { SubmissionForm } from "@/components/submissions/submission-form";
 import { formatDeadline, DIFFICULTY_LABELS } from "@/lib/format";
 import { recurrenceLabel } from "@/lib/tasks";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type {
   DifficultyLevel,
   Profile,
@@ -85,7 +86,9 @@ export default async function TaskDetailPage({
       <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-6 md:p-8 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="font-heading text-3xl text-ivory">{task.title}</h1>
+            <h1 className="font-heading text-3xl text-ivory">
+              {formatRoleSpeech(task.title, "queen")}
+            </h1>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <StatusBadge status={task.status} />
               {task.difficulty_level && (
@@ -119,7 +122,7 @@ export default async function TaskDetailPage({
 
         {task.description && (
           <p className="text-sm leading-relaxed text-ivory/80 whitespace-pre-wrap border-t border-gold/10 pt-4">
-            {task.description}
+            {formatRoleSpeech(task.description, "queen")}
           </p>
         )}
 

@@ -20,9 +20,11 @@ import {
   googleMapsUrl,
 } from "@/lib/location";
 import { formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type { LocationRequest, Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { RoleSpeech } from "@/components/ui/role-speech";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
@@ -126,7 +128,9 @@ export function LocationRequestPanel({ className }: { className?: string }) {
     const { error } = await supabase.from("location_requests").insert({
       requested_by: profile.id,
       requested_from: other.id,
-      message: message.trim() || null,
+      message: message.trim()
+        ? formatRoleSpeech(message.trim(), profile.role)
+        : null,
       status: "pending",
     });
     setBusy(null);
@@ -323,7 +327,16 @@ export function LocationRequestPanel({ className }: { className?: string }) {
               </div>
               {row.message && (
                 <p className="text-sm text-muted-foreground italic">
-                  {row.message}
+                  <RoleSpeech
+                    text={row.message}
+                    role={
+                      row.requested_by === profile?.id
+                        ? profile.role
+                        : profile?.role === "queen"
+                          ? "slave"
+                          : "queen"
+                    }
+                  />
                 </p>
               )}
               <div className="flex flex-wrap gap-2">

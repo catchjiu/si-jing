@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { syncProtocolState } from "@/lib/protocol";
 import { formatDeadline, formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type { CheckIn, Profile } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 function statusClass(status: CheckIn["status"]) {
   if (status === "open") return "border-gold/50 text-gold";
@@ -103,8 +105,10 @@ export default function CheckInsPage() {
     const { error } = await supabase.from("check_ins").insert({
       created_by: profile.id,
       assigned_to: recipient.id,
-      title: title.trim(),
-      prompt: prompt.trim() || null,
+      title: formatRoleSpeech(title.trim(), "queen"),
+      prompt: prompt.trim()
+        ? formatRoleSpeech(prompt.trim(), "queen")
+        : null,
       window_minutes: minutes,
       opens_at: opens.toISOString(),
       closes_at: closes.toISOString(),
@@ -123,7 +127,10 @@ export default function CheckInsPage() {
 
   const respond = async (checkIn: CheckIn) => {
     if (!isSlave || !profile) return;
-    const text = (responseDrafts[checkIn.id] ?? "").trim();
+    const text = formatRoleSpeech(
+      (responseDrafts[checkIn.id] ?? "").trim(),
+      "slave"
+    );
     if (!text) {
       toast.error("Write a response");
       return;
@@ -269,14 +276,16 @@ export default function CheckInsPage() {
               )}
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-heading text-lg text-ivory">{c.title}</h3>
+                <h3 className="font-heading text-lg text-ivory">
+                  <RoleSpeech text={c.title} role="queen" />
+                </h3>
                 <Badge variant="outline" className={statusClass(c.status)}>
                   {c.status}
                 </Badge>
               </div>
               {c.prompt && (
                 <p className="mb-2 text-sm text-ivory/75 whitespace-pre-wrap">
-                  {c.prompt}
+                  <RoleSpeech text={c.prompt} role="queen" />
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
@@ -288,7 +297,9 @@ export default function CheckInsPage() {
                   <p className="mb-1 text-xs text-muted-foreground">
                     Response · {c.responded_at && formatRelative(c.responded_at)}
                   </p>
-                  <p className="whitespace-pre-wrap">{c.response_text}</p>
+                  <p className="whitespace-pre-wrap">
+                    <RoleSpeech text={c.response_text} role="slave" />
+                  </p>
                 </div>
               )}
               {isSlave && c.status === "open" && (

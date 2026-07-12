@@ -4,7 +4,9 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { Check, Gift, Loader2, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/contexts/auth-context"
 import type { SubmissionStatus } from "@/lib/types"
+import { formatRoleSpeech } from "@/lib/role-speech"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -28,6 +30,7 @@ export function ReviewActions({
   onReviewed,
   className,
 }: ReviewActionsProps) {
+  const { profile } = useAuth()
   const [feedback, setFeedback] = useState("")
   const [submitting, setSubmitting] = useState<"approve" | "reject" | null>(null)
   const [showReward, setShowReward] = useState(false)
@@ -35,13 +38,16 @@ export function ReviewActions({
   async function handleReview(decision: "approved" | "rejected") {
     setSubmitting(decision === "approved" ? "approve" : "reject")
     const supabase = createClient()
+    const feedbackText = feedback.trim()
+      ? formatRoleSpeech(feedback.trim(), profile?.role ?? "queen")
+      : null
 
     try {
       const { error: submissionError } = await supabase
         .from("submissions")
         .update({
           status: decision,
-          feedback: feedback.trim() || null,
+          feedback: feedbackText,
         })
         .eq("id", submissionId)
 
@@ -70,7 +76,7 @@ export function ReviewActions({
         }
       }
 
-      if (feedback.trim()) {
+      if (feedbackText) {
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -79,7 +85,7 @@ export function ReviewActions({
           await supabase.from("comments").insert({
             submission_id: submissionId,
             commented_by: user.id,
-            content: feedback.trim(),
+            content: feedbackText,
             parent_id: null,
           })
         }

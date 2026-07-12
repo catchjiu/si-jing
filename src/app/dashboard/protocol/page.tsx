@@ -6,6 +6,7 @@ import { BookOpen, Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import type { ProtocolRule, RuleAcknowledgment } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 export default function ProtocolPage() {
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
@@ -54,8 +56,8 @@ export default function ProtocolPage() {
     const supabase = createClient();
     const { error } = await supabase.from("rules").insert({
       created_by: profile.id,
-      title: title.trim(),
-      body: body.trim(),
+      title: formatRoleSpeech(title.trim(), "queen"),
+      body: formatRoleSpeech(body.trim(), "queen"),
       sort_order: rules.length,
       is_active: true,
     });
@@ -208,7 +210,9 @@ export default function ProtocolPage() {
                 )}
               >
                 <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-heading text-lg text-ivory">{rule.title}</h3>
+                  <h3 className="font-heading text-lg text-ivory">
+                    <RoleSpeech text={rule.title} role="queen" />
+                  </h3>
                   <div className="flex flex-wrap items-center gap-2">
                     {!rule.is_active && (
                       <Badge variant="outline" className="border-muted text-muted-foreground">
@@ -226,7 +230,7 @@ export default function ProtocolPage() {
                   </div>
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-ivory/80">
-                  {rule.body}
+                  <RoleSpeech text={rule.body} role="queen" />
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {isSlave && rule.is_active && (

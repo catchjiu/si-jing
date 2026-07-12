@@ -7,10 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Profile, RequestMessage } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { RoleSpeech } from "@/components/ui/role-speech";
 
 type MessageWithAuthor = RequestMessage & {
   author?: Pick<Profile, "id" | "username" | "role"> | null;
@@ -90,17 +92,18 @@ export function RequestThread({
     }
     setSending(true);
     const supabase = createClient();
+    const text = formatRoleSpeech(draft.trim(), profile.role);
     const { error } = await supabase.from("request_messages").insert({
       request_id: requestId,
       author_id: profile.id,
-      content: draft.trim(),
+      content: text,
     });
     setSending(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    const sentText = draft.trim();
+    const sentText = text;
     setDraft("");
     void load();
     void import("@/lib/push-client").then(({ notifyPush }) =>
@@ -153,7 +156,7 @@ export function RequestThread({
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-ivory/90">
-                  {m.content}
+                  <RoleSpeech text={m.content} role={m.author?.role} />
                 </p>
               </li>
             );

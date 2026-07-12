@@ -12,6 +12,7 @@ import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
 import { downsizeImageIfNeeded } from "@/lib/image-compress"
 import { resolveImageLocation } from "@/lib/location"
 import { presignAndUpload } from "@/lib/storage/client"
+import { formatRoleSpeech } from "@/lib/role-speech"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -194,7 +195,9 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
     await createSubmission({
       mode: "proof",
-      submissionText: values.submission_text?.trim() || null,
+      submissionText: values.submission_text?.trim()
+        ? formatRoleSpeech(values.submission_text.trim(), profile?.role)
+        : null,
       youtubeUrl: values.youtube_url,
       withMedia: true,
     })
@@ -209,8 +212,10 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
     await createSubmission({
       mode: "complete",
-      submissionText:
+      submissionText: formatRoleSpeech(
         values.submission_text?.trim() || "Completed without evidence",
+        profile?.role
+      ),
       youtubeUrl: null,
       withMedia: false,
     })

@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { RequestType } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,8 +71,10 @@ export function RequestForm({
       const { error } = await supabase.from("requests").insert({
         requested_by: profile.id,
         request_type: type,
-        title: title.trim(),
-        message: message.trim() || null,
+        title: formatRoleSpeech(title.trim(), "slave"),
+        message: message.trim()
+          ? formatRoleSpeech(message.trim(), "slave")
+          : null,
         desire_level: desire,
         status: "pending",
       });
