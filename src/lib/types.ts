@@ -165,6 +165,7 @@ export type Tease = {
   unlocked_notified_at: string | null;
   viewed_at: string | null;
   is_blurred: boolean;
+  blur_amount: number;
   unblurred_at: string | null;
   view_duration_seconds: number | null;
   view_started_at: string | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -18,10 +18,12 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
 import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
+import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -32,6 +34,24 @@ import {
 import { cn } from "@/lib/utils";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/** Map 0–100 → CSS blur px (100 ≈ heavy soft veil, still some shape). */
+function blurStyle(amount: number): CSSProperties {
+  const clamped = Math.max(0, Math.min(100, amount));
+  const px = (clamped / 100) * 40;
+  return {
+    filter: px > 0 ? `blur(${px.toFixed(1)}px)` : undefined,
+    transform: px > 0 ? "scale(1.02)" : undefined,
+  };
+}
+
+function blurLabel(amount: number) {
+  if (amount <= 5) return "Almost clear";
+  if (amount <= 25) return "Soft tease";
+  if (amount <= 50) return "Veiled";
+  if (amount <= 75) return "Heavy";
+  return "Barely a hint";
+}
 
 const DURATION_OPTIONS = [
   { value: "off", label: "No timer (stays until blurred)" },
@@ -62,13 +82,14 @@ async function withSignedUrls(
       // Slave never gets URL for burned timed teases
       if (!isQueen && isExpired(t)) return { ...t, signedUrl: undefined };
       if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
-      // Slave timed teases: only issue short-lived URL when actively viewing (handled separately)
+      // Clear timed teases: URL only in protected viewer (not the grid)
       if (!isQueen && t.view_duration_seconds && !t.is_blurred) {
         return { ...t, signedUrl: undefined };
       }
+      // Blurred (and non-timed clear) teases: show in grid for both roles
       const { data } = await supabase.storage
         .from("teases")
-        .createSignedUrl(t.image_path, isQueen ? 3600 : 120);
+        .createSignedUrl(t.image_path, isQueen ? 3600 : 600);
       return { ...t, signedUrl: data?.signedUrl };
     })
   );
@@ -83,6 +104,7 @@ export default function TeasesPage() {
   const [message, setMessage] = useState("");
   const [unlockLocal, setUnlockLocal] = useState("");
   const [startBlurred, setStartBlurred] = useState(true);
+  const [blurAmount, setBlurAmount] = useState(20);
   const [viewDuration, setViewDuration] = useState("5");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -176,6 +198,7 @@ export default function TeasesPage() {
         image_path: imagePath,
         unlocks_at: unlocks.toISOString(),
         is_blurred: blurred,
+        blur_amount: blurred ? blurAmount : 0,
         unblurred_at: blurred ? null : new Date().toISOString(),
         view_duration_seconds: duration,
       });
@@ -192,6 +215,7 @@ export default function TeasesPage() {
       setMessage("");
       setUnlockLocal("");
       setStartBlurred(true);
+      setBlurAmount(20);
       setViewDuration("5");
       setImage(null);
       void load();
@@ -211,6 +235,11 @@ export default function TeasesPage() {
       .update({
         is_blurred: blurred,
         unblurred_at: blurred ? null : new Date().toISOString(),
+        blur_amount: blurred
+          ? tease.blur_amount > 0
+            ? tease.blur_amount
+            : 20
+          : 0,
       })
       .eq("id", tease.id);
     setToggling(null);
@@ -230,6 +259,30 @@ export default function TeasesPage() {
       );
     }
     void load();
+  };
+
+  const updateBlurAmount = async (tease: TeaseWithSignedUrl, amount: number) => {
+    if (!isQueen) return;
+    setItems((prev) =>
+      prev.map((t) =>
+        t.id === tease.id
+          ? { ...t, blur_amount: amount, is_blurred: amount > 0 }
+          : t
+      )
+    );
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("teases")
+      .update({
+        blur_amount: amount,
+        is_blurred: amount > 0,
+        unblurred_at: amount > 0 ? null : new Date().toISOString(),
+      })
+      .eq("id", tease.id);
+    if (error) {
+      toast.error(error.message);
+      void load();
+    }
   };
 
   const openProtectedView = async (tease: TeaseWithSignedUrl) => {
@@ -372,10 +425,8 @@ export default function TeasesPage() {
                 <img
                   src={preview}
                   alt="Preview"
-                  className={cn(
-                    "max-h-64 w-full object-contain bg-void transition",
-                    startBlurred && "scale-110 blur-2xl"
-                  )}
+                  className="max-h-64 w-full object-contain bg-void transition"
+                  style={startBlurred ? blurStyle(blurAmount) : undefined}
                 />
                 <button
                   type="button"
@@ -404,17 +455,42 @@ export default function TeasesPage() {
             )}
           </div>
           {file && (
-            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gold/15 bg-void/40 px-4 py-3">
-              <input
-                type="checkbox"
-                checked={startBlurred}
-                onChange={(e) => setStartBlurred(e.target.checked)}
-                className="size-4 accent-[var(--gold,#d4af37)]"
-              />
-              <span className="text-sm text-ivory">
-                Start blurred — I will reveal it later
-              </span>
-            </label>
+            <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={startBlurred}
+                  onChange={(e) => setStartBlurred(e.target.checked)}
+                  className="size-4 accent-[var(--gold,#d4af37)]"
+                />
+                <span className="text-sm text-ivory">
+                  Start blurred — control how much D can see
+                </span>
+              </label>
+              {startBlurred && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-end justify-between gap-3">
+                    <Label className="text-ivory/80">Blur for D</Label>
+                    <p className="text-sm text-gold">
+                      {blurAmount}% · {blurLabel(blurAmount)}
+                    </p>
+                  </div>
+                  <Slider
+                    value={[blurAmount]}
+                    onValueChange={(v) => setBlurAmount(v[0] ?? 20)}
+                    min={0}
+                    max={100}
+                    step={1}
+                    aria-label="Blur amount"
+                    className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
+                  />
+                  <div className="flex justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span>Clear</span>
+                    <span>Opaque</span>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
           <Button
             type="submit"
@@ -440,6 +516,7 @@ export default function TeasesPage() {
             const burned = isExpired(t);
             const showImage = isQueen || (timeReady && !burned);
             const visuallyBlurred = !!t.image_path && t.is_blurred && !burned;
+            const amount = t.blur_amount ?? 20;
             const fullyRevealed = showImage && !visuallyBlurred && !burned;
             const timed = !!t.view_duration_seconds;
             const slaveNeedsProtectedOpen =
@@ -473,37 +550,29 @@ export default function TeasesPage() {
                         Available {formatDeadline(t.unlocks_at)}
                       </p>
                     </div>
-                  ) : isQueen && t.signedUrl ? (
+                  ) : t.signedUrl && (visuallyBlurred || isQueen) ? (
                     <>
                       <Image
                         src={t.signedUrl}
                         alt={t.title || "Tease"}
                         fill
                         unoptimized
-                        className={cn(
-                          "object-cover transition duration-700",
-                          visuallyBlurred &&
-                            "scale-125 blur-3xl brightness-75 saturate-50"
-                        )}
+                        className="object-cover transition duration-500"
+                        style={
+                          visuallyBlurred ? blurStyle(amount) : undefined
+                        }
                         sizes="50vw"
                       />
                       {visuallyBlurred && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-void/20 p-4 text-center">
-                          <EyeOff className="h-7 w-7 text-gold/80" />
-                          <p className="font-heading text-ivory">Blurred</p>
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/80 to-transparent p-3 text-center">
+                          <p className="text-xs text-ivory/90">
+                            {isQueen
+                              ? `${amount}% blur for D · ${blurLabel(amount)}`
+                              : "Waiting for Queen to reveal"}
+                          </p>
                         </div>
                       )}
                     </>
-                  ) : visuallyBlurred ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-                      <EyeOff className="h-8 w-8 text-gold/50" />
-                      <p className="font-heading text-ivory">
-                        {t.title || "Blurred tease"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Waiting for Queen to reveal
-                      </p>
-                    </div>
                   ) : slaveNeedsProtectedOpen ? (
                     <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
                       <Eye className="h-8 w-8 text-gold" />
@@ -567,27 +636,69 @@ export default function TeasesPage() {
                   </div>
 
                   {isQueen && t.image_path && !burned && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={toggling === t.id}
-                      onClick={() => void setBlurred(t, !t.is_blurred)}
-                      className={
-                        t.is_blurred
-                          ? "bg-gold text-void hover:bg-gold-muted"
-                          : "border border-muted bg-transparent text-ivory hover:bg-void/60"
-                      }
-                    >
-                      {toggling === t.id ? (
-                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                      ) : t.is_blurred ? (
-                        <Eye className="mr-2 h-3.5 w-3.5" />
-                      ) : (
-                        <EyeOff className="mr-2 h-3.5 w-3.5" />
-                      )}
-                      {t.is_blurred ? "Reveal image" : "Blur again"}
-                    </Button>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex items-end justify-between gap-2">
+                          <Label className="text-xs text-muted-foreground">
+                            Blur for D
+                          </Label>
+                          <span className="text-xs text-gold">
+                            {amount}% · {blurLabel(amount)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[amount]}
+                          onValueChange={(v) => {
+                            const next = v[0] ?? 0;
+                            setItems((prev) =>
+                              prev.map((x) =>
+                                x.id === t.id
+                                  ? {
+                                      ...x,
+                                      blur_amount: next,
+                                      is_blurred: next > 0,
+                                    }
+                                  : x
+                              )
+                            );
+                          }}
+                          onValueCommit={(v) =>
+                            void updateBlurAmount(t, v[0] ?? 0)
+                          }
+                          min={0}
+                          max={100}
+                          step={1}
+                          aria-label="Blur amount"
+                          className="py-1 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={toggling === t.id}
+                        onClick={() => void setBlurred(t, !t.is_blurred)}
+                        className={
+                          t.is_blurred
+                            ? "bg-gold text-void hover:bg-gold-muted"
+                            : "border border-muted bg-transparent text-ivory hover:bg-void/60"
+                        }
+                      >
+                        {toggling === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : t.is_blurred ? (
+                          <Eye className="mr-2 h-3.5 w-3.5" />
+                        ) : (
+                          <EyeOff className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        {t.is_blurred ? "Reveal fully" : "Blur again"}
+                      </Button>
+                    </div>
                   )}
+
+                  <TeaseBegThread
+                    teaseId={t.id}
+                    teaseTitle={t.title}
+                  />
                 </div>
               </article>
             );

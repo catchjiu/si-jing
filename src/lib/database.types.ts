@@ -308,6 +308,45 @@ export type Database = {
           },
         ]
       }
+      tease_messages: {
+        Row: {
+          id: string
+          tease_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tease_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tease_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tease_messages_tease_id_fkey"
+            columns: ["tease_id"]
+            isOneToOne: false
+            referencedRelation: "teases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tease_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_notes: {
         Row: {
           id: string
@@ -505,6 +544,7 @@ export type Database = {
           unlocked_notified_at: string | null
           viewed_at: string | null
           is_blurred: boolean
+          blur_amount: number
           unblurred_at: string | null
           view_duration_seconds: number | null
           view_started_at: string | null
@@ -523,6 +563,7 @@ export type Database = {
           unlocked_notified_at?: string | null
           viewed_at?: string | null
           is_blurred?: boolean
+          blur_amount?: number
           unblurred_at?: string | null
           view_duration_seconds?: number | null
           view_started_at?: string | null
@@ -541,6 +582,7 @@ export type Database = {
           unlocked_notified_at?: string | null
           viewed_at?: string | null
           is_blurred?: boolean
+          blur_amount?: number
           unblurred_at?: string | null
           view_duration_seconds?: number | null
           view_started_at?: string | null
