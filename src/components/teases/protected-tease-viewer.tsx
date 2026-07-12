@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 
 type ProtectedTeaseViewerProps = {
   imageUrl: string;
-  watermark: string;
   durationSeconds: number | null;
   title?: string | null;
   onSessionEnd: (reason: "expired" | "left" | "closed") => void;
@@ -18,11 +17,10 @@ type ProtectedTeaseViewerProps = {
 /**
  * Best-effort protection for ephemeral teases.
  * True screenshot blocking is not possible in iOS Safari; we blank on leave,
- * disable save/long-press affordances, watermark, and burn timed views.
+ * disable save/long-press affordances, and burn timed views.
  */
 export function ProtectedTeaseViewer({
   imageUrl,
-  watermark,
   durationSeconds,
   title,
   onSessionEnd,
@@ -166,19 +164,6 @@ export function ProtectedTeaseViewer({
               draggable={false}
               className="h-full w-full object-contain pointer-events-none select-none [-webkit-touch-callout:none]"
             />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 flex flex-wrap content-around justify-around gap-8 overflow-hidden opacity-40"
-            >
-              {Array.from({ length: 12 }).map((_, i) => (
-                <span
-                  key={i}
-                  className="rotate-[-24deg] text-[11px] font-medium tracking-wide text-white/80"
-                >
-                  {watermark}
-                </span>
-              ))}
-            </div>
             {/* Transparent shield against long-press save on some iOS builds */}
             <div
               className="absolute inset-0"

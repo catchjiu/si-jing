@@ -7,8 +7,10 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
+  ListPlus,
   Loader2,
   Lock,
+  Plus,
   Sparkles,
   Timer,
   X,
@@ -19,6 +21,7 @@ import { formatDeadline, formatRelative } from "@/lib/format";
 import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
+import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,6 +109,7 @@ export default function TeasesPage() {
   const [startBlurred, setStartBlurred] = useState(true);
   const [blurAmount, setBlurAmount] = useState(20);
   const [viewDuration, setViewDuration] = useState("5");
+  const [unlockTaskLabels, setUnlockTaskLabels] = useState<string[]>([""]);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -122,11 +126,17 @@ export default function TeasesPage() {
     const supabase = createClient();
     let query = supabase
       .from("teases")
-      .select("*")
+      .select("*, unlock_tasks:tease_unlock_tasks(*)")
       .order("created_at", { ascending: false });
     if (isSlave) query = query.eq("sent_to", profile.id);
     const { data } = await query;
-    const signed = await withSignedUrls((data ?? []) as TeaseWithSignedUrl[], {
+    const rows = ((data ?? []) as TeaseWithSignedUrl[]).map((t) => ({
+      ...t,
+      unlock_tasks: [...(t.unlock_tasks ?? [])].sort(
+        (a, b) => a.sort_order - b.sort_order
+      ),
+    }));
+    const signed = await withSignedUrls(rows, {
       isQueen: !!isQueen,
     });
     setItems(signed);
@@ -171,6 +181,15 @@ export default function TeasesPage() {
       return;
     }
 
+    const taskLabels = unlockTaskLabels
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    if (taskLabels.length > 0 && !file) {
+      toast.error("Unlock tasks need an image to reveal");
+      return;
+    }
+
     setSubmitting(true);
     const supabase = createClient();
     try {
@@ -184,32 +203,52 @@ export default function TeasesPage() {
         if (uploadError) throw uploadError;
       }
 
-      const blurred = !!imagePath && startBlurred;
+      const taskGated = taskLabels.length > 0;
+      const blurred = !!imagePath && (startBlurred || taskGated);
       const duration =
         imagePath && viewDuration !== "off"
           ? parseInt(viewDuration, 10)
           : null;
 
-      const { error } = await supabase.from("teases").insert({
-        sent_by: profile.id,
-        sent_to: recipient.id,
-        title: title.trim() || null,
-        message: message.trim() || null,
-        image_path: imagePath,
-        unlocks_at: unlocks.toISOString(),
-        is_blurred: blurred,
-        blur_amount: blurred ? blurAmount : 0,
-        unblurred_at: blurred ? null : new Date().toISOString(),
-        view_duration_seconds: duration,
-      });
+      const { data: created, error } = await supabase
+        .from("teases")
+        .insert({
+          sent_by: profile.id,
+          sent_to: recipient.id,
+          title: title.trim() || null,
+          message: message.trim() || null,
+          image_path: imagePath,
+          unlocks_at: unlocks.toISOString(),
+          is_blurred: blurred,
+          blur_amount: blurred ? blurAmount || 20 : 0,
+          unblurred_at: blurred ? null : new Date().toISOString(),
+          view_duration_seconds: duration,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
+      if (taskGated && created?.id) {
+        const { error: taskError } = await supabase
+          .from("tease_unlock_tasks")
+          .insert(
+            taskLabels.map((label, i) => ({
+              tease_id: created.id,
+              sort_order: i + 1,
+              label,
+            }))
+          );
+        if (taskError) throw taskError;
+      }
+
       toast.success(
-        duration
-          ? `Timed tease queued (${duration}s)`
-          : blurred
-            ? "Blurred tease queued"
-            : "Tease queued"
+        taskGated
+          ? `Tease queued · ${taskLabels.length} unlock task${taskLabels.length > 1 ? "s" : ""}`
+          : duration
+            ? `Timed tease queued (${duration}s)`
+            : blurred
+              ? "Blurred tease queued"
+              : "Tease queued"
       );
       setTitle("");
       setMessage("");
@@ -217,6 +256,7 @@ export default function TeasesPage() {
       setStartBlurred(true);
       setBlurAmount(20);
       setViewDuration("5");
+      setUnlockTaskLabels([""]);
       setImage(null);
       void load();
     } catch (err) {
@@ -361,8 +401,8 @@ export default function TeasesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Blur, timed burn, and protected viewing — screenshots on iPhone can’t be fully blocked in a browser"
-            : "Protected views blank if you leave; timed teases burn after a few seconds"}
+            ? "Blur, unlock tasks, timed burn — screenshots on iPhone can’t be fully blocked in a browser"
+            : "Finish unlock tasks to clear the image; timed teases burn after a few seconds"}
         </p>
       </div>
 
@@ -426,7 +466,12 @@ export default function TeasesPage() {
                   src={preview}
                   alt="Preview"
                   className="max-h-64 w-full object-contain bg-void transition"
-                  style={startBlurred ? blurStyle(blurAmount) : undefined}
+                  style={
+                    startBlurred ||
+                    unlockTaskLabels.some((l) => l.trim().length > 0)
+                      ? blurStyle(blurAmount)
+                      : undefined
+                  }
                 />
                 <button
                   type="button"
@@ -459,15 +504,23 @@ export default function TeasesPage() {
               <label className="flex cursor-pointer items-center gap-3">
                 <input
                   type="checkbox"
-                  checked={startBlurred}
+                  checked={
+                    startBlurred ||
+                    unlockTaskLabels.some((l) => l.trim().length > 0)
+                  }
+                  disabled={unlockTaskLabels.some((l) => l.trim().length > 0)}
                   onChange={(e) => setStartBlurred(e.target.checked)}
                   className="size-4 accent-[var(--gold,#d4af37)]"
                 />
                 <span className="text-sm text-ivory">
                   Start blurred — control how much D can see
+                  {unlockTaskLabels.some((l) => l.trim().length > 0)
+                    ? " (required with unlock tasks)"
+                    : ""}
                 </span>
               </label>
-              {startBlurred && (
+              {(startBlurred ||
+                unlockTaskLabels.some((l) => l.trim().length > 0)) && (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-end justify-between gap-3">
                     <Label className="text-ivory/80">Blur for D</Label>
@@ -489,6 +542,76 @@ export default function TeasesPage() {
                     <span>Opaque</span>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+          {file && (
+            <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <Label className="text-ivory">Unlock tasks (optional)</Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    1–3 special tasks — when D finishes them all, the picture
+                    unlocks
+                  </p>
+                </div>
+                {unlockTaskLabels.length < 3 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setUnlockTaskLabels((prev) => [...prev, ""])
+                    }
+                    className="text-gold hover:bg-gold/10 hover:text-gold"
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {unlockTaskLabels.map((label, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-xs text-muted-foreground">
+                      {idx + 1}.
+                    </span>
+                    <Input
+                      value={label}
+                      onChange={(e) =>
+                        setUnlockTaskLabels((prev) =>
+                          prev.map((v, i) => (i === idx ? e.target.value : v))
+                        )
+                      }
+                      placeholder={
+                        idx === 0
+                          ? "e.g. Edge for 5 minutes without finishing"
+                          : "Another task…"
+                      }
+                      className="border-gold/20 bg-void/60"
+                    />
+                    {unlockTaskLabels.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setUnlockTaskLabels((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-void hover:text-ivory"
+                        aria-label="Remove task"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {unlockTaskLabels.every((l) => !l.trim()) && (
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <ListPlus className="h-3.5 w-3.5" />
+                  Leave empty to use blur / manual reveal only
+                </p>
               )}
             </div>
           )}
@@ -521,6 +644,11 @@ export default function TeasesPage() {
             const timed = !!t.view_duration_seconds;
             const slaveNeedsProtectedOpen =
               isSlave && fullyRevealed && !!t.image_path;
+            const unlockTasks = t.unlock_tasks ?? [];
+            const hasUnlockTasks = unlockTasks.length > 0;
+            const tasksDone = unlockTasks.filter((x) => x.completed_at).length;
+            const tasksAllDone =
+              hasUnlockTasks && tasksDone === unlockTasks.length;
 
             return (
               <article
@@ -568,7 +696,9 @@ export default function TeasesPage() {
                           <p className="text-xs text-ivory/90">
                             {isQueen
                               ? `${amount}% blur for D · ${blurLabel(amount)}`
-                              : "Waiting for Queen to reveal"}
+                              : hasUnlockTasks && !tasksAllDone
+                                ? `Complete tasks · ${tasksDone}/${unlockTasks.length}`
+                                : "Waiting for Queen to reveal"}
                           </p>
                         </div>
                       )}
@@ -619,7 +749,9 @@ export default function TeasesPage() {
                       {burned
                         ? `Burned ${t.expired_at ? formatRelative(t.expired_at) : ""}`
                         : visuallyBlurred
-                          ? "Blurred"
+                          ? hasUnlockTasks && !tasksAllDone
+                            ? `Tasks · ${tasksDone}/${unlockTasks.length}`
+                            : "Blurred"
                           : timed
                             ? `Timed · ${t.view_duration_seconds}s`
                             : t.unblurred_at
@@ -634,6 +766,15 @@ export default function TeasesPage() {
                           : ""}
                     </p>
                   </div>
+
+                  {hasUnlockTasks && !burned && (
+                    <TeaseUnlockChecklist
+                      tasks={unlockTasks}
+                      canComplete={!!isSlave}
+                      timeReady={timeReady}
+                      onChanged={() => void load()}
+                    />
+                  )}
 
                   {isQueen && t.image_path && !burned && (
                     <div className="space-y-3">
@@ -709,7 +850,6 @@ export default function TeasesPage() {
       {activeView && profile && (
         <ProtectedTeaseViewer
           imageUrl={activeView.url}
-          watermark={`${profile.username} · ${profile.id.slice(0, 8)} · ${new Date().toISOString()}`}
           durationSeconds={activeView.tease.view_duration_seconds}
           title={activeView.tease.title}
           onSessionEnd={(reason) => void endProtectedView(reason)}

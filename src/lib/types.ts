@@ -174,8 +174,18 @@ export type Tease = {
   created_at: string;
 };
 
+export type TeaseUnlockTask = {
+  id: string;
+  tease_id: string;
+  sort_order: number;
+  label: string;
+  completed_at: string | null;
+  created_at: string;
+};
+
 export type TeaseWithSignedUrl = Tease & {
   signedUrl?: string;
+  unlock_tasks?: TeaseUnlockTask[];
 };
 
 export type RitualScheduleKind = "daily" | "weekly";

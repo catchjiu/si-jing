@@ -347,6 +347,41 @@ export type Database = {
           },
         ]
       }
+      tease_unlock_tasks: {
+        Row: {
+          id: string
+          tease_id: string
+          sort_order: number
+          label: string
+          completed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tease_id: string
+          sort_order: number
+          label: string
+          completed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tease_id?: string
+          sort_order?: number
+          label?: string
+          completed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tease_unlock_tasks_tease_id_fkey"
+            columns: ["tease_id"]
+            isOneToOne: false
+            referencedRelation: "teases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_notes: {
         Row: {
           id: string
