@@ -89,6 +89,24 @@ export type DesireRequest = {
   updated_at: string;
 };
 
+export type VoiceEntityType =
+  | "task"
+  | "submission"
+  | "request"
+  | "comment"
+  | "reward"
+  | "punishment";
+
+export type VoiceNote = {
+  id: string;
+  created_by: string;
+  entity_type: VoiceEntityType;
+  entity_id: string;
+  file_path: string;
+  duration_ms: number | null;
+  created_at: string;
+};
+
 export type TaskWithRelations = Task & {
   assignee?: Profile | null;
   assigner?: Profile | null;

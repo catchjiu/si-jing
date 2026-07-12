@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { VoiceNotes } from "@/components/voice/voice-notes";
 
 interface RequestCardProps {
   request: DesireRequest;
@@ -213,6 +214,15 @@ export function RequestCard({
           </Button>
         </div>
       )}
+
+      <div className="mt-4 border-t border-gold/10 pt-4">
+        <VoiceNotes
+          entityType="request"
+          entityId={request.id}
+          title="Voice on this request"
+          compact
+        />
+      </div>
     </article>
   );
 }

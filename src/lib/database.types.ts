@@ -228,6 +228,44 @@ export type Database = {
           },
         ]
       }
+      voice_notes: {
+        Row: {
+          id: string
+          created_by: string
+          entity_type: string
+          entity_id: string
+          file_path: string
+          duration_ms: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          entity_type: string
+          entity_id: string
+          file_path: string
+          duration_ms?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          entity_type?: string
+          entity_id?: string
+          file_path?: string
+          duration_ms?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submission_media: {
         Row: {
           file_path: string | null

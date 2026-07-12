@@ -13,6 +13,7 @@ import { CommentThread } from "@/components/comments/comment-thread";
 import { SubmissionForm } from "@/components/submissions/submission-form";
 import { formatDeadline } from "@/lib/format";
 import type { SubmissionWithRelations } from "@/lib/types";
+import { VoiceNotes } from "@/components/voice/voice-notes";
 
 export default function SubmissionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -135,6 +136,8 @@ export default function SubmissionDetailPage() {
         <h2 className="font-heading text-xl text-gold">Comments</h2>
         <CommentThread submissionId={submission.id} />
       </section>
+
+      <VoiceNotes entityType="submission" entityId={submission.id} />
     </div>
   );
 }

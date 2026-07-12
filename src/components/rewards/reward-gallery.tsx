@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { VoiceNotes } from "@/components/voice/voice-notes";
 
 interface RewardGalleryProps {
   rewards: RewardWithSignedUrl[];
@@ -134,7 +135,7 @@ export function RewardGallery({
                   />
                 )}
               </div>
-              <div className="space-y-2 p-5">
+              <div className="space-y-4 p-5">
                 <DialogHeader>
                   <DialogTitle className="font-heading text-gold">
                     {active.title || "A gift from Queen"}
@@ -148,6 +149,12 @@ export function RewardGallery({
                 <p className="text-xs text-muted-foreground">
                   {formatRelative(active.created_at)}
                 </p>
+                <VoiceNotes
+                  entityType="reward"
+                  entityId={active.id}
+                  compact
+                  title="Voice"
+                />
               </div>
             </>
           )}

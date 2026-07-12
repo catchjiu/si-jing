@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { Badge } from "@/components/ui/badge";
+import { VoiceNotes } from "@/components/voice/voice-notes";
 
 export default async function TaskDetailPage({
   params,
@@ -161,6 +162,8 @@ export default async function TaskDetailPage({
           </ul>
         )}
       </section>
+
+      <VoiceNotes entityType="task" entityId={task.id} />
     </div>
   );
 }
