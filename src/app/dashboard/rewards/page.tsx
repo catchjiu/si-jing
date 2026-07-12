@@ -88,7 +88,7 @@ export default function RewardsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Send a picture as a gift for obedience well done"
+            ? "Send a picture — and optionally a voice message — as a gift"
             : "Gifts from Queen Sisi"}
         </p>
       </div>

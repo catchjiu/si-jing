@@ -120,10 +120,10 @@ export function RewardGallery({
       </div>
 
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
-        <DialogContent className="max-w-2xl border-gold/20 bg-charcoal p-0 overflow-hidden">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-gold/20 bg-charcoal p-0">
           {active && (
             <>
-              <div className="relative aspect-[4/5] max-h-[70vh] w-full bg-void">
+              <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl && (
                   <Image
                     src={active.signedUrl}

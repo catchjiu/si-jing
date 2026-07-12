@@ -5,11 +5,14 @@ import { toast } from "sonner";
 import { Gift, ImagePlus, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
+import type { CapturedVoice } from "@/lib/voice";
+import { uploadVoiceNote } from "@/lib/voice";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { VoiceRecorder } from "@/components/voice/voice-recorder";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -36,6 +39,8 @@ export function RewardForm({
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [voice, setVoice] = useState<CapturedVoice | null>(null);
+  const [voiceKey, setVoiceKey] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -83,22 +88,38 @@ export function RewardForm({
 
       if (uploadError) throw uploadError;
 
-      const { error: insertError } = await supabase.from("rewards").insert({
-        sent_by: profile.id,
-        sent_to: recipientId,
-        title: title.trim() || null,
-        message: message.trim() || null,
-        image_path: filePath,
-        task_id: taskId ?? null,
-        submission_id: submissionId ?? null,
-      });
+      const { data: reward, error: insertError } = await supabase
+        .from("rewards")
+        .insert({
+          sent_by: profile.id,
+          sent_to: recipientId,
+          title: title.trim() || null,
+          message: message.trim() || null,
+          image_path: filePath,
+          task_id: taskId ?? null,
+          submission_id: submissionId ?? null,
+        })
+        .select("id")
+        .single();
 
       if (insertError) throw insertError;
 
-      toast.success("Reward sent");
+      if (voice && reward?.id) {
+        await uploadVoiceNote(supabase, {
+          userId: profile.id,
+          entityType: "reward",
+          entityId: reward.id,
+          blob: voice.blob,
+          durationMs: voice.durationMs,
+        });
+      }
+
+      toast.success(voice ? "Reward & voice sent" : "Reward sent");
       setTitle("");
       setMessage("");
       setImage(null);
+      setVoice(null);
+      setVoiceKey((k) => k + 1);
       onSuccess?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not send reward";
@@ -205,6 +226,16 @@ export function RewardForm({
             />
           </label>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Voice message (optional)</Label>
+        <VoiceRecorder
+          key={voiceKey}
+          captureOnly
+          compact={compact}
+          onCaptured={setVoice}
+        />
       </div>
 
       <Button

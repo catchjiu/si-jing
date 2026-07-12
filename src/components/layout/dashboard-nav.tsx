@@ -13,6 +13,11 @@ import {
   Gift,
   Ban,
   HandHeart,
+  BookOpen,
+  AlarmClock,
+  Images,
+  Sparkles,
+  Flame,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -26,6 +31,11 @@ import { BrandLogo } from "@/components/brand-logo"
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/tasks", label: "Tasks", icon: ListTodo },
+  { href: "/dashboard/protocol", label: "Protocol", icon: BookOpen },
+  { href: "/dashboard/check-ins", label: "Check-ins", icon: AlarmClock },
+  { href: "/dashboard/rituals", label: "Rituals", icon: Flame },
+  { href: "/dashboard/teases", label: "Teases", icon: Sparkles },
+  { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
   { href: "/dashboard/requests", label: "Requests", icon: HandHeart },
   { href: "/dashboard/punishments", label: "Punishments", icon: Ban },

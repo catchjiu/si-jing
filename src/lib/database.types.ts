@@ -266,6 +266,302 @@ export type Database = {
           },
         ]
       }
+      rules: {
+        Row: {
+          id: string
+          created_by: string
+          title: string
+          body: string
+          sort_order: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          title: string
+          body: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          title?: string
+          body?: string
+          sort_order?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rule_acknowledgments: {
+        Row: {
+          id: string
+          rule_id: string
+          user_id: string
+          acknowledged_at: string
+        }
+        Insert: {
+          id?: string
+          rule_id: string
+          user_id: string
+          acknowledged_at?: string
+        }
+        Update: {
+          id?: string
+          rule_id?: string
+          user_id?: string
+          acknowledged_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rule_acknowledgments_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rule_acknowledgments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      check_ins: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          title: string
+          prompt: string | null
+          window_minutes: number
+          opens_at: string
+          closes_at: string
+          status: string
+          response_text: string | null
+          responded_at: string | null
+          pending_punishment_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          title: string
+          prompt?: string | null
+          window_minutes: number
+          opens_at: string
+          closes_at: string
+          status?: string
+          response_text?: string | null
+          responded_at?: string | null
+          pending_punishment_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          title?: string
+          prompt?: string | null
+          window_minutes?: number
+          opens_at?: string
+          closes_at?: string
+          status?: string
+          response_text?: string | null
+          responded_at?: string | null
+          pending_punishment_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_ins_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_pending_punishment_id_fkey"
+            columns: ["pending_punishment_id"]
+            isOneToOne: false
+            referencedRelation: "punishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teases: {
+        Row: {
+          id: string
+          sent_by: string
+          sent_to: string
+          title: string | null
+          message: string | null
+          image_path: string | null
+          unlocks_at: string
+          unlocked_notified_at: string | null
+          viewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sent_by: string
+          sent_to: string
+          title?: string | null
+          message?: string | null
+          image_path?: string | null
+          unlocks_at: string
+          unlocked_notified_at?: string | null
+          viewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sent_by?: string
+          sent_to?: string
+          title?: string | null
+          message?: string | null
+          image_path?: string | null
+          unlocks_at?: string
+          unlocked_notified_at?: string | null
+          viewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teases_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teases_sent_to_fkey"
+            columns: ["sent_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rituals: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          name: string
+          description: string | null
+          schedule_kind: string
+          time_of_day: string
+          weekday: number | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          name: string
+          description?: string | null
+          schedule_kind: string
+          time_of_day?: string
+          weekday?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          name?: string
+          description?: string | null
+          schedule_kind?: string
+          time_of_day?: string
+          weekday?: number | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rituals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rituals_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ritual_occurrences: {
+        Row: {
+          id: string
+          ritual_id: string
+          due_date: string
+          status: string
+          completed_at: string | null
+          streak_at_completion: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ritual_id: string
+          due_date: string
+          status?: string
+          completed_at?: string | null
+          streak_at_completion?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ritual_id?: string
+          due_date?: string
+          status?: string
+          completed_at?: string | null
+          streak_at_completion?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ritual_occurrences_ritual_id_fkey"
+            columns: ["ritual_id"]
+            isOneToOne: false
+            referencedRelation: "rituals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submission_media: {
         Row: {
           file_path: string | null
@@ -461,6 +757,14 @@ export type Database = {
         Args: { target_id?: string }
         Returns: boolean
       }
+      open_due_check_ins: { Args: never; Returns: number }
+      flag_missed_check_ins: { Args: never; Returns: number }
+      ensure_ritual_occurrences: {
+        Args: { look_ahead_days?: number }
+        Returns: number
+      }
+      flag_missed_rituals: { Args: never; Returns: number }
+      ritual_streak: { Args: { p_ritual_id: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never

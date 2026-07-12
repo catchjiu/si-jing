@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Ban, Unlock } from "lucide-react";
+import { Ban, Check, Unlock, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { PunishmentForm } from "@/components/punishments/punishment-form";
@@ -24,6 +24,7 @@ function typeLabel(type: Punishment["punishment_type"]) {
 
 function statusClass(status: Punishment["status"]) {
   if (status === "active") return "border-red-500/40 text-red-300";
+  if (status === "pending") return "border-amber-500/40 text-amber-300";
   if (status === "lifted") return "border-gold/40 text-gold";
   return "border-muted text-muted-foreground";
 }
@@ -91,6 +92,50 @@ export default function PunishmentsPage() {
     void load();
   };
 
+  const confirmPending = async (p: Punishment) => {
+    const supabase = createClient();
+    const startsAt = new Date();
+    const endsAt = new Date(
+      startsAt.getTime() + p.duration_minutes * 60 * 1000
+    );
+    const { error } = await supabase
+      .from("punishments")
+      .update({
+        status: "active",
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+      })
+      .eq("id", p.id)
+      .eq("status", "pending");
+
+    if (error) {
+      toast.error("Could not activate punishment");
+      return;
+    }
+    toast.success("Punishment activated");
+    void load();
+  };
+
+  const dismissPending = async (id: string) => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("punishments")
+      .update({
+        status: "lifted",
+        lifted_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("status", "pending");
+
+    if (error) {
+      toast.error("Could not dismiss");
+      return;
+    }
+    toast.success("Suggested punishment dismissed");
+    void load();
+  };
+
+  const pending = punishments.filter((p) => p.status === "pending");
   const activeContact = punishments.find(
     (p) =>
       p.status === "active" &&
@@ -127,15 +172,66 @@ export default function PunishmentsPage() {
         <PunishmentForm recipientId={recipient.id} onSuccess={load} />
       )}
 
+      {isQueen && pending.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="font-heading text-xl text-amber-300">
+            Pending confirmation
+          </h2>
+          <ul className="space-y-3">
+            {pending.map((p) => (
+              <li
+                key={p.id}
+                className="rounded-xl border border-amber-500/35 bg-charcoal/80 p-5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="font-heading text-lg text-ivory">
+                      {p.title || typeLabel(p.punishment_type)}
+                    </p>
+                    {p.reason && (
+                      <p className="text-sm text-muted-foreground">{p.reason}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Suggested duration: {p.duration_minutes} min
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => void confirmPending(p)}
+                      className="bg-gold text-void hover:bg-gold-muted"
+                    >
+                      <Check className="mr-2 h-3.5 w-3.5" />
+                      Activate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void dismissPending(p.id)}
+                      className="border-muted"
+                    >
+                      <X className="mr-2 h-3.5 w-3.5" />
+                      Dismiss
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">History</h2>
-        {punishments.length === 0 ? (
+        {punishments.filter((p) => p.status !== "pending").length === 0 ? (
           <div className="rounded-xl border border-gold/15 bg-charcoal/60 px-6 py-12 text-center text-sm text-muted-foreground">
             No punishments yet.
           </div>
         ) : (
           <ul className="space-y-3">
-            {punishments.map((p) => {
+            {punishments
+              .filter((p) => p.status !== "pending")
+              .map((p) => {
               const active =
                 p.status === "active" && new Date(p.ends_at) > new Date();
               return (

@@ -6,6 +6,8 @@ import { Loader2, Mic, Square, Trash2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { VoiceEntityType } from "@/lib/types";
+import type { CapturedVoice } from "@/lib/voice";
+import { uploadVoiceNote } from "@/lib/voice";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -28,9 +30,12 @@ function pickMimeType() {
 }
 
 interface VoiceRecorderProps {
-  entityType: VoiceEntityType;
-  entityId: string;
+  entityType?: VoiceEntityType;
+  entityId?: string;
   onUploaded?: () => void;
+  /** Record only — parent uploads later (e.g. with a new reward). */
+  captureOnly?: boolean;
+  onCaptured?: (voice: CapturedVoice | null) => void;
   className?: string;
   compact?: boolean;
 }
@@ -39,6 +44,8 @@ export function VoiceRecorder({
   entityType,
   entityId,
   onUploaded,
+  captureOnly = false,
+  onCaptured,
   className,
   compact = false,
 }: VoiceRecorderProps) {
@@ -91,9 +98,13 @@ export function VoiceRecorder({
       };
       recorder.onstop = () => {
         const next = new Blob(chunksRef.current, { type: mime });
+        const durationMs = Date.now() - startRef.current;
         setBlob(next);
         setPreviewUrl(URL.createObjectURL(next));
         stream.getTracks().forEach((t) => t.stop());
+        if (captureOnly) {
+          onCaptured?.({ blob: next, durationMs });
+        }
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
@@ -122,37 +133,22 @@ export function VoiceRecorder({
     setBlob(null);
     setPreviewUrl(null);
     setElapsed(0);
+    if (captureOnly) onCaptured?.(null);
   };
 
   const upload = async () => {
-    if (!profile || !blob) return;
+    if (!profile || !blob || !entityType || !entityId) return;
     setUploading(true);
     const supabase = createClient();
-    const ext = blob.type.includes("mp4")
-      ? "m4a"
-      : blob.type.includes("ogg")
-        ? "ogg"
-        : "webm";
-    const path = `${profile.id}/${entityType}/${entityId}/${Date.now()}.${ext}`;
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from("voice")
-        .upload(path, blob, {
-          contentType: blob.type || "audio/webm",
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
-
-      const { error: insertError } = await supabase.from("voice_notes").insert({
-        created_by: profile.id,
-        entity_type: entityType,
-        entity_id: entityId,
-        file_path: path,
-        duration_ms: elapsed || null,
+      await uploadVoiceNote(supabase, {
+        userId: profile.id,
+        entityType,
+        entityId,
+        blob,
+        durationMs: elapsed || null,
       });
-      if (insertError) throw insertError;
-
       toast.success("Voice message sent");
       clear();
       onUploaded?.();
@@ -218,19 +214,24 @@ export function VoiceRecorder({
             {previewUrl && (
               <audio controls src={previewUrl} className="h-9 max-w-full" />
             )}
-            <Button
-              type="button"
-              onClick={() => void upload()}
-              disabled={uploading}
-              className="bg-gold text-void hover:bg-gold-muted"
-            >
-              {uploading ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <Upload className="mr-2 size-4" />
-              )}
-              Send
-            </Button>
+            {!captureOnly && (
+              <Button
+                type="button"
+                onClick={() => void upload()}
+                disabled={uploading}
+                className="bg-gold text-void hover:bg-gold-muted"
+              >
+                {uploading ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Upload className="mr-2 size-4" />
+                )}
+                Send
+              </Button>
+            )}
+            {captureOnly && (
+              <span className="text-xs text-gold/80">Attached · {formatMs(elapsed)}</span>
+            )}
             <Button
               type="button"
               variant="outline"

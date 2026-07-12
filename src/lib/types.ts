@@ -55,7 +55,7 @@ export type RewardWithSignedUrl = Reward & {
 };
 
 export type PunishmentType = "contact_restriction" | "custom";
-export type PunishmentStatus = "active" | "completed" | "lifted";
+export type PunishmentStatus = "pending" | "active" | "completed" | "lifted";
 
 export type Punishment = {
   id: string;
@@ -95,7 +95,10 @@ export type VoiceEntityType =
   | "request"
   | "comment"
   | "reward"
-  | "punishment";
+  | "punishment"
+  | "check_in"
+  | "tease"
+  | "ritual";
 
 export type VoiceNote = {
   id: string;
@@ -105,6 +108,92 @@ export type VoiceNote = {
   file_path: string;
   duration_ms: number | null;
   created_at: string;
+};
+
+export type ProtocolRule = {
+  id: string;
+  created_by: string;
+  title: string;
+  body: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RuleAcknowledgment = {
+  id: string;
+  rule_id: string;
+  user_id: string;
+  acknowledged_at: string;
+};
+
+export type CheckInStatus = "scheduled" | "open" | "completed" | "missed";
+
+export type CheckIn = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  title: string;
+  prompt: string | null;
+  window_minutes: number;
+  opens_at: string;
+  closes_at: string;
+  status: CheckInStatus;
+  response_text: string | null;
+  responded_at: string | null;
+  pending_punishment_id: string | null;
+  created_at: string;
+};
+
+export type Tease = {
+  id: string;
+  sent_by: string;
+  sent_to: string;
+  title: string | null;
+  message: string | null;
+  image_path: string | null;
+  unlocks_at: string;
+  unlocked_notified_at: string | null;
+  viewed_at: string | null;
+  created_at: string;
+};
+
+export type TeaseWithSignedUrl = Tease & {
+  signedUrl?: string;
+};
+
+export type RitualScheduleKind = "daily" | "weekly";
+
+export type Ritual = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  name: string;
+  description: string | null;
+  schedule_kind: RitualScheduleKind;
+  time_of_day: string;
+  weekday: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RitualOccurrenceStatus = "pending" | "completed" | "missed";
+
+export type RitualOccurrence = {
+  id: string;
+  ritual_id: string;
+  due_date: string;
+  status: RitualOccurrenceStatus;
+  completed_at: string | null;
+  streak_at_completion: number | null;
+  created_at: string;
+};
+
+export type RitualWithOccurrences = Ritual & {
+  occurrences?: RitualOccurrence[];
+  streak?: number;
 };
 
 export type TaskWithRelations = Task & {
@@ -139,6 +228,12 @@ export type QueenDashboardStats = {
   tasksAssigned: number;
   pendingSubmissions: number;
   completionRate: number;
+  pendingRequests: number;
+  activePunishments: number;
+  unackedRules: number;
+  openCheckIns: number;
+  pendingPunishments: number;
+  todayRitualsPending: number;
 };
 
 export type SlaveDashboardStats = {
@@ -148,6 +243,11 @@ export type SlaveDashboardStats = {
   total: number;
   completedTasks: number;
   activeTasks: number;
+  unackedRules: number;
+  lastRulesAckAt: string | null;
+  openCheckIns: number;
+  nextTeaseUnlockAt: string | null;
+  todayRitualsPending: number;
 };
 
 export type TaskFiltersState = {

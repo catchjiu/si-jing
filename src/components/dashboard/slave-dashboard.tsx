@@ -2,8 +2,17 @@
 
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Flame, Target, CalendarClock, HandHeart } from "lucide-react"
+import {
+  AlarmClock,
+  BookOpen,
+  Flame,
+  HandHeart,
+  Sparkles,
+  Target,
+  CalendarClock,
+} from "lucide-react"
 import type { Punishment, SlaveDashboardStats, Task } from "@/lib/types"
+import { formatDeadline, formatRelative } from "@/lib/format"
 import {
   Card,
   CardContent,
@@ -57,6 +66,33 @@ export function SlaveDashboard({
         />
       )}
 
+      {(stats.unackedRules > 0 || stats.openCheckIns > 0) && (
+        <div className="flex flex-wrap gap-2">
+          {stats.unackedRules > 0 && (
+            <Button asChild className="bg-gold text-void hover:bg-gold-muted">
+              <Link href="/dashboard/protocol">
+                <BookOpen className="mr-2 h-4 w-4" />
+                Acknowledge {stats.unackedRules} rule
+                {stats.unackedRules === 1 ? "" : "s"}
+              </Link>
+            </Button>
+          )}
+          {stats.openCheckIns > 0 && (
+            <Button
+              asChild
+              variant="outline"
+              className="border-gold/40 text-gold hover:bg-gold/10"
+            >
+              <Link href="/dashboard/check-ins">
+                <AlarmClock className="mr-2 h-4 w-4" />
+                {stats.openCheckIns} open check-in
+                {stats.openCheckIns === 1 ? "" : "s"}
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button
           asChild
@@ -70,7 +106,7 @@ export function SlaveDashboard({
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
         <Card className="border-royal/30 bg-charcoal">
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardDescription>Completion</CardDescription>
@@ -111,6 +147,64 @@ export function SlaveDashboard({
               {todayGroup?.tasks.length ?? 0}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">due today</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-royal/30 bg-charcoal">
+          <CardHeader className="flex-row items-center justify-between pb-2">
+            <CardDescription>Protocol</CardDescription>
+            <BookOpen className="size-4 text-gold" />
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/dashboard/protocol"
+              className="font-heading text-3xl text-gold hover:underline"
+            >
+              {stats.unackedRules}
+            </Link>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {stats.lastRulesAckAt
+                ? `Last ack ${formatRelative(stats.lastRulesAckAt)}`
+                : "unacknowledged"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-royal/30 bg-charcoal">
+          <CardHeader className="flex-row items-center justify-between pb-2">
+            <CardDescription>Rituals today</CardDescription>
+            <Flame className="size-4 text-gold" />
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/dashboard/rituals"
+              className="font-heading text-3xl text-gold hover:underline"
+            >
+              {stats.todayRitualsPending}
+            </Link>
+            <p className="mt-1 text-xs text-muted-foreground">pending</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-royal/30 bg-charcoal">
+          <CardHeader className="flex-row items-center justify-between pb-2">
+            <CardDescription>Next tease</CardDescription>
+            <Sparkles className="size-4 text-gold" />
+          </CardHeader>
+          <CardContent>
+            {stats.nextTeaseUnlockAt ? (
+              <>
+                <Link
+                  href="/dashboard/teases"
+                  className="font-heading text-lg text-gold hover:underline"
+                >
+                  {formatDeadline(stats.nextTeaseUnlockAt)}
+                </Link>
+                <p className="mt-1 text-xs text-muted-foreground">unlocks</p>
+              </>
+            ) : (
+              <p className="font-heading text-lg text-muted-foreground">None</p>
+            )}
           </CardContent>
         </Card>
       </div>
