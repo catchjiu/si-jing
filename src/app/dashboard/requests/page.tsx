@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { RequestForm } from "@/components/requests/request-form";
 import { RequestCard } from "@/components/requests/request-card";
+import { LocationRequestPanel } from "@/components/location/location-request-panel";
 import type { DesireRequest } from "@/lib/types";
 
 export default function RequestsPage() {
@@ -52,10 +53,12 @@ export default function RequestsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Petitions from D — desire shown on each"
-            : "Ask Queen for what you need, and how badly"}
+            ? "Petitions from D — and location requests both ways"
+            : "Ask Queen for what you need, and share location when asked"}
         </p>
       </div>
+
+      <LocationRequestPanel />
 
       {isSlave && <RequestForm onSuccess={load} />}
 

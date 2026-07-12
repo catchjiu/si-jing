@@ -38,6 +38,7 @@ export async function fetchRecentActivity(
       dates,
       teaseMessages,
       rewardMessages,
+      locationRequests,
       voiceNotes,
     ] = await Promise.all([
       supabase
@@ -98,6 +99,11 @@ export async function fetchRecentActivity(
         .select(
           "id, content, created_at, reward_id, author:users!author_id(role, username)"
         )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("location_requests")
+        .select("id, status, created_at, shared_at, requested_by, requested_from")
         .order("created_at", { ascending: false })
         .limit(8),
       supabase
@@ -253,6 +259,31 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const loc of locationRequests.data ?? []) {
+      if (loc.requested_from !== profile.id && loc.requested_by !== profile.id) {
+        continue;
+      }
+      if (loc.status === "pending" && loc.requested_from === profile.id) {
+        pushItem(items, {
+          id: `loc-in-${loc.id}`,
+          at: loc.created_at as string,
+          title: "Location requested",
+          body: "D wants your location",
+          href: "/dashboard/requests",
+          kind: "location_request",
+        });
+      } else if (loc.status === "shared" && loc.requested_by === profile.id) {
+        pushItem(items, {
+          id: `loc-shared-${loc.id}`,
+          at: (loc.shared_at as string) || (loc.created_at as string),
+          title: "Location shared",
+          body: "D shared a pin",
+          href: "/dashboard/requests",
+          kind: "location_shared",
+        });
+      }
+    }
+
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string } | null;
       if (author?.role === "queen") continue;
@@ -294,6 +325,7 @@ export async function fetchRecentActivity(
       dates,
       teaseMessages,
       rewardMessages,
+      locationRequests,
       voiceNotes,
     ] = await Promise.all([
       supabase
@@ -374,6 +406,12 @@ export async function fetchRecentActivity(
         .select(
           "id, content, created_at, reward_id, author:users!author_id(role, username)"
         )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("location_requests")
+        .select("id, status, created_at, shared_at, requested_by, requested_from")
+        .or(`requested_by.eq.${profile.id},requested_from.eq.${profile.id}`)
         .order("created_at", { ascending: false })
         .limit(8),
       supabase
@@ -539,6 +577,28 @@ export async function fetchRecentActivity(
         href: "/dashboard/rewards",
         kind: "reward_message",
       });
+    }
+
+    for (const loc of locationRequests.data ?? []) {
+      if (loc.status === "pending" && loc.requested_from === profile.id) {
+        pushItem(items, {
+          id: `loc-in-${loc.id}`,
+          at: loc.created_at as string,
+          title: "Location requested",
+          body: "Queen wants your location",
+          href: "/dashboard/requests",
+          kind: "location_request",
+        });
+      } else if (loc.status === "shared" && loc.requested_by === profile.id) {
+        pushItem(items, {
+          id: `loc-shared-${loc.id}`,
+          at: (loc.shared_at as string) || (loc.created_at as string),
+          title: "Location shared",
+          body: "Queen shared a pin",
+          href: "/dashboard/requests",
+          kind: "location_shared",
+        });
+      }
     }
 
     for (const v of voiceNotes.data ?? []) {

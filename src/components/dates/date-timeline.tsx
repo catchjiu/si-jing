@@ -7,6 +7,7 @@ import {
   ImagePlus,
   Loader2,
   Link2,
+  MapPin,
   Send,
   Trash2,
   Video,
@@ -17,6 +18,13 @@ import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import {
+  appleMapsUrl,
+  formatAccuracy,
+  formatCoords,
+  googleMapsUrl,
+  resolveImageLocation,
+} from "@/lib/location";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
@@ -172,6 +180,18 @@ export function DateTimeline({
 
       if (file) {
         const isVideo = VIDEO_TYPES.includes(file.type);
+        let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
+        if (!isVideo) {
+          // Read EXIF / device GPS from the original file before compression
+          geo = await resolveImageLocation(file);
+          if (geo) {
+            toast.message(
+              geo.source === "exif"
+                ? "Photo location from image metadata"
+                : "Photo location from device GPS"
+            );
+          }
+        }
         let uploadFile = file;
         if (!isVideo) {
           uploadFile = await downsizeImageIfNeeded(file);
@@ -191,20 +211,43 @@ export function DateTimeline({
             contentType: uploadFile.type || undefined,
           });
         if (uploadError) throw uploadError;
+
+        const { error } = await supabase.from("date_posts").insert({
+          date_id: dateId,
+          author_id: profile.id,
+          body: text || null,
+          media_kind: mediaKind,
+          file_path: filePath,
+          youtube_url: null,
+          latitude: geo?.latitude ?? null,
+          longitude: geo?.longitude ?? null,
+          accuracy_m: geo?.accuracy_m ?? null,
+          location_source: geo?.source ?? null,
+        });
+        if (error) throw error;
       } else if (yt) {
         mediaKind = "youtube";
         youtubeUrl = yt;
+        const { error } = await supabase.from("date_posts").insert({
+          date_id: dateId,
+          author_id: profile.id,
+          body: text || null,
+          media_kind: mediaKind,
+          file_path: null,
+          youtube_url: youtubeUrl,
+        });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("date_posts").insert({
+          date_id: dateId,
+          author_id: profile.id,
+          body: text || null,
+          media_kind: "text",
+          file_path: null,
+          youtube_url: null,
+        });
+        if (error) throw error;
       }
-
-      const { error } = await supabase.from("date_posts").insert({
-        date_id: dateId,
-        author_id: profile.id,
-        body: text || null,
-        media_kind: mediaKind,
-        file_path: filePath,
-        youtube_url: youtubeUrl,
-      });
-      if (error) throw error;
 
       toast.success("Posted to timeline");
       void import("@/lib/push-client").then(({ notifyPush }) =>
@@ -357,6 +400,40 @@ export function DateTimeline({
                       />
                     </div>
                   )}
+
+                  {post.latitude != null &&
+                    post.longitude != null &&
+                    Number.isFinite(post.latitude) &&
+                    Number.isFinite(post.longitude) && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <MapPin className="size-3.5 text-gold" />
+                        <span>
+                          {formatCoords(post.latitude, post.longitude)}
+                          {formatAccuracy(post.accuracy_m)
+                            ? ` · ${formatAccuracy(post.accuracy_m)}`
+                            : ""}
+                          {post.location_source
+                            ? ` · ${post.location_source}`
+                            : ""}
+                        </span>
+                        <a
+                          href={appleMapsUrl(post.latitude, post.longitude)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-gold hover:underline"
+                        >
+                          Apple Maps
+                        </a>
+                        <a
+                          href={googleMapsUrl(post.latitude, post.longitude)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-gold hover:underline"
+                        >
+                          Google Maps
+                        </a>
+                      </div>
+                    )}
 
                   {post.media_kind === "video" && post.signedUrl && (
                     <video

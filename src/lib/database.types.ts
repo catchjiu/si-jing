@@ -738,6 +738,10 @@ export type Database = {
           file_path: string | null
           youtube_url: string | null
           created_at: string
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
         }
         Insert: {
           id?: string
@@ -748,6 +752,10 @@ export type Database = {
           file_path?: string | null
           youtube_url?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Update: {
           id?: string
@@ -758,6 +766,10 @@ export type Database = {
           file_path?: string | null
           youtube_url?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Relationships: [
           {
@@ -770,6 +782,63 @@ export type Database = {
           {
             foreignKeyName: "date_posts_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      location_requests: {
+        Row: {
+          id: string
+          requested_by: string
+          requested_from: string
+          status: string
+          message: string | null
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          shared_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          requested_by: string
+          requested_from: string
+          status?: string
+          message?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          shared_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          requested_by?: string
+          requested_from?: string
+          status?: string
+          message?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          shared_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_requests_requested_from_fkey"
+            columns: ["requested_from"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

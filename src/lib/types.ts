@@ -212,6 +212,7 @@ export type EvidencePin = {
 };
 
 export type DatePostMediaKind = "text" | "image" | "video" | "youtube";
+export type DatePostLocationSource = "exif" | "device";
 
 export type DatePost = {
   id: string;
@@ -222,10 +223,34 @@ export type DatePost = {
   file_path: string | null;
   youtube_url: string | null;
   created_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  location_source: DatePostLocationSource | null;
 };
 
 export type DatePostWithSignedUrl = DatePost & {
   signedUrl?: string;
+};
+
+export type LocationRequestStatus =
+  | "pending"
+  | "shared"
+  | "declined"
+  | "cancelled";
+
+export type LocationRequest = {
+  id: string;
+  requested_by: string;
+  requested_from: string;
+  status: LocationRequestStatus;
+  message: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  shared_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Tease = {
