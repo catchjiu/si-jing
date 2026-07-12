@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/types";
+import { PushEnableCard } from "@/components/push/push-enable";
 
 export default function ProfilePage() {
   const { profile, role, refreshProfile, loading: authLoading } = useAuth();
@@ -187,6 +188,8 @@ export default function ProfilePage() {
           </Button>
         </form>
       </div>
+
+      <PushEnableCard />
     </div>
   );
 }

@@ -95,6 +95,14 @@ export function PunishmentForm({
       if (error) throw error;
 
       toast.success("Punishment issued");
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "Punishment issued",
+          body: title.trim() || defaultTitle,
+          url: "/dashboard/punishments",
+          target: "slave",
+        })
+      );
       setTitle("");
       setReason("");
       setPreset("1440");

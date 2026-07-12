@@ -68,6 +68,14 @@ export function RequestForm({
       if (error) throw error;
 
       toast.success("Request sent to Queen");
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "New request",
+          body: title.trim(),
+          url: "/dashboard/requests",
+          target: "queen",
+        })
+      );
       setTitle("");
       setMessage("");
       setDesire(50);

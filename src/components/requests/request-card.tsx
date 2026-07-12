@@ -57,6 +57,14 @@ export function RequestCard({
     }
     toast.success(decision === "approved" ? "Request approved" : "Request denied");
     setResponse("");
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: decision === "approved" ? "Request granted" : "Request denied",
+        body: request.title,
+        url: "/dashboard/requests",
+        target: "slave",
+      })
+    );
     onChanged?.();
   };
 

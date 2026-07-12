@@ -219,6 +219,16 @@ export default function TeasesPage() {
       return;
     }
     toast.success(blurred ? "Image blurred again" : "Image revealed");
+    if (!blurred) {
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "Tease revealed",
+          body: tease.title || "Queen revealed a tease",
+          url: "/dashboard/teases",
+          target: "slave",
+        })
+      );
+    }
     void load();
   };
 

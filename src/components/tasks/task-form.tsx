@@ -130,6 +130,14 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
             ? "Recurring series created — dated duties generated"
             : "Task assigned"
         )
+        void import("@/lib/push-client").then(({ notifyPush }) =>
+          notifyPush({
+            title: "New task",
+            body: values.title,
+            url: "/dashboard/tasks",
+            target: "slave",
+          })
+        )
       }
 
       onSuccess?.()

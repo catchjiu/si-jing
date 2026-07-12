@@ -86,8 +86,17 @@ export function RequestThread({
       toast.error(error.message);
       return;
     }
+    const sentText = draft.trim();
     setDraft("");
     void load();
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: profile.role === "queen" ? "Message from Queen" : "Message from D",
+        body: sentText.slice(0, 120),
+        url: "/dashboard/requests",
+        target: profile.role === "queen" ? "slave" : "queen",
+      })
+    );
   };
 
   return (
