@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Allow video uploads through /api/storage/upload (default is too small)
+  experimental: {
+    proxyClientMaxBodySize: "55mb",
+  },
   images: {
     remotePatterns: [
       {

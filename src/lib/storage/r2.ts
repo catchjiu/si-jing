@@ -61,6 +61,21 @@ export async function presignGet(opts: {
   });
 }
 
+export async function putR2Object(opts: {
+  key: string;
+  body: Buffer | Uint8Array;
+  contentType: string;
+}): Promise<void> {
+  await getR2Client().send(
+    new PutObjectCommand({
+      Bucket: getR2Bucket(),
+      Key: opts.key,
+      Body: opts.body,
+      ContentType: opts.contentType,
+    })
+  );
+}
+
 export async function removeR2Object(key: string): Promise<void> {
   await getR2Client().send(
     new DeleteObjectCommand({

@@ -1,7 +1,23 @@
 import { createClient } from "@/lib/supabase/client";
 import { isR2Path, type StorageBucket } from "@/lib/storage/paths";
 
-async function storageFetch<T>(url: string, body: unknown): Promise<T> {
+function friendlyStorageError(err: unknown, fallback: string): Error {
+  const raw =
+    err instanceof Error
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : fallback;
+  // Safari/WebKit often reports failed cross-origin or network PUTs as this
+  if (raw === "Load failed" || raw === "Failed to fetch" || /networkerror/i.test(raw)) {
+    return new Error(
+      "Upload failed — check your connection and try a smaller video (max 50 MB)"
+    );
+  }
+  return err instanceof Error ? err : new Error(raw || fallback);
+}
+
+async function storageFetchJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -15,7 +31,9 @@ async function storageFetch<T>(url: string, body: unknown): Promise<T> {
 }
 
 /**
- * Presign an R2 upload, PUT the file, return the DB path (`r2/{bucket}/...`).
+ * Upload a file to R2 via the app server (avoids browser→R2 CORS).
+ * Falls back to a presigned PUT if the reverse proxy rejects a large body.
+ * Returns the DB path (`r2/{bucket}/...`).
  */
 export async function presignAndUpload(opts: {
   bucket: StorageBucket;
@@ -32,26 +50,69 @@ export async function presignAndUpload(opts: {
     contentType.split("/")[1]?.replace("jpeg", "jpg") ||
     "bin";
 
-  const { uploadUrl, path } = await storageFetch<{
-    uploadUrl: string;
-    path: string;
-  }>("/api/storage/presign-upload", {
-    bucket: opts.bucket,
-    contentType,
-    ext,
-    relativePath: opts.relativePath,
-  });
+  const form = new FormData();
+  form.append("bucket", opts.bucket);
+  form.append("contentType", contentType);
+  form.append("ext", ext);
+  if (opts.relativePath) form.append("relativePath", opts.relativePath);
+  form.append(
+    "file",
+    opts.file,
+    opts.file instanceof File ? opts.file.name : `upload.${ext}`
+  );
 
-  const put = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: opts.file,
-  });
-  if (!put.ok) {
-    throw new Error(`Upload to R2 failed (${put.status})`);
+  try {
+    const res = await fetch("/api/storage/upload", {
+      method: "POST",
+      body: form,
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      path?: string;
+      error?: string;
+    };
+
+    if (res.ok && data.path) return data.path;
+
+    const proxyTooLarge =
+      res.status === 413 ||
+      /too large/i.test(data.error || "") ||
+      /payload/i.test(data.error || "");
+
+    if (!proxyTooLarge) {
+      throw new Error(data.error || `Upload failed (${res.status})`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    // Network errors on the same-origin upload are real failures
+    if (msg && !/too large|payload|413/i.test(msg)) {
+      throw friendlyStorageError(err, "Upload failed");
+    }
   }
 
-  return path;
+  // Fallback: browser PUT to R2 (requires bucket CORS for the app origin)
+  try {
+    const { uploadUrl, path } = await storageFetchJson<{
+      uploadUrl: string;
+      path: string;
+    }>("/api/storage/presign-upload", {
+      bucket: opts.bucket,
+      contentType,
+      ext,
+      relativePath: opts.relativePath,
+    });
+
+    const put = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: opts.file,
+    });
+    if (!put.ok) {
+      throw new Error(`Upload to R2 failed (${put.status})`);
+    }
+    return path;
+  } catch (err) {
+    throw friendlyStorageError(err, "Upload failed");
+  }
 }
 
 export async function signObjectUrl(opts: {
@@ -66,7 +127,7 @@ export async function signObjectUrl(opts: {
   const expiresIn = opts.expiresIn ?? 3600;
 
   try {
-    const { url } = await storageFetch<{ url: string | null }>(
+    const { url } = await storageFetchJson<{ url: string | null }>(
       "/api/storage/sign",
       {
         bucket: opts.bucket,
@@ -84,7 +145,7 @@ export async function signObjectUrl(opts: {
         .createSignedUrl(opts.path, expiresIn);
       if (!error && data?.signedUrl) return data.signedUrl;
     }
-    throw err;
+    throw friendlyStorageError(err, "Could not load media");
   }
 }
 
@@ -95,7 +156,7 @@ export async function removeObject(opts: {
   if (!opts.path || /^https?:\/\//i.test(opts.path)) return;
 
   try {
-    await storageFetch("/api/storage/delete", {
+    await storageFetchJson("/api/storage/delete", {
       bucket: opts.bucket,
       path: opts.path,
     });
@@ -107,7 +168,7 @@ export async function removeObject(opts: {
         .remove([opts.path]);
       if (!error) return;
     }
-    throw err;
+    throw friendlyStorageError(err, "Could not delete media");
   }
 }
 

@@ -17,6 +17,11 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import {
+  MAX_VIDEO_BYTES,
+  prepareVideoForUpload,
+  VIDEO_TYPES,
+} from "@/lib/video-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { getCurrentPosition, resolveImageLocation } from "@/lib/location";
 import { formatRoleSpeech } from "@/lib/role-speech";
@@ -32,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 type Props = {
   dateId: string;
@@ -144,9 +149,18 @@ export function DateTimeline({
     clearMedia();
     if (!f) return;
     const isImage = IMAGE_TYPES.includes(f.type);
-    const isVideo = VIDEO_TYPES.includes(f.type);
+    const isVideo = VIDEO_TYPES.includes(f.type as (typeof VIDEO_TYPES)[number]);
     if (!isImage && !isVideo) {
       toast.error("Use an image or video file");
+      return;
+    }
+    const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    if (f.size > maxBytes) {
+      toast.error(
+        isVideo
+          ? "Video too large (max 50 MB) — try a shorter clip"
+          : "Photo too large (max 10 MB)"
+      );
       return;
     }
     setFile(f);
@@ -224,9 +238,20 @@ export function DateTimeline({
         : null;
 
       if (file) {
-        const isVideo = VIDEO_TYPES.includes(file.type);
+        const isVideo = VIDEO_TYPES.includes(
+          file.type as (typeof VIDEO_TYPES)[number]
+        );
         let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
-        if (!isVideo) {
+        let uploadFile = file;
+        if (isVideo) {
+          const prepared = await prepareVideoForUpload(file);
+          uploadFile = prepared.file;
+          if (prepared.compressed) {
+            toast.message(
+              `Video compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+            );
+          }
+        } else {
           // Read EXIF / device GPS from the original file before compression
           geo = await resolveImageLocation(file);
           if (geo) {
@@ -236,9 +261,6 @@ export function DateTimeline({
                 : "Photo location from device GPS"
             );
           }
-        }
-        let uploadFile = file;
-        if (!isVideo) {
           uploadFile = await downsizeImageIfNeeded(file);
           if (uploadFile.size < file.size) {
             toast.message(
@@ -512,10 +534,14 @@ export function DateTimeline({
 
           {preview && file ? (
             <div className="relative overflow-hidden rounded-md border border-gold/15">
-              {VIDEO_TYPES.includes(file.type) ? (
+              {VIDEO_TYPES.includes(
+                file.type as (typeof VIDEO_TYPES)[number]
+              ) ? (
                 <video
                   src={preview}
                   controls
+                  playsInline
+                  preload="metadata"
                   className="max-h-48 w-full bg-black"
                 />
               ) : (
