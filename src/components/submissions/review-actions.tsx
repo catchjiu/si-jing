@@ -55,6 +55,21 @@ export function ReviewActions({
 
       if (taskError) throw taskError
 
+      if (decision === "approved") {
+        const { data: taskRow } = await supabase
+          .from("tasks")
+          .select("punishment_id")
+          .eq("id", taskId)
+          .maybeSingle()
+        const punishmentId = (taskRow as { punishment_id?: string | null } | null)
+          ?.punishment_id
+        if (punishmentId) {
+          await supabase.rpc("evaluate_task_debt", {
+            p_punishment_id: punishmentId,
+          })
+        }
+      }
+
       if (feedback.trim()) {
         const {
           data: { user },

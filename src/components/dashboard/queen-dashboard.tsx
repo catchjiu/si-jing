@@ -19,6 +19,7 @@ import type {
 } from "@/lib/types"
 import { formatDeadline, formatRelative } from "@/lib/format"
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests"
+import { PUNISHMENT_TYPE_LABELS } from "@/lib/punishments"
 import { cn } from "@/lib/utils"
 import {
   Card,
@@ -183,17 +184,15 @@ export function QueenDashboard({
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-heading text-lg text-ivory">
                           {p.title ||
-                            (p.punishment_type === "contact_restriction"
-                              ? "Contact Restricted"
-                              : "Punishment")}
+                            PUNISHMENT_TYPE_LABELS[p.punishment_type] ||
+                            "Punishment"}
                         </p>
                         <Badge
                           variant="outline"
                           className="border-red-500/40 text-[10px] uppercase tracking-wider text-red-300"
                         >
-                          {p.punishment_type === "contact_restriction"
-                            ? "Contact"
-                            : "Custom"}
+                          {PUNISHMENT_TYPE_LABELS[p.punishment_type] ??
+                            p.punishment_type}
                         </Badge>
                       </div>
                       {p.reason && (
@@ -202,16 +201,20 @@ export function QueenDashboard({
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Ends {formatDeadline(p.ends_at)}
+                        {p.clearance_mode === "task_debt"
+                          ? "Clears when debt tasks are approved"
+                          : `Ends ${formatDeadline(p.ends_at)}`}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <p className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Time remaining
-                    </p>
-                    <PunishmentCountdown endsAt={p.ends_at} size="sm" />
-                  </div>
+                  {p.clearance_mode !== "task_debt" && (
+                    <div className="mt-4">
+                      <p className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Time remaining
+                      </p>
+                      <PunishmentCountdown endsAt={p.ends_at} size="sm" />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

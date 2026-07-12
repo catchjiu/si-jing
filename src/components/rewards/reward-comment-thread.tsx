@@ -5,72 +5,69 @@ import { toast } from "sonner";
 import { Loader2, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import type { Profile, RequestMessage } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
-import { hasPunishmentEffect } from "@/lib/punishments";
+import { notifyPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceNotes } from "@/components/voice/voice-notes";
 
-type MessageWithAuthor = RequestMessage & {
+type RewardMessage = {
+  id: string;
+  reward_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
   author?: Pick<Profile, "id" | "username" | "role"> | null;
 };
 
-interface RequestThreadProps {
-  requestId: string;
-  canReply?: boolean;
+interface RewardCommentThreadProps {
+  rewardId: string;
+  rewardTitle?: string | null;
   className?: string;
 }
 
-export function RequestThread({
-  requestId,
-  canReply = true,
+export function RewardCommentThread({
+  rewardId,
+  rewardTitle,
   className,
-}: RequestThreadProps) {
-  const { profile } = useAuth();
-  const [messages, setMessages] = useState<MessageWithAuthor[]>([]);
+}: RewardCommentThreadProps) {
+  const { profile, isSlave } = useAuth();
+  const [messages, setMessages] = useState<RewardMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [contactBlocked, setContactBlocked] = useState(false);
-
-  useEffect(() => {
-    if (!profile || profile.role !== "slave") {
-      setContactBlocked(false);
-      return;
-    }
-    void hasPunishmentEffect("contact", profile.id).then(setContactBlocked);
-  }, [profile]);
 
   const load = useCallback(async () => {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("request_messages")
+      .from("reward_messages")
       .select("*, author:users!author_id(id, username, role)")
-      .eq("request_id", requestId)
+      .eq("reward_id", rewardId)
       .order("created_at", { ascending: true });
 
     if (error) {
-      toast.error("Could not load messages");
+      toast.error("Could not load comments");
       setLoading(false);
       return;
     }
-    setMessages((data as MessageWithAuthor[]) ?? []);
+    setMessages((data as RewardMessage[]) ?? []);
     setLoading(false);
-  }, [requestId]);
+  }, [rewardId]);
 
   useEffect(() => {
     void load();
     const supabase = createClient();
     const channel = supabase
-      .channel(`request-messages:${requestId}`)
+      .channel(`reward-messages:${rewardId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "request_messages",
-          filter: `request_id=eq.${requestId}`,
+          table: "reward_messages",
+          filter: `reward_id=eq.${rewardId}`,
         },
         () => {
           void load();
@@ -80,49 +77,47 @@ export function RequestThread({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [requestId, load]);
+  }, [rewardId, load]);
 
   const send = async () => {
     if (!profile || !draft.trim()) return;
-    if (contactBlocked) {
-      toast.error("Contact is restricted — messaging is blocked");
-      return;
-    }
     setSending(true);
     const supabase = createClient();
-    const { error } = await supabase.from("request_messages").insert({
-      request_id: requestId,
+    const text = draft.trim();
+    const { error } = await supabase.from("reward_messages").insert({
+      reward_id: rewardId,
       author_id: profile.id,
-      content: draft.trim(),
+      content: text,
     });
     setSending(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    const sentText = draft.trim();
     setDraft("");
     void load();
-    void import("@/lib/push-client").then(({ notifyPush }) =>
-      notifyPush({
-        title: profile.role === "queen" ? "Message from Queen" : "Message from D",
-        body: sentText.slice(0, 120),
-        url: "/dashboard/requests",
-        target: profile.role === "queen" ? "slave" : "queen",
-      })
-    );
+    void notifyPush({
+      title: isSlave ? "Comment on a reward" : "Queen replied on a reward",
+      body: text.slice(0, 120),
+      url: "/dashboard/rewards",
+      target: isSlave ? "queen" : "slave",
+    });
   };
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-4 border-t border-gold/10 pt-4", className)}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        Messages
+        Comments
       </p>
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No messages yet.</p>
+        <p className="text-xs text-muted-foreground">
+          {isSlave
+            ? "Say thank you — or leave a comment."
+            : "No comments yet."}
+        </p>
       ) : (
         <ul className="space-y-2">
           {messages.map((m) => {
@@ -134,8 +129,8 @@ export function RequestThread({
                 className={cn(
                   "rounded-lg border px-3 py-2",
                   mine
-                    ? "ml-4 border-gold/25 bg-gold/5"
-                    : "mr-4 border-royal/40 bg-royal/15"
+                    ? "ml-3 border-gold/25 bg-gold/5"
+                    : "mr-3 border-royal/40 bg-royal/15"
                 )}
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
@@ -161,43 +156,50 @@ export function RequestThread({
         </ul>
       )}
 
-      {canReply && contactBlocked && (
-        <p className="rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-2 text-xs text-red-200">
-          Contact / privilege freeze is active — you cannot reply.
-        </p>
-      )}
+      <div className="space-y-2">
+        <Textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          placeholder={
+            isSlave
+              ? "Write a comment or thank-you…"
+              : "Reply to D…"
+          }
+          className="border-gold/20 bg-void/60"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          disabled={sending || !draft.trim()}
+          onClick={() => void send()}
+          className="bg-gold text-void hover:bg-gold-muted"
+        >
+          {sending ? (
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Send className="mr-2 h-3.5 w-3.5" />
+          )}
+          Send comment
+        </Button>
+      </div>
 
-      {canReply && !contactBlocked && (
-        <div className="space-y-2">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={2}
-            placeholder="Message back…"
-            className="border-gold/20 bg-void/60"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            size="sm"
-            disabled={sending || !draft.trim()}
-            onClick={() => void send()}
-            className="bg-gold text-void hover:bg-gold-muted"
-          >
-            {sending ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="mr-2 h-3.5 w-3.5" />
-            )}
-            Send
-          </Button>
-        </div>
-      )}
+      <VoiceNotes
+        entityType="reward"
+        entityId={rewardId}
+        compact
+        title={
+          isSlave
+            ? "Voice comment"
+            : `Voice on ${rewardTitle || "reward"}`
+        }
+      />
     </div>
   );
 }

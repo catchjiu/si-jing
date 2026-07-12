@@ -28,6 +28,7 @@ export type Task = Omit<
   recurrence_pattern: RecurrencePattern | null;
   parent_task_id?: string | null;
   occurrence_key?: string | null;
+  punishment_id?: string | null;
 };
 
 export type Submission = Omit<Tables<"submissions">, "status"> & {
@@ -54,8 +55,22 @@ export type RewardWithSignedUrl = Reward & {
   signedUrl?: string;
 };
 
-export type PunishmentType = "contact_restriction" | "custom";
+export type PunishmentType =
+  | "contact_restriction"
+  | "custom"
+  | "task_debt"
+  | "date_timeout"
+  | "orgasm_ban"
+  | "privilege_freeze";
+
 export type PunishmentStatus = "pending" | "active" | "completed" | "lifted";
+export type PunishmentClearanceMode = "timed" | "task_debt";
+
+export type PunishmentConfig = {
+  tasks_required?: number;
+  require_check_in?: boolean;
+  task_titles?: string[];
+};
 
 export type Punishment = {
   id: string;
@@ -70,6 +85,9 @@ export type Punishment = {
   status: PunishmentStatus;
   lifted_at: string | null;
   created_at: string;
+  config: PunishmentConfig;
+  acknowledged_at: string | null;
+  clearance_mode: PunishmentClearanceMode;
 };
 
 export type RequestType = "contact" | "mercy" | "reward" | "general";

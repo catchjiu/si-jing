@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Ban } from "lucide-react";
 import { getCountdownParts } from "@/lib/format";
+import { bannerCopy } from "@/lib/punishments";
 import { cn } from "@/lib/utils";
 import type { Punishment } from "@/lib/types";
 
@@ -95,6 +96,9 @@ export function ContactRestrictionBanner({
   onExpired,
   className,
 }: ContactRestrictionBannerProps) {
+  const copy = bannerCopy(punishment);
+  const showTimer = punishment.clearance_mode !== "task_debt";
+
   return (
     <div
       className={cn(
@@ -113,10 +117,10 @@ export function ContactRestrictionBanner({
               Active punishment
             </p>
             <h2 className="font-heading mt-1 text-xl text-ivory sm:text-2xl md:text-3xl">
-              {punishment.title || "Contact Restricted"}
+              {copy.headline}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-ivory/70">
-              You may not initiate contact with Queen Sisi until this timer ends.
+              {copy.body}
             </p>
             {punishment.reason && (
               <p className="mt-3 border-l-2 border-red-500/40 pl-3 text-sm text-muted-foreground italic">
@@ -126,15 +130,17 @@ export function ContactRestrictionBanner({
           </div>
         </div>
 
-        <div>
-          <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
-            Time remaining
-          </p>
-          <PunishmentCountdown
-            endsAt={punishment.ends_at}
-            onExpired={onExpired}
-          />
-        </div>
+        {showTimer && (
+          <div>
+            <p className="mb-3 text-xs uppercase tracking-wider text-muted-foreground">
+              Time remaining
+            </p>
+            <PunishmentCountdown
+              endsAt={punishment.ends_at}
+              onExpired={onExpired}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

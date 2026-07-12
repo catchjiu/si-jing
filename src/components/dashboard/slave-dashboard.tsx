@@ -27,15 +27,21 @@ import { groupTasksByDay } from "@/lib/day-groups"
 interface SlaveDashboardProps {
   tasks: Task[]
   stats: SlaveDashboardStats
+  activePunishments?: Punishment[]
+  /** @deprecated use activePunishments */
   activeContactRestriction?: Punishment | null
 }
 
 export function SlaveDashboard({
   tasks,
   stats,
+  activePunishments,
   activeContactRestriction = null,
 }: SlaveDashboardProps) {
   const router = useRouter()
+  const punishments =
+    activePunishments ??
+    (activeContactRestriction ? [activeContactRestriction] : [])
   const activeTasks = tasks.filter(
     (t) => !["approved", "rejected"].includes(t.status)
   )
@@ -59,12 +65,13 @@ export function SlaveDashboard({
         </p>
       </div>
 
-      {activeContactRestriction && (
+      {punishments.map((p) => (
         <ContactRestrictionBanner
-          punishment={activeContactRestriction}
+          key={p.id}
+          punishment={p}
           onExpired={() => router.refresh()}
         />
-      )}
+      ))}
 
       {(stats.unackedRules > 0 || stats.openCheckIns > 0) && (
         <div className="flex flex-wrap gap-2">

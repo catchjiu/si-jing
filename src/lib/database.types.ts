@@ -118,6 +118,45 @@ export type Database = {
           },
         ]
       }
+      reward_messages: {
+        Row: {
+          id: string
+          reward_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          reward_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          reward_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_messages_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "rewards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       punishments: {
         Row: {
           id: string
@@ -132,6 +171,9 @@ export type Database = {
           status: string
           lifted_at: string | null
           created_at: string
+          config: Record<string, unknown>
+          acknowledged_at: string | null
+          clearance_mode: string
         }
         Insert: {
           id?: string
@@ -146,6 +188,9 @@ export type Database = {
           status?: string
           lifted_at?: string | null
           created_at?: string
+          config?: Record<string, unknown>
+          acknowledged_at?: string | null
+          clearance_mode?: string
         }
         Update: {
           id?: string
@@ -160,6 +205,9 @@ export type Database = {
           status?: string
           lifted_at?: string | null
           created_at?: string
+          config?: Record<string, unknown>
+          acknowledged_at?: string | null
+          clearance_mode?: string
         }
         Relationships: [
           {
@@ -990,6 +1038,7 @@ export type Database = {
           is_recurring: boolean
           occurrence_key: string | null
           parent_task_id: string | null
+          punishment_id: string | null
           recurrence_pattern: string | null
           status: string
           title: string
@@ -1006,6 +1055,7 @@ export type Database = {
           is_recurring?: boolean
           occurrence_key?: string | null
           parent_task_id?: string | null
+          punishment_id?: string | null
           recurrence_pattern?: string | null
           status?: string
           title: string
@@ -1022,6 +1072,7 @@ export type Database = {
           is_recurring?: boolean
           occurrence_key?: string | null
           parent_task_id?: string | null
+          punishment_id?: string | null
           recurrence_pattern?: string | null
           status?: string
           title?: string
@@ -1047,6 +1098,13 @@ export type Database = {
             columns: ["parent_task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_punishment_id_fkey"
+            columns: ["punishment_id"]
+            isOneToOne: false
+            referencedRelation: "punishments"
             referencedColumns: ["id"]
           },
         ]
@@ -1091,6 +1149,18 @@ export type Database = {
       complete_expired_punishments: { Args: never; Returns: number }
       has_active_contact_restriction: {
         Args: { target_id?: string }
+        Returns: boolean
+      }
+      has_active_punishment: {
+        Args: { p_user?: string; p_type?: string | null }
+        Returns: boolean
+      }
+      has_punishment_effect: {
+        Args: { p_user?: string; p_effect?: string }
+        Returns: boolean
+      }
+      evaluate_task_debt: {
+        Args: { p_punishment_id: string }
         Returns: boolean
       }
       open_due_check_ins: { Args: never; Returns: number }

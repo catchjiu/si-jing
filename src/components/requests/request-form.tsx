@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { HandHeart, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { RequestType } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
+import { hasPunishmentEffect } from "@/lib/punishments";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,13 +39,23 @@ export function RequestForm({
   const [message, setMessage] = useState("");
   const [desire, setDesire] = useState(50);
   const [submitting, setSubmitting] = useState(false);
+  const [contactBlocked, setContactBlocked] = useState(false);
 
   const label = useMemo(() => desireLabel(desire), [desire]);
+
+  useEffect(() => {
+    if (!isSlave || !profile) return;
+    void hasPunishmentEffect("contact", profile.id).then(setContactBlocked);
+  }, [isSlave, profile]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSlave || !profile) {
       toast.error("Only D can send requests");
+      return;
+    }
+    if (contactBlocked) {
+      toast.error("Contact is restricted — you cannot send requests");
       return;
     }
     if (!title.trim()) {
@@ -90,6 +101,20 @@ export function RequestForm({
   };
 
   if (!isSlave) return null;
+
+  if (contactBlocked) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-red-500/30 bg-red-950/20 p-5 text-sm text-red-200",
+          className
+        )}
+      >
+        Contact / privilege freeze is active. You cannot send new requests until
+        it is lifted.
+      </div>
+    );
+  }
 
   return (
     <form

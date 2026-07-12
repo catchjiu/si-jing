@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { RewardForm } from "@/components/rewards/reward-form";
 import { RewardGallery } from "@/components/rewards/reward-gallery";
+import { hasPunishmentEffect } from "@/lib/punishments";
 import type { Profile, Reward, RewardWithSignedUrl } from "@/lib/types";
 
 async function withSignedUrls(
@@ -27,11 +28,20 @@ export default function RewardsPage() {
   const [rewards, setRewards] = useState<RewardWithSignedUrl[]>([]);
   const [recipient, setRecipient] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rewardsFrozen, setRewardsFrozen] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
     const supabase = createClient();
+
+    let frozen = false;
+    if (isSlave) {
+      frozen = await hasPunishmentEffect("rewards", profile.id);
+      setRewardsFrozen(frozen);
+    } else {
+      setRewardsFrozen(false);
+    }
 
     let query = supabase
       .from("rewards")
@@ -43,7 +53,12 @@ export default function RewardsPage() {
     }
 
     const { data } = await query;
-    const signed = await withSignedUrls((data ?? []) as Reward[]);
+    let list = (data ?? []) as Reward[];
+    // Privilege freeze: hide new unviewed rewards from D
+    if (isSlave && frozen) {
+      list = list.filter((r) => r.viewed_at != null);
+    }
+    const signed = await withSignedUrls(list);
     setRewards(signed);
     setLoading(false);
   }, [profile, isSlave]);
@@ -92,6 +107,13 @@ export default function RewardsPage() {
             : "Gifts from Queen Sisi"}
         </p>
       </div>
+
+      {isSlave && rewardsFrozen && (
+        <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-200">
+          Privilege freeze is active — new unviewed rewards are hidden until it
+          lifts.
+        </div>
+      )}
 
       {isQueen && recipient && (
         <RewardForm recipientId={recipient.id} onSuccess={load} />

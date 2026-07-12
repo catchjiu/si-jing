@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
 import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import { hasPunishmentEffect } from "@/lib/punishments";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
@@ -121,6 +122,15 @@ export default function TeasesPage() {
     url: string;
   } | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
+  const [revealFrozen, setRevealFrozen] = useState(false);
+
+  useEffect(() => {
+    if (!isQueen || !recipient) {
+      setRevealFrozen(false);
+      return;
+    }
+    void hasPunishmentEffect("tease_reveal", recipient.id).then(setRevealFrozen);
+  }, [isQueen, recipient]);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -285,6 +295,10 @@ export default function TeasesPage() {
 
   const setBlurred = async (tease: TeaseWithSignedUrl, blurred: boolean) => {
     if (!isQueen) return;
+    if (!blurred && revealFrozen) {
+      toast.error("Privilege freeze is active — tease reveal is blocked");
+      return;
+    }
     setToggling(tease.id);
     const supabase = createClient();
     const { error } = await supabase
@@ -320,6 +334,10 @@ export default function TeasesPage() {
 
   const updateBlurAmount = async (tease: TeaseWithSignedUrl, amount: number) => {
     if (!isQueen) return;
+    if (amount === 0 && revealFrozen) {
+      toast.error("Privilege freeze is active — tease reveal is blocked");
+      return;
+    }
     setItems((prev) =>
       prev.map((t) =>
         t.id === tease.id
@@ -422,6 +440,13 @@ export default function TeasesPage() {
             : "Each unlock task eases the blur; finish all for the clear picture"}
         </p>
       </div>
+
+      {isQueen && revealFrozen && (
+        <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-200">
+          Privilege freeze is active for D — tease reveal is blocked until it
+          lifts.
+        </div>
+      )}
 
       {isQueen && recipient && (
         <form
@@ -835,7 +860,10 @@ export default function TeasesPage() {
                       <Button
                         type="button"
                         size="sm"
-                        disabled={toggling === t.id}
+                        disabled={
+                          toggling === t.id ||
+                          (t.is_blurred && revealFrozen)
+                        }
                         onClick={() => void setBlurred(t, !t.is_blurred)}
                         className={
                           t.is_blurred

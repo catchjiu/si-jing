@@ -37,6 +37,7 @@ export async function fetchRecentActivity(
       rewards,
       dates,
       teaseMessages,
+      rewardMessages,
       voiceNotes,
     ] = await Promise.all([
       supabase
@@ -89,6 +90,13 @@ export async function fetchRecentActivity(
         .from("tease_messages")
         .select(
           "id, content, created_at, tease_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("reward_messages")
+        .select(
+          "id, content, created_at, reward_id, author:users!author_id(role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(8),
@@ -232,6 +240,19 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const m of rewardMessages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role === "queen") continue;
+      pushItem(items, {
+        id: `rmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Comment on reward",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/rewards",
+        kind: "reward_message",
+      });
+    }
+
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string } | null;
       if (author?.role === "queen") continue;
@@ -240,7 +261,9 @@ export async function fetchRecentActivity(
           ? "/dashboard/dates"
           : v.entity_type === "tease"
             ? "/dashboard/teases"
-            : "/dashboard";
+            : v.entity_type === "reward"
+              ? "/dashboard/rewards"
+              : "/dashboard";
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -250,7 +273,9 @@ export async function fetchRecentActivity(
             ? "Voice beg on a tease"
             : v.entity_type === "date"
               ? "Voice on a date"
-              : "New voice message",
+              : v.entity_type === "reward"
+                ? "Voice on a reward"
+                : "New voice message",
         href,
         kind: "voice_note",
       });
@@ -268,6 +293,7 @@ export async function fetchRecentActivity(
       rules,
       dates,
       teaseMessages,
+      rewardMessages,
       voiceNotes,
     ] = await Promise.all([
       supabase
@@ -340,6 +366,13 @@ export async function fetchRecentActivity(
         .from("tease_messages")
         .select(
           "id, content, created_at, tease_id, author:users!author_id(role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("reward_messages")
+        .select(
+          "id, content, created_at, reward_id, author:users!author_id(role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(8),
@@ -495,6 +528,19 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const m of rewardMessages.data ?? []) {
+      const author = m.author as { role?: string; username?: string } | null;
+      if (author?.role !== "queen") continue;
+      pushItem(items, {
+        id: `rmsg-${m.id}`,
+        at: m.created_at as string,
+        title: "Queen replied on reward",
+        body: (m.content as string).slice(0, 80),
+        href: "/dashboard/rewards",
+        kind: "reward_message",
+      });
+    }
+
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string } | null;
       if (author?.role !== "queen") continue;
@@ -503,7 +549,9 @@ export async function fetchRecentActivity(
           ? "/dashboard/dates"
           : v.entity_type === "tease"
             ? "/dashboard/teases"
-            : "/dashboard";
+            : v.entity_type === "reward"
+              ? "/dashboard/rewards"
+              : "/dashboard";
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -513,7 +561,9 @@ export async function fetchRecentActivity(
             ? "Voice reply on a tease"
             : v.entity_type === "date"
               ? "Voice on a date"
-              : "New voice message",
+              : v.entity_type === "reward"
+                ? "Voice on a reward"
+                : "New voice message",
         href,
         kind: "voice_note",
       });

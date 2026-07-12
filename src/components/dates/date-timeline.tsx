@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import { hasPunishmentEffect } from "@/lib/punishments";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,17 @@ export function DateTimeline({
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [dateTimeout, setDateTimeout] = useState(false);
+
+  const allowPost = canPost && !dateTimeout;
+
+  useEffect(() => {
+    if (!canPost || !profile) {
+      setDateTimeout(false);
+      return;
+    }
+    void hasPunishmentEffect("date_post", profile.id).then(setDateTimeout);
+  }, [canPost, profile]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,7 +142,11 @@ export function DateTimeline({
   };
 
   const publish = async () => {
-    if (!canPost || !profile) return;
+    if (!allowPost || !profile) return;
+    if (dateTimeout) {
+      toast.error("Date timeout is active — posting is blocked");
+      return;
+    }
     const text = body.trim();
     const yt = youtube.trim();
     if (!text && !file && !yt) {
@@ -237,9 +253,11 @@ export function DateTimeline({
         <p className="text-sm text-muted-foreground">Loading posts…</p>
       ) : posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {canPost
+          {allowPost
             ? "No posts yet — share thoughts, photos, videos, or a YouTube link."
-            : "No timeline posts yet."}
+            : dateTimeout
+              ? "Date timeout active — you can view but not post."
+              : "No timeline posts yet."}
         </p>
       ) : (
         <ol className="relative space-y-4 border-l border-gold/20 pl-4">
@@ -351,7 +369,13 @@ export function DateTimeline({
         </ol>
       )}
 
-      {canPost && (
+      {dateTimeout && canPost && (
+        <div className="rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+          Date timeout is active. You can read the timeline but cannot post.
+        </div>
+      )}
+
+      {allowPost && (
         <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-3">
           <div className="space-y-2">
             <Label>New post</Label>

@@ -132,8 +132,7 @@ export default async function DashboardPage() {
         .from("punishments")
         .select("*")
         .eq("status", "active")
-        .gt("ends_at", new Date().toISOString())
-        .order("ends_at", { ascending: true }),
+        .order("created_at", { ascending: false }),
       supabase
         .from("check_ins")
         .select("*", { count: "exact", head: true })
@@ -146,7 +145,14 @@ export default async function DashboardPage() {
 
     const submissions = (submissionsData ?? []) as SubmissionWithRelations[];
     const pendingRequests = (requestsData ?? []) as DesireRequest[];
-    const activePunishments = (punishmentsData ?? []) as Punishment[];
+    const nowIso = new Date().toISOString();
+    const activePunishments = ((punishmentsData ?? []) as Punishment[]).filter(
+      (p) => {
+        const mode = p.clearance_mode ?? "timed";
+        if (mode === "task_debt") return true;
+        return p.ends_at > nowIso;
+      }
+    );
     const pendingSubmissions = submissions.filter(
       (s) => s.status === "pending"
     ).length;
@@ -199,12 +205,8 @@ export default async function DashboardPage() {
       .from("punishments")
       .select("*")
       .eq("issued_to", profile.id)
-      .eq("punishment_type", "contact_restriction")
       .eq("status", "active")
-      .gt("ends_at", new Date().toISOString())
-      .order("ends_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order("created_at", { ascending: false }),
     supabase
       .from("check_ins")
       .select("*", { count: "exact", head: true })
@@ -219,6 +221,15 @@ export default async function DashboardPage() {
       .limit(1)
       .maybeSingle(),
   ]);
+
+  const now = new Date();
+  const activePunishments = ((punishmentData ?? []) as Punishment[]).filter(
+    (p) => {
+      const mode = p.clearance_mode ?? "timed";
+      if (mode === "task_debt") return true;
+      return new Date(p.ends_at) > now;
+    }
+  );
 
   const stats: SlaveDashboardStats = {
     completionRate:
@@ -239,7 +250,7 @@ export default async function DashboardPage() {
     <SlaveDashboard
       tasks={myTasks}
       stats={stats}
-      activeContactRestriction={(punishmentData as Punishment | null) ?? null}
+      activePunishments={activePunishments}
     />
   );
 }
