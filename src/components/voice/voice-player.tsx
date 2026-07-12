@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { isLikelyUnplayableOnIos } from "@/lib/voice-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +15,14 @@ function formatMs(ms: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function isIosLike() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 interface VoicePlayerProps {
   filePath: string;
   durationMs?: number | null;
@@ -20,9 +30,8 @@ interface VoicePlayerProps {
 }
 
 /**
- * Mobile Safari often reports wrong/infinite audio.duration for MediaRecorder
- * blobs and keeps "playing" silent padding. Prefer stored durationMs and stop
- * when we hit it.
+ * Prefer stored durationMs — mobile metadata is often wrong.
+ * Old .webm notes won't play on iOS; new uploads are wav/m4a.
  */
 export function VoicePlayer({
   filePath,
@@ -30,7 +39,9 @@ export function VoicePlayer({
   className,
 }: VoicePlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const knownDurationRef = useRef<number>(durationMs && durationMs > 0 ? durationMs : 0);
+  const knownDurationRef = useRef<number>(
+    durationMs && durationMs > 0 ? durationMs : 0
+  );
   const [url, setUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -38,6 +49,10 @@ export function VoicePlayer({
   const [duration, setDuration] = useState(
     durationMs && durationMs > 0 ? durationMs : 0
   );
+  const [failed, setFailed] = useState(false);
+
+  const iosBlocked =
+    isIosLike() && isLikelyUnplayableOnIos(filePath);
 
   useEffect(() => {
     knownDurationRef.current =
@@ -47,6 +62,14 @@ export function VoicePlayer({
 
   useEffect(() => {
     let cancelled = false;
+    setFailed(false);
+    setUrl(null);
+    setPlaying(false);
+    setProgress(0);
+    setCurrent(0);
+
+    if (iosBlocked) return;
+
     const load = async () => {
       const supabase = createClient();
       const { data } = await supabase.storage
@@ -58,7 +81,7 @@ export function VoicePlayer({
     return () => {
       cancelled = true;
     };
-  }, [filePath]);
+  }, [filePath, iosBlocked]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -69,7 +92,7 @@ export function VoicePlayer({
       try {
         audio.currentTime = 0;
       } catch {
-        /* ignore seek errors on some mobile codecs */
+        /* ignore */
       }
       setPlaying(false);
       setProgress(0);
@@ -82,13 +105,8 @@ export function VoicePlayer({
         audio.duration && Number.isFinite(audio.duration) && audio.duration > 0
           ? audio.duration
           : 0;
-      // Trust recorded duration when present — mobile metadata is often wrong
       const totalMs =
-        known > 0
-          ? known
-          : metaSec > 0
-            ? metaSec * 1000
-            : 0;
+        known > 0 ? known : metaSec > 0 ? metaSec * 1000 : 0;
 
       if (totalMs > 0 && known <= 0) {
         knownDurationRef.current = totalMs;
@@ -108,33 +126,45 @@ export function VoicePlayer({
       setProgress(totalMs > 0 ? Math.min(100, (capped / totalMs) * 100) : 0);
     };
 
-    const onEnded = () => stopAtEnd();
+    const onError = () => {
+      setFailed(true);
+      setPlaying(false);
+    };
 
     audio.addEventListener("timeupdate", onTime);
-    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("ended", stopAtEnd);
     audio.addEventListener("loadedmetadata", onTime);
     audio.addEventListener("durationchange", onTime);
+    audio.addEventListener("error", onError);
     return () => {
       audio.removeEventListener("timeupdate", onTime);
-      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("ended", stopAtEnd);
       audio.removeEventListener("loadedmetadata", onTime);
       audio.removeEventListener("durationchange", onTime);
+      audio.removeEventListener("error", onError);
     };
   }, [url]);
 
   const toggle = async () => {
+    if (iosBlocked) {
+      toast.error("This older voice note can’t play on iPhone — new ones will");
+      return;
+    }
     const audio = audioRef.current;
     if (!audio || !url) return;
     if (playing) {
       audio.pause();
       setPlaying(false);
-    } else {
-      try {
-        await audio.play();
-        setPlaying(true);
-      } catch {
-        setPlaying(false);
-      }
+      return;
+    }
+    try {
+      await audio.play();
+      setPlaying(true);
+      setFailed(false);
+    } catch {
+      setPlaying(false);
+      setFailed(true);
+      toast.error("Could not play this voice note");
     }
   };
 
@@ -147,35 +177,40 @@ export function VoicePlayer({
         className
       )}
     >
-      {url && (
-        <audio
-          ref={audioRef}
-          src={url}
-          preload="metadata"
-          playsInline
-        />
+      {url && !iosBlocked && (
+        <audio ref={audioRef} src={url} preload="metadata" playsInline />
       )}
       <Button
         type="button"
         size="icon"
         variant="outline"
         onClick={() => void toggle()}
-        disabled={!url}
+        disabled={(!url && !iosBlocked) || failed}
         className="size-9 shrink-0 rounded-full border-gold/40 text-gold hover:bg-gold/10"
         aria-label={playing ? "Pause voice note" : "Play voice note"}
       >
         {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
       </Button>
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-gold transition-[width] duration-100"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="text-[10px] tabular-nums text-muted-foreground">
-          {formatMs(current)} / {formatMs(displayDuration)}
-        </p>
+        {iosBlocked || failed ? (
+          <p className="text-[11px] text-muted-foreground">
+            {iosBlocked
+              ? "Can’t play on iPhone (old WebM format)"
+              : "Playback failed"}
+          </p>
+        ) : (
+          <>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gold transition-[width] duration-100"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-[10px] tabular-nums text-muted-foreground">
+              {formatMs(current)} / {formatMs(displayDuration)}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

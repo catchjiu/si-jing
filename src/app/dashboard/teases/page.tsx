@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
 import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
+import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
@@ -196,11 +197,20 @@ export default function TeasesPage() {
     try {
       let imagePath: string | null = null;
       if (file) {
-        const ext = file.name.split(".").pop() || "jpg";
+        const uploadFile = await downsizeImageIfNeeded(file);
+        if (uploadFile.size < file.size) {
+          toast.message(
+            `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+          );
+        }
+        const ext = uploadFile.name.split(".").pop() || "jpg";
         imagePath = `${profile.id}/${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("teases")
-          .upload(imagePath, file, { upsert: false });
+          .upload(imagePath, uploadFile, {
+            upsert: false,
+            contentType: uploadFile.type || undefined,
+          });
         if (uploadError) throw uploadError;
       }
 

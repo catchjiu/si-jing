@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
+import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
@@ -150,12 +151,24 @@ export function DateTimeline({
 
       if (file) {
         const isVideo = VIDEO_TYPES.includes(file.type);
+        let uploadFile = file;
+        if (!isVideo) {
+          uploadFile = await downsizeImageIfNeeded(file);
+          if (uploadFile.size < file.size) {
+            toast.message(
+              `Photo compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+            );
+          }
+        }
         mediaKind = isVideo ? "video" : "image";
-        const ext = file.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
+        const ext = uploadFile.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
         filePath = `${profile.id}/${dateId}/${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("date_posts")
-          .upload(filePath, file, { upsert: false });
+          .upload(filePath, uploadFile, {
+            upsert: false,
+            contentType: uploadFile.type || undefined,
+          });
         if (uploadError) throw uploadError;
       } else if (yt) {
         mediaKind = "youtube";

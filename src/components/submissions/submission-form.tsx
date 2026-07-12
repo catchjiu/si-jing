@@ -9,6 +9,7 @@ import { ImagePlus, Loader2, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
+import { downsizeImageIfNeeded } from "@/lib/image-compress"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -113,10 +114,20 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
       const submissionId = submission.id
 
       for (const file of files) {
-        const filePath = `${profile.id}/${submissionId}/${file.name}`
+        const uploadFile = await downsizeImageIfNeeded(file)
+        if (uploadFile.size < file.size) {
+          toast.message(
+            `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+          )
+        }
+        const ext = uploadFile.name.split(".").pop() || "jpg"
+        const filePath = `${profile.id}/${submissionId}/${Date.now()}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from("submissions")
-          .upload(filePath, file, { upsert: false })
+          .upload(filePath, uploadFile, {
+            upsert: false,
+            contentType: uploadFile.type || undefined,
+          })
 
         if (uploadError) throw uploadError
 

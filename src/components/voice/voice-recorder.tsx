@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { VoiceEntityType } from "@/lib/types";
 import type { CapturedVoice } from "@/lib/voice";
 import { uploadVoiceNote } from "@/lib/voice";
+import { pickRecorderMimeType } from "@/lib/voice-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -16,17 +17,6 @@ function formatMs(ms: number) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function pickMimeType() {
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4",
-    "audio/ogg",
-  ];
-  if (typeof MediaRecorder === "undefined") return null;
-  return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? null;
 }
 
 interface VoiceRecorderProps {
@@ -84,21 +74,26 @@ export function VoiceRecorder({
       toast.error("Sign in to record");
       return;
     }
-    const mime = pickMimeType();
+    const mime = pickRecorderMimeType();
     if (!mime) {
       toast.error("Voice recording is not supported in this browser");
       return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
       const recorder = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        const next = new Blob(chunksRef.current, { type: mime });
+        const next = new Blob(chunksRef.current, { type: mime.split(";")[0] });
         const durationMs = Math.max(200, Date.now() - startRef.current);
         recordedMsRef.current = durationMs;
         setBlob(next);
@@ -110,7 +105,8 @@ export function VoiceRecorder({
         }
       };
       mediaRecorderRef.current = recorder;
-      recorder.start();
+      // timeslice keeps chunks flowing — some mobile browsers produce empty files otherwise
+      recorder.start(250);
       startRef.current = Date.now();
       setElapsed(0);
       setRecording(true);

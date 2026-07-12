@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { VoiceEntityType } from "@/lib/types";
+import { extensionForMime, normalizeVoiceBlob } from "@/lib/voice-format";
 
 export type CapturedVoice = {
   blob: Blob;
@@ -16,18 +17,16 @@ export async function uploadVoiceNote(
     durationMs: number | null;
   }
 ) {
-  const { userId, entityType, entityId, blob, durationMs } = opts;
-  const ext = blob.type.includes("mp4")
-    ? "m4a"
-    : blob.type.includes("ogg")
-      ? "ogg"
-      : "webm";
+  const { userId, entityType, entityId, durationMs } = opts;
+  const blob = await normalizeVoiceBlob(opts.blob);
+  const mime = blob.type || "audio/wav";
+  const ext = extensionForMime(mime);
   const path = `${userId}/${entityType}/${entityId}/${Date.now()}.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("voice")
     .upload(path, blob, {
-      contentType: blob.type || "audio/webm",
+      contentType: mime,
       upsert: false,
     });
   if (uploadError) throw uploadError;

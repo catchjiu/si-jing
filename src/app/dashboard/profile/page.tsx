@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
+import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,10 +72,14 @@ export default function ProfilePage() {
     if (!file || !profile) return;
 
     const supabase = createClient();
-    const path = `avatars/${profile.id}/${file.name}`;
+    const uploadFile = await downsizeImageIfNeeded(file);
+    const path = `avatars/${profile.id}/${Date.now()}-${uploadFile.name}`;
     const { error: uploadError } = await supabase.storage
       .from("submissions")
-      .upload(path, file, { upsert: true });
+      .upload(path, uploadFile, {
+        upsert: true,
+        contentType: uploadFile.type || undefined,
+      });
 
     if (uploadError) {
       toast.error("Avatar upload failed");
