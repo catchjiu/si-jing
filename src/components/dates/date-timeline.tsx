@@ -17,7 +17,7 @@ import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
-import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl } from "@/lib/types";
+import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +35,13 @@ type Props = {
   onPosted?: () => void;
 };
 
+type DatePostRow = DatePostWithSignedUrl & {
+  author?: Pick<Profile, "id" | "username" | "role"> | null;
+};
+
 async function withSignedUrls(
-  posts: DatePost[]
-): Promise<DatePostWithSignedUrl[]> {
+  posts: DatePostRow[]
+): Promise<DatePostRow[]> {
   const supabase = createClient();
   return Promise.all(
     posts.map(async (p) => {
@@ -57,7 +61,7 @@ export function DateTimeline({
   onPosted,
 }: Props) {
   const { profile, isQueen } = useAuth();
-  const [posts, setPosts] = useState<DatePostWithSignedUrl[]>([]);
+  const [posts, setPosts] = useState<DatePostRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState("");
   const [youtube, setYoutube] = useState("");
@@ -70,19 +74,20 @@ export function DateTimeline({
   const allowPost = canPost && !dateTimeout;
 
   useEffect(() => {
-    if (!canPost || !profile) {
+    // Date timeout only blocks the slave, never Queen
+    if (!canPost || !profile || isQueen) {
       setDateTimeout(false);
       return;
     }
     void hasPunishmentEffect("date_post", profile.id).then(setDateTimeout);
-  }, [canPost, profile]);
+  }, [canPost, profile, isQueen]);
 
   const load = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase
       .from("date_posts")
-      .select("*")
+      .select("*, author:users!author_id(id, username, role)")
       .eq("date_id", dateId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -90,7 +95,7 @@ export function DateTimeline({
       setLoading(false);
       return;
     }
-    const signed = await withSignedUrls((data ?? []) as DatePost[]);
+    const signed = await withSignedUrls((data ?? []) as DatePostRow[]);
     setPosts(signed);
     setLoading(false);
   }, [dateId]);
@@ -204,10 +209,10 @@ export function DateTimeline({
       toast.success("Posted to timeline");
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
-          title: "New date timeline post",
-          body: dateTitle || text.slice(0, 80) || "D posted on a date",
+          title: isQueen ? "Queen posted on a date" : "New date timeline post",
+          body: dateTitle || text.slice(0, 80) || "New timeline post",
           url: "/dashboard/dates",
-          target: "queen",
+          target: isQueen ? "slave" : "queen",
         })
       );
       setBody("");
@@ -222,7 +227,7 @@ export function DateTimeline({
     }
   };
 
-  const remove = async (post: DatePostWithSignedUrl) => {
+  const remove = async (post: DatePostRow) => {
     if (!profile) return;
     if (post.author_id !== profile.id && !isQueen) return;
     setDeleting(post.id);
@@ -275,6 +280,17 @@ export function DateTimeline({
                 <div className="rounded-lg border border-gold/10 bg-void/50 p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-[11px] text-muted-foreground">
+                      <span
+                        className={
+                          post.author?.role === "queen"
+                            ? "text-gold"
+                            : "text-ivory/70"
+                        }
+                      >
+                        {post.author?.username ?? "Someone"}
+                        {post.author?.role === "queen" ? " · Queen" : ""}
+                      </span>
+                      {" · "}
                       {formatRelative(post.created_at)}
                       {post.media_kind !== "text" ? ` · ${post.media_kind}` : ""}
                     </p>
@@ -383,7 +399,11 @@ export function DateTimeline({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={3}
-              placeholder="What’s happening… how you feel…"
+              placeholder={
+                isQueen
+                  ? "Tease D… share a photo, note, or update from the date…"
+                  : "What’s happening… how you feel…"
+              }
               className="border-gold/20 bg-void/60"
             />
           </div>

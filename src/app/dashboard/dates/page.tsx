@@ -427,7 +427,7 @@ export default function DatesPage() {
                 <DateTimeline
                   dateId={d.id}
                   dateTitle={d.title}
-                  canPost={!!isSlave}
+                  canPost={!!isSlave || !!isQueen}
                   onPosted={() => void load()}
                 />
 
