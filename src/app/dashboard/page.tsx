@@ -44,10 +44,6 @@ function computeStreak(tasks: Task[]): number {
   return streak;
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -69,8 +65,6 @@ export default async function DashboardPage() {
   await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
-    supabase.rpc("ensure_ritual_occurrences", { look_ahead_days: 14 }),
-    supabase.rpc("flag_missed_rituals"),
     supabase.rpc("complete_expired_punishments"),
   ]);
 
@@ -88,8 +82,6 @@ export default async function DashboardPage() {
       };
     }) as TaskWithRelations[]
   ) as TaskWithRelations[];
-
-  const today = todayISO();
 
   const [{ data: activeRules }, { data: allAcks }] = await Promise.all([
     supabase.from("rules").select("id").eq("is_active", true),
@@ -124,7 +116,6 @@ export default async function DashboardPage() {
       { data: punishmentsData },
       openCheckInsRes,
       pendingPunishRes,
-      ritualPendingRes,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -151,15 +142,6 @@ export default async function DashboardPage() {
         .from("punishments")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending"),
-      supabase
-        .from("ritual_occurrences")
-        .select("*, ritual:rituals!inner(is_active)", {
-          count: "exact",
-          head: true,
-        })
-        .eq("due_date", today)
-        .eq("status", "pending")
-        .eq("ritual.is_active", true),
     ]);
 
     const submissions = (submissionsData ?? []) as SubmissionWithRelations[];
@@ -180,7 +162,6 @@ export default async function DashboardPage() {
       unackedRules,
       openCheckIns: openCheckInsRes.count ?? 0,
       pendingPunishments: pendingPunishRes.count ?? 0,
-      todayRitualsPending: ritualPendingRes.count ?? 0,
     };
 
     return (
@@ -213,7 +194,6 @@ export default async function DashboardPage() {
     { data: punishmentData },
     openCheckInsRes,
     { data: nextTease },
-    ritualPendingRes,
   ] = await Promise.all([
     supabase
       .from("punishments")
@@ -238,16 +218,6 @@ export default async function DashboardPage() {
       .order("unlocks_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("ritual_occurrences")
-      .select("*, ritual:rituals!inner(assigned_to, is_active)", {
-        count: "exact",
-        head: true,
-      })
-      .eq("due_date", today)
-      .eq("status", "pending")
-      .eq("ritual.assigned_to", profile.id)
-      .eq("ritual.is_active", true),
   ]);
 
   const stats: SlaveDashboardStats = {
@@ -263,7 +233,6 @@ export default async function DashboardPage() {
     openCheckIns: openCheckInsRes.count ?? 0,
     nextTeaseUnlockAt:
       (nextTease as { unlocks_at?: string } | null)?.unlocks_at ?? null,
-    todayRitualsPending: ritualPendingRes.count ?? 0,
   };
 
   return (

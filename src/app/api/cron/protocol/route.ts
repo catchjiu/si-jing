@@ -10,7 +10,7 @@ function adminClient() {
   return createClient(url, key);
 }
 
-/** Keeps check-ins / rituals in sync when nobody is on the site. */
+/** Keeps check-ins / punishments / tease unlocks in sync when nobody is on the site. */
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET;
   const header = request.headers.get("authorization");
@@ -20,14 +20,11 @@ export async function POST(request: Request) {
 
   const supabase = adminClient();
 
-  const [{ data: opened }, { data: missed }, , { data: ritualMissed }] =
-    await Promise.all([
-      supabase.rpc("open_due_check_ins"),
-      supabase.rpc("flag_missed_check_ins"),
-      supabase.rpc("ensure_ritual_occurrences", { look_ahead_days: 14 }),
-      supabase.rpc("flag_missed_rituals"),
-      supabase.rpc("complete_expired_punishments"),
-    ]);
+  const [{ data: opened }, { data: missed }] = await Promise.all([
+    supabase.rpc("open_due_check_ins"),
+    supabase.rpc("flag_missed_check_ins"),
+    supabase.rpc("complete_expired_punishments"),
+  ]);
 
   const nowIso = new Date().toISOString();
   await supabase
@@ -40,7 +37,6 @@ export async function POST(request: Request) {
     ok: true,
     opened: opened ?? 0,
     missed: missed ?? 0,
-    ritualMissed: ritualMissed ?? 0,
   });
 }
 

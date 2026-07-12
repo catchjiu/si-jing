@@ -106,7 +106,7 @@ export type VoiceEntityType =
   | "punishment"
   | "check_in"
   | "tease"
-  | "ritual";
+  | "date";
 
 export type VoiceNote = {
   id: string;
@@ -154,6 +154,21 @@ export type CheckIn = {
   created_at: string;
 };
 
+export type QueenDate = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  title: string | null;
+  notes: string | null;
+  scheduled_at: string;
+  thoughts_text: string | null;
+  arousal_level: number | null;
+  jealousy_level: number | null;
+  youtube_url: string | null;
+  reacted_at: string | null;
+  created_at: string;
+};
+
 export type Tease = {
   id: string;
   sent_by: string;
@@ -186,39 +201,6 @@ export type TeaseUnlockTask = {
 export type TeaseWithSignedUrl = Tease & {
   signedUrl?: string;
   unlock_tasks?: TeaseUnlockTask[];
-};
-
-export type RitualScheduleKind = "daily" | "weekly";
-
-export type Ritual = {
-  id: string;
-  created_by: string;
-  assigned_to: string;
-  name: string;
-  description: string | null;
-  schedule_kind: RitualScheduleKind;
-  time_of_day: string;
-  weekday: number | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type RitualOccurrenceStatus = "pending" | "completed" | "missed";
-
-export type RitualOccurrence = {
-  id: string;
-  ritual_id: string;
-  due_date: string;
-  status: RitualOccurrenceStatus;
-  completed_at: string | null;
-  streak_at_completion: number | null;
-  created_at: string;
-};
-
-export type RitualWithOccurrences = Ritual & {
-  occurrences?: RitualOccurrence[];
-  streak?: number;
 };
 
 export type TaskWithRelations = Task & {
@@ -258,7 +240,6 @@ export type QueenDashboardStats = {
   unackedRules: number;
   openCheckIns: number;
   pendingPunishments: number;
-  todayRitualsPending: number;
 };
 
 export type SlaveDashboardStats = {
@@ -272,7 +253,6 @@ export type SlaveDashboardStats = {
   lastRulesAckAt: string | null;
   openCheckIns: number;
   nextTeaseUnlockAt: string | null;
-  todayRitualsPending: number;
 };
 
 export type TaskFiltersState = {

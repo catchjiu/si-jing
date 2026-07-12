@@ -35,6 +35,7 @@ export async function fetchRecentActivity(
       punishments,
       teases,
       rewards,
+      dates,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -76,6 +77,12 @@ export async function fetchRecentActivity(
         .select("id, title, viewed_at, created_at")
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("queen_dates")
+        .select("id, title, reacted_at, scheduled_at, created_at")
+        .not("reacted_at", "is", null)
+        .order("reacted_at", { ascending: false })
+        .limit(8),
     ]);
 
     for (const s of submissions.data ?? []) {
@@ -183,6 +190,18 @@ export async function fetchRecentActivity(
         });
       }
     }
+
+    for (const d of dates.data ?? []) {
+      if (!d.reacted_at) continue;
+      pushItem(items, {
+        id: `date-react-${d.id}`,
+        at: d.reacted_at as string,
+        title: "Date reaction",
+        body: (d.title as string) || "D reacted to a date",
+        href: "/dashboard/dates",
+        kind: "date_reaction",
+      });
+    }
   } else {
     const [
       tasks,
@@ -194,6 +213,7 @@ export async function fetchRecentActivity(
       checkIns,
       teases,
       rules,
+      dates,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -255,6 +275,12 @@ export async function fetchRecentActivity(
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("queen_dates")
+        .select("id, title, scheduled_at, created_at")
+        .eq("assigned_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
     ]);
 
     for (const t of tasks.data ?? []) {
@@ -373,6 +399,17 @@ export async function fetchRecentActivity(
         body: rule.title as string,
         href: "/dashboard/protocol",
         kind: "rule",
+      });
+    }
+
+    for (const d of dates.data ?? []) {
+      pushItem(items, {
+        id: `date-new-${d.id}`,
+        at: d.created_at as string,
+        title: "New date posted",
+        body: (d.title as string) || "Queen scheduled a date",
+        href: "/dashboard/dates",
+        kind: "date_new",
       });
     }
   }

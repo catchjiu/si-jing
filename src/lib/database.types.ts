@@ -567,6 +567,66 @@ export type Database = {
           },
         ]
       }
+      queen_dates: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          title: string | null
+          notes: string | null
+          scheduled_at: string
+          thoughts_text: string | null
+          arousal_level: number | null
+          jealousy_level: number | null
+          youtube_url: string | null
+          reacted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          title?: string | null
+          notes?: string | null
+          scheduled_at: string
+          thoughts_text?: string | null
+          arousal_level?: number | null
+          jealousy_level?: number | null
+          youtube_url?: string | null
+          reacted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          title?: string | null
+          notes?: string | null
+          scheduled_at?: string
+          thoughts_text?: string | null
+          arousal_level?: number | null
+          jealousy_level?: number | null
+          youtube_url?: string | null
+          reacted_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queen_dates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "queen_dates_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teases: {
         Row: {
           id: string

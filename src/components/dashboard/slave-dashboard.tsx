@@ -172,22 +172,6 @@ export function SlaveDashboard({
 
         <Card className="border-royal/30 bg-charcoal">
           <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Rituals today</CardDescription>
-            <Flame className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <Link
-              href="/dashboard/rituals"
-              className="font-heading text-3xl text-gold hover:underline"
-            >
-              {stats.todayRitualsPending}
-            </Link>
-            <p className="mt-1 text-xs text-muted-foreground">pending</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-royal/30 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
             <CardDescription>Next tease</CardDescription>
             <Sparkles className="size-4 text-gold" />
           </CardHeader>

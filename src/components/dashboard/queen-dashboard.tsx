@@ -6,7 +6,6 @@ import {
   BookOpen,
   ClipboardList,
   Clock,
-  Flame,
   HandHeart,
   ImageIcon,
   AlarmClock,
@@ -147,17 +146,6 @@ export function QueenDashboard({
           </CardContent>
         </Card>
 
-        <Card className="border-gold/15 bg-charcoal">
-          <CardHeader className="flex-row items-center justify-between pb-2">
-            <CardDescription>Rituals today</CardDescription>
-            <Flame className="size-4 text-gold" />
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/rituals" className="font-heading text-3xl text-gold hover:underline">
-              {stats.todayRitualsPending}
-            </Link>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Active punishments */}

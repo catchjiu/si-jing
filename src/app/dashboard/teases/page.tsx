@@ -209,6 +209,12 @@ export default function TeasesPage() {
         imagePath && viewDuration !== "off"
           ? parseInt(viewDuration, 10)
           : null;
+      // Task-gated teases start heavier so each completion visibly clears more
+      const startAmount = blurred
+        ? taskGated
+          ? Math.max(blurAmount || 20, 75)
+          : blurAmount || 20
+        : 0;
 
       const { data: created, error } = await supabase
         .from("teases")
@@ -220,7 +226,7 @@ export default function TeasesPage() {
           image_path: imagePath,
           unlocks_at: unlocks.toISOString(),
           is_blurred: blurred,
-          blur_amount: blurred ? blurAmount || 20 : 0,
+          blur_amount: startAmount,
           unblurred_at: blurred ? null : new Date().toISOString(),
           view_duration_seconds: duration,
         })
@@ -401,8 +407,8 @@ export default function TeasesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Blur, unlock tasks, timed burn — screenshots on iPhone can’t be fully blocked in a browser"
-            : "Finish unlock tasks to clear the image; timed teases burn after a few seconds"}
+            ? "Blur, unlock tasks, timed burn"
+            : "Each unlock task eases the blur; finish all for the clear picture"}
         </p>
       </div>
 
@@ -545,76 +551,78 @@ export default function TeasesPage() {
               )}
             </div>
           )}
-          {file && (
-            <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <Label className="text-ivory">Unlock tasks (optional)</Label>
+          <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <Label className="text-ivory">Unlock tasks (optional)</Label>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    1–3 special tasks — when D finishes them all, the picture
-                    unlocks
-                  </p>
-                </div>
-                {unlockTaskLabels.length < 3 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                      setUnlockTaskLabels((prev) => [...prev, ""])
-                    }
-                    className="text-gold hover:bg-gold/10 hover:text-gold"
-                  >
-                    <Plus className="mr-1 h-3.5 w-3.5" />
-                    Add
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                {unlockTaskLabels.map((label, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="w-5 shrink-0 text-xs text-muted-foreground">
-                      {idx + 1}.
-                    </span>
-                    <Input
-                      value={label}
-                      onChange={(e) =>
-                        setUnlockTaskLabels((prev) =>
-                          prev.map((v, i) => (i === idx ? e.target.value : v))
-                        )
-                      }
-                      placeholder={
-                        idx === 0
-                          ? "e.g. Edge for 5 minutes without finishing"
-                          : "Another task…"
-                      }
-                      className="border-gold/20 bg-void/60"
-                    />
-                    {unlockTaskLabels.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setUnlockTaskLabels((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
-                        className="rounded-md p-1.5 text-muted-foreground hover:bg-void hover:text-ivory"
-                        aria-label="Remove task"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {unlockTaskLabels.every((l) => !l.trim()) && (
-                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <ListPlus className="h-3.5 w-3.5" />
-                  Leave empty to use blur / manual reveal only
+                  1–3 tasks — each one eases the blur; all done = fully clear
+                  (needs an image)
                 </p>
+              </div>
+              {unlockTaskLabels.length < 3 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setUnlockTaskLabels((prev) => [...prev, ""])
+                  }
+                  className="text-gold hover:bg-gold/10 hover:text-gold"
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add
+                </Button>
               )}
             </div>
-          )}
+            <div className="space-y-2">
+              {unlockTaskLabels.map((label, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="w-5 shrink-0 text-xs text-muted-foreground">
+                    {idx + 1}.
+                  </span>
+                  <Input
+                    value={label}
+                    onChange={(e) =>
+                      setUnlockTaskLabels((prev) =>
+                        prev.map((v, i) => (i === idx ? e.target.value : v))
+                      )
+                    }
+                    placeholder={
+                      idx === 0
+                        ? "e.g. Edge for 5 minutes without finishing"
+                        : "Another task…"
+                    }
+                    className="border-gold/20 bg-void/60"
+                  />
+                  {unlockTaskLabels.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setUnlockTaskLabels((prev) =>
+                          prev.filter((_, i) => i !== idx)
+                        )
+                      }
+                      className="rounded-md p-1.5 text-muted-foreground hover:bg-void hover:text-ivory"
+                      aria-label="Remove task"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {unlockTaskLabels.every((l) => !l.trim()) ? (
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <ListPlus className="h-3.5 w-3.5" />
+                Leave empty to use blur / manual reveal only
+              </p>
+            ) : !file ? (
+              <p className="text-[11px] text-gold/90">
+                Add an image above — tasks unlock that picture
+              </p>
+            ) : null}
+          </div>
           <Button
             type="submit"
             disabled={submitting}
@@ -697,7 +705,7 @@ export default function TeasesPage() {
                             {isQueen
                               ? `${amount}% blur for D · ${blurLabel(amount)}`
                               : hasUnlockTasks && !tasksAllDone
-                                ? `Complete tasks · ${tasksDone}/${unlockTasks.length}`
+                                ? `${tasksDone}/${unlockTasks.length} · ${amount}% blur`
                                 : "Waiting for Queen to reveal"}
                           </p>
                         </div>

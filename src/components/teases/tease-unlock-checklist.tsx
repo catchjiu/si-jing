@@ -45,7 +45,7 @@ export function TeaseUnlockChecklist({
     }
     const remaining = total - done - 1;
     if (remaining <= 0) {
-      toast.success("All tasks done — tease unlocked");
+      toast.success("All tasks done — tease fully clear");
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Tease unlocked by tasks",
@@ -55,7 +55,7 @@ export function TeaseUnlockChecklist({
         })
       );
     } else {
-      toast.success(`Task done · ${done + 1}/${total}`);
+      toast.success(`Task done · blur eased · ${done + 1}/${total}`);
     }
     onChanged();
   };
@@ -124,7 +124,7 @@ export function TeaseUnlockChecklist({
       )}
       {timeReady && canComplete && !allDone && (
         <p className="text-[11px] text-muted-foreground">
-          Finish all tasks to see the picture clearly.
+          Each task clears more blur — finish all for the full picture.
         </p>
       )}
     </div>
