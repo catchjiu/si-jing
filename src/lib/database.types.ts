@@ -76,6 +76,10 @@ export type Database = {
           submission_id: string | null
           viewed_at: string | null
           created_at: string
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
         }
         Insert: {
           id?: string
@@ -88,6 +92,10 @@ export type Database = {
           submission_id?: string | null
           viewed_at?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Update: {
           id?: string
@@ -100,6 +108,10 @@ export type Database = {
           submission_id?: string | null
           viewed_at?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Relationships: [
           {
@@ -112,6 +124,56 @@ export type Database = {
           {
             foreignKeyName: "rewards_sent_to_fkey"
             columns: ["sent_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wishlist_items: {
+        Row: {
+          id: string
+          created_by: string
+          title: string | null
+          notes: string | null
+          link_url: string | null
+          image_path: string
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          title?: string | null
+          notes?: string | null
+          link_url?: string | null
+          image_path: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          title?: string | null
+          notes?: string | null
+          link_url?: string | null
+          image_path?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_items_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -864,6 +926,10 @@ export type Database = {
           expired_at: string | null
           screenshot_flagged_at: string | null
           created_at: string
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
         }
         Insert: {
           id?: string
@@ -883,6 +949,10 @@ export type Database = {
           expired_at?: string | null
           screenshot_flagged_at?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Update: {
           id?: string
@@ -902,6 +972,10 @@ export type Database = {
           expired_at?: string | null
           screenshot_flagged_at?: string | null
           created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Relationships: [
           {
@@ -1023,6 +1097,10 @@ export type Database = {
           submission_id: string
           uploaded_at: string
           youtube_url: string | null
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
         }
         Insert: {
           file_path?: string | null
@@ -1031,6 +1109,10 @@ export type Database = {
           submission_id: string
           uploaded_at?: string
           youtube_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Update: {
           file_path?: string | null
@@ -1039,6 +1121,10 @@ export type Database = {
           submission_id?: string
           uploaded_at?: string
           youtube_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Relationships: [
           {

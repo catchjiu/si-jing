@@ -38,6 +38,8 @@ export type Submission = Omit<Tables<"submissions">, "status"> & {
 export type SubmissionMedia = Tables<"submission_media">;
 export type Comment = Tables<"comments">;
 
+export type ImageLocationSource = "exif" | "device";
+
 export type Reward = {
   id: string;
   sent_by: string;
@@ -49,9 +51,31 @@ export type Reward = {
   submission_id: string | null;
   viewed_at: string | null;
   created_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  location_source: ImageLocationSource | null;
 };
 
 export type RewardWithSignedUrl = Reward & {
+  signedUrl?: string;
+};
+
+export type WishlistItem = {
+  id: string;
+  created_by: string;
+  title: string | null;
+  notes: string | null;
+  link_url: string | null;
+  image_path: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  location_source: ImageLocationSource | null;
+  created_at: string;
+};
+
+export type WishlistItemWithSignedUrl = WishlistItem & {
   signedUrl?: string;
 };
 
@@ -212,7 +236,7 @@ export type EvidencePin = {
 };
 
 export type DatePostMediaKind = "text" | "image" | "video" | "youtube";
-export type DatePostLocationSource = "exif" | "device";
+export type DatePostLocationSource = ImageLocationSource;
 
 export type DatePost = {
   id: string;
@@ -271,6 +295,10 @@ export type Tease = {
   expired_at: string | null;
   screenshot_flagged_at: string | null;
   created_at: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  location_source: ImageLocationSource | null;
 };
 
 export type TeaseUnlockTask = {

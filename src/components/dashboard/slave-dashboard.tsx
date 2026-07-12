@@ -124,7 +124,7 @@ export function SlaveDashboard({
               {stats.completionRate}%
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {stats.completed} of {stats.total} tasks
+              {stats.completed} of {stats.total} today
             </p>
           </CardContent>
         </Card>

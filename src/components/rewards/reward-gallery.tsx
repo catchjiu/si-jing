@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RewardCommentThread } from "@/components/rewards/reward-comment-thread";
+import { GeoMapLinks } from "@/components/location/geo-map-links";
 
 interface RewardGalleryProps {
   rewards: RewardWithSignedUrl[];
@@ -149,6 +150,12 @@ export function RewardGallery({
                 <p className="text-xs text-muted-foreground">
                   {formatRelative(active.created_at)}
                 </p>
+                <GeoMapLinks
+                  latitude={active.latitude}
+                  longitude={active.longitude}
+                  accuracy_m={active.accuracy_m}
+                  location_source={active.location_source}
+                />
                 <RewardCommentThread
                   rewardId={active.id}
                   rewardTitle={active.title}

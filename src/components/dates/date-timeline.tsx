@@ -7,7 +7,6 @@ import {
   ImagePlus,
   Loader2,
   Link2,
-  MapPin,
   Send,
   Trash2,
   Video,
@@ -18,15 +17,10 @@ import { formatRelative } from "@/lib/format";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
-import {
-  appleMapsUrl,
-  formatAccuracy,
-  formatCoords,
-  googleMapsUrl,
-  resolveImageLocation,
-} from "@/lib/location";
+import { resolveImageLocation } from "@/lib/location";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -405,34 +399,12 @@ export function DateTimeline({
                     post.longitude != null &&
                     Number.isFinite(post.latitude) &&
                     Number.isFinite(post.longitude) && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="size-3.5 text-gold" />
-                        <span>
-                          {formatCoords(post.latitude, post.longitude)}
-                          {formatAccuracy(post.accuracy_m)
-                            ? ` · ${formatAccuracy(post.accuracy_m)}`
-                            : ""}
-                          {post.location_source
-                            ? ` · ${post.location_source}`
-                            : ""}
-                        </span>
-                        <a
-                          href={appleMapsUrl(post.latitude, post.longitude)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-gold hover:underline"
-                        >
-                          Apple Maps
-                        </a>
-                        <a
-                          href={googleMapsUrl(post.latitude, post.longitude)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-gold hover:underline"
-                        >
-                          Google Maps
-                        </a>
-                      </div>
+                      <GeoMapLinks
+                        latitude={post.latitude}
+                        longitude={post.longitude}
+                        accuracy_m={post.accuracy_m}
+                        location_source={post.location_source}
+                      />
                     )}
 
                   {post.media_kind === "video" && post.signedUrl && (

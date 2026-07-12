@@ -149,7 +149,7 @@ export default async function TaskDetailPage({
                 >
                   <div>
                     <p className="text-sm text-ivory">
-                      {s.submission_text?.slice(0, 80) || "Media submission"}
+                      {s.submission_text?.slice(0, 80) || "Submission"}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {formatDeadline(s.submitted_at)}

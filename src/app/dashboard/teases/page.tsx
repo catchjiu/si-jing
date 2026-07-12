@@ -20,11 +20,13 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
 import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -206,7 +208,16 @@ export default function TeasesPage() {
     const supabase = createClient();
     try {
       let imagePath: string | null = null;
+      let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
       if (file) {
+        geo = await resolveImageLocation(file);
+        if (geo) {
+          toast.message(
+            geo.source === "exif"
+              ? "Photo location from image metadata"
+              : "Photo location from device GPS"
+          );
+        }
         const uploadFile = await downsizeImageIfNeeded(file);
         if (uploadFile.size < file.size) {
           toast.message(
@@ -250,6 +261,10 @@ export default function TeasesPage() {
           blur_amount: startAmount,
           unblurred_at: blurred ? null : new Date().toISOString(),
           view_duration_seconds: duration,
+          latitude: geo?.latitude ?? null,
+          longitude: geo?.longitude ?? null,
+          accuracy_m: geo?.accuracy_m ?? null,
+          location_source: geo?.source ?? null,
         })
         .select("id")
         .single();
@@ -784,6 +799,12 @@ export default function TeasesPage() {
                     <p className="font-heading text-ivory">
                       {t.title || "Tease"}
                     </p>
+                    <GeoMapLinks
+                      latitude={t.latitude}
+                      longitude={t.longitude}
+                      accuracy_m={t.accuracy_m}
+                      location_source={t.location_source}
+                    />
                     {(isQueen || fullyRevealed) && t.message && !burned && (
                       <p className="whitespace-pre-wrap text-sm text-ivory/80">
                         {t.message}

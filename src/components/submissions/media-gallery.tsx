@@ -6,6 +6,7 @@ import { getYouTubeEmbedUrl } from "@/lib/youtube"
 import type { SubmissionMedia } from "@/lib/types"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { GeoMapLinks } from "@/components/location/geo-map-links"
 
 interface MediaGalleryProps {
   media: SubmissionMedia[]
@@ -81,15 +82,23 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
           return (
             <div
               key={item.id}
-              className="group relative aspect-square overflow-hidden rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]"
+              className="space-y-2"
             >
-              <Image
-                src={item.signedUrl}
-                alt="Submission image"
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="(max-width: 640px) 100vw, 33vw"
-                unoptimized
+              <div className="group relative aspect-square overflow-hidden rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
+                <Image
+                  src={item.signedUrl}
+                  alt="Submission image"
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  sizes="(max-width: 640px) 100vw, 33vw"
+                  unoptimized
+                />
+              </div>
+              <GeoMapLinks
+                latitude={item.latitude}
+                longitude={item.longitude}
+                accuracy_m={item.accuracy_m}
+                location_source={item.location_source}
               />
             </div>
           )

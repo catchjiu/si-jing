@@ -5,11 +5,12 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { ImagePlus, Loader2, Upload, X } from "lucide-react"
+import { CheckCircle2, ImagePlus, Loader2, Upload, X } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
 import { downsizeImageIfNeeded } from "@/lib/image-compress"
+import { resolveImageLocation } from "@/lib/location"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,11 +42,12 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
   const { profile } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [dragActive, setDragActive] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [submitting, setSubmitting] = useState<"proof" | "complete" | null>(null)
 
   const {
     register,
     handleSubmit,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<SubmissionFormValues>({
@@ -83,18 +85,18 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
     if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files)
   }
 
-  async function onSubmit(values: SubmissionFormValues) {
+  async function createSubmission(options: {
+    mode: "proof" | "complete"
+    submissionText: string | null
+    youtubeUrl?: string | null
+    withMedia: boolean
+  }) {
     if (!profile) {
       toast.error("You must be logged in")
       return
     }
 
-    if (files.length === 0 && !values.youtube_url?.trim()) {
-      toast.error("Add at least one image or a YouTube URL")
-      return
-    }
-
-    setSubmitting(true)
+    setSubmitting(options.mode)
     const supabase = createClient()
 
     try {
@@ -103,7 +105,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         .insert({
           task_id: taskId,
           submitted_by: profile.id,
-          submission_text: values.submission_text?.trim() || null,
+          submission_text: options.submissionText,
           status: "pending",
         })
         .select("id")
@@ -113,47 +115,54 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
       const submissionId = submission.id
 
-      for (const file of files) {
-        const uploadFile = await downsizeImageIfNeeded(file)
-        if (uploadFile.size < file.size) {
-          toast.message(
-            `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
-          )
+      if (options.withMedia) {
+        for (const file of files) {
+          const geo = await resolveImageLocation(file)
+          const uploadFile = await downsizeImageIfNeeded(file)
+          if (uploadFile.size < file.size) {
+            toast.message(
+              `${file.name}: compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+            )
+          }
+          const ext = uploadFile.name.split(".").pop() || "jpg"
+          const filePath = `${profile.id}/${submissionId}/${Date.now()}.${ext}`
+          const { error: uploadError } = await supabase.storage
+            .from("submissions")
+            .upload(filePath, uploadFile, {
+              upsert: false,
+              contentType: uploadFile.type || undefined,
+            })
+
+          if (uploadError) throw uploadError
+
+          const { error: mediaError } = await supabase
+            .from("submission_media")
+            .insert({
+              submission_id: submissionId,
+              media_type: "image",
+              file_path: filePath,
+              youtube_url: null,
+              latitude: geo?.latitude ?? null,
+              longitude: geo?.longitude ?? null,
+              accuracy_m: geo?.accuracy_m ?? null,
+              location_source: geo?.source ?? null,
+            })
+
+          if (mediaError) throw mediaError
         }
-        const ext = uploadFile.name.split(".").pop() || "jpg"
-        const filePath = `${profile.id}/${submissionId}/${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from("submissions")
-          .upload(filePath, uploadFile, {
-            upsert: false,
-            contentType: uploadFile.type || undefined,
-          })
 
-        if (uploadError) throw uploadError
+        if (options.youtubeUrl?.trim()) {
+          const { error: videoError } = await supabase
+            .from("submission_media")
+            .insert({
+              submission_id: submissionId,
+              media_type: "video",
+              file_path: null,
+              youtube_url: options.youtubeUrl.trim(),
+            })
 
-        const { error: mediaError } = await supabase
-          .from("submission_media")
-          .insert({
-            submission_id: submissionId,
-            media_type: "image",
-            file_path: filePath,
-            youtube_url: null,
-          })
-
-        if (mediaError) throw mediaError
-      }
-
-      if (values.youtube_url?.trim()) {
-        const { error: videoError } = await supabase
-          .from("submission_media")
-          .insert({
-            submission_id: submissionId,
-            media_type: "video",
-            file_path: null,
-            youtube_url: values.youtube_url.trim(),
-          })
-
-        if (videoError) throw videoError
+          if (videoError) throw videoError
+        }
       }
 
       const { error: taskError } = await supabase
@@ -163,15 +172,49 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
       if (taskError) throw taskError
 
-      toast.success("Submission sent for review")
+      toast.success(
+        options.mode === "complete"
+          ? "Marked complete — awaiting Queen's review"
+          : "Submission sent for review"
+      )
       setFiles([])
       onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Submission failed"
       toast.error(message)
     } finally {
-      setSubmitting(false)
+      setSubmitting(null)
     }
+  }
+
+  async function onSubmit(values: SubmissionFormValues) {
+    if (files.length === 0 && !values.youtube_url?.trim()) {
+      toast.error("Add at least one image or a YouTube URL")
+      return
+    }
+
+    await createSubmission({
+      mode: "proof",
+      submissionText: values.submission_text?.trim() || null,
+      youtubeUrl: values.youtube_url,
+      withMedia: true,
+    })
+  }
+
+  async function onMarkComplete() {
+    const values = getValues()
+    if (values.youtube_url?.trim() && !isValidYouTubeUrl(values.youtube_url)) {
+      toast.error("Enter a valid YouTube URL, or clear it")
+      return
+    }
+
+    await createSubmission({
+      mode: "complete",
+      submissionText:
+        values.submission_text?.trim() || "Completed without evidence",
+      youtubeUrl: null,
+      withMedia: false,
+    })
   }
 
   return (
@@ -280,14 +323,36 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         </div>
       )}
 
-      <Button
-        type="submit"
-        disabled={submitting}
-        className="w-full bg-[color:var(--purple,#2d1b69)] text-[color:var(--white,#f5f5f5)] hover:bg-[color:var(--purple,#2d1b69)]/80"
-      >
-        {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
-        Submit Proof
-      </Button>
+      <div className="space-y-3">
+        <Button
+          type="submit"
+          disabled={submitting !== null}
+          className="w-full bg-[color:var(--purple,#2d1b69)] text-[color:var(--white,#f5f5f5)] hover:bg-[color:var(--purple,#2d1b69)]/80"
+        >
+          {submitting === "proof" && (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          )}
+          Submit Proof
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={submitting !== null}
+          onClick={() => void onMarkComplete()}
+          className="w-full border-gold/40 text-gold hover:bg-gold/10"
+        >
+          {submitting === "complete" ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-2 size-4" />
+          )}
+          Task Complete
+        </Button>
+        <p className="text-center text-xs text-[color:var(--white,#f5f5f5)]/40">
+          Use Task Complete when no images or video are needed — still awaits
+          Queen&apos;s review
+        </p>
+      </div>
     </form>
   )
 }

@@ -17,6 +17,10 @@ export default function ProfilePage() {
   const { profile, role, refreshProfile, loading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     approved: 0,
@@ -65,6 +69,49 @@ export default function ProfilePage() {
     }
     await refreshProfile();
     toast.success("Profile updated");
+  };
+
+  const onChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      toast.error("New password must be different from the current one");
+      return;
+    }
+
+    setChangingPassword(true);
+    const supabase = createClient();
+
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      setChangingPassword(false);
+      toast.error("Current password is incorrect");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setChangingPassword(false);
+    if (error) {
+      toast.error(error.message || "Could not update password");
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    toast.success("Password updated");
   };
 
   const onAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,6 +237,62 @@ export default function ProfilePage() {
             className="bg-gold text-void hover:bg-gold-muted"
           >
             {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </form>
+      </div>
+
+      <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-6 space-y-4">
+        <div>
+          <h2 className="font-heading text-xl text-ivory">Change password</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Confirm your current password, then choose a new one
+          </p>
+        </div>
+        <form onSubmit={onChangePassword} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="current-password">Current password</Label>
+            <Input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="border-gold/20 bg-void/60"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password">New password</Label>
+            <Input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="border-gold/20 bg-void/60"
+              minLength={8}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Confirm new password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="border-gold/20 bg-void/60"
+              minLength={8}
+              required
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={changingPassword}
+            className="bg-gold text-void hover:bg-gold-muted"
+          >
+            {changingPassword ? "Updating…" : "Update password"}
           </Button>
         </form>
       </div>

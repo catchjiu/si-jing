@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isSameDay, parseISO } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { QueenDashboard } from "@/components/dashboard/queen-dashboard";
 import { SlaveDashboard } from "@/components/dashboard/slave-dashboard";
@@ -6,6 +7,7 @@ import {
   ensureRecurringOccurrences,
   filterListableTasks,
 } from "@/lib/tasks";
+import { dayProgress } from "@/lib/day-groups";
 import type {
   DesireRequest,
   Profile,
@@ -182,6 +184,11 @@ export default async function DashboardPage() {
   }
 
   const myTasks = tasks.filter((t) => t.assigned_to === profile.id);
+  const today = new Date();
+  const todayTasks = myTasks.filter((t) =>
+    isSameDay(parseISO(t.deadline), today)
+  );
+  const { done: todayDone, total: todayTotal } = dayProgress(todayTasks);
   const completed = myTasks.filter((t) => t.status === "approved").length;
   const active = myTasks.filter(
     (t) => !["approved", "rejected"].includes(t.status)
@@ -233,10 +240,10 @@ export default async function DashboardPage() {
 
   const stats: SlaveDashboardStats = {
     completionRate:
-      myTasks.length === 0 ? 0 : Math.round((completed / myTasks.length) * 100),
+      todayTotal === 0 ? 0 : Math.round((todayDone / todayTotal) * 100),
     streak: computeStreak(myTasks),
-    completed,
-    total: myTasks.length,
+    completed: todayDone,
+    total: todayTotal,
     completedTasks: completed,
     activeTasks: active,
     unackedRules,

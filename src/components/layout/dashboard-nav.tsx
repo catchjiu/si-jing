@@ -18,6 +18,7 @@ import {
   Images,
   Sparkles,
   CalendarHeart,
+  Heart,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ const navLinks = [
   { href: "/dashboard/dates", label: "Dates", icon: CalendarHeart },
   { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
+  { href: "/dashboard/wishlist", label: "Wishlist", icon: Heart },
   { href: "/dashboard/requests", label: "Requests", icon: HandHeart },
   { href: "/dashboard/punishments", label: "Punishments", icon: Ban },
   { href: "/dashboard/profile", label: "Profile", icon: User },
