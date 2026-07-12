@@ -3,19 +3,6 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import {
-  Eye,
-  EyeOff,
-  ImagePlus,
-  ListPlus,
-  Loader2,
-  Lock,
-  Plus,
-  Sparkles,
-  Timer,
-  X,
-  Repeat2,
-} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
@@ -24,7 +11,7 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
-import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
+import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
@@ -44,6 +31,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  Eye,
+  EyeOff,
+  ImagePlus,
+  ListPlus,
+  Loader2,
+  Lock,
+  Plus,
+  Sparkles,
+  Timer,
+  Trash2,
+  X,
+  Repeat2,
+} from "lucide-react";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
@@ -126,6 +127,7 @@ export default function TeasesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const [reteasing, setReteasing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<{
     tease: TeaseWithSignedUrl;
     url: string;
@@ -388,6 +390,39 @@ export default function TeasesPage() {
     } finally {
       setReteasing(null);
     }
+  };
+
+  const deleteTease = async (tease: TeaseWithSignedUrl) => {
+    if (!isQueen) return;
+    setDeleting(tease.id);
+    const supabase = createClient();
+    const imagePath = tease.image_path;
+    const { error } = await supabase.from("teases").delete().eq("id", tease.id);
+    if (error) {
+      setDeleting(null);
+      toast.error(error.message);
+      return;
+    }
+
+    if (imagePath) {
+      const { count } = await supabase
+        .from("teases")
+        .select("id", { count: "exact", head: true })
+        .eq("image_path", imagePath);
+      // Re-tease reuses the same path — only remove storage when nothing else points at it
+      if (!count) {
+        try {
+          await removeObject({ bucket: "teases", path: imagePath });
+        } catch {
+          // Row is gone; orphaned file is acceptable
+        }
+      }
+    }
+
+    if (activeView?.tease.id === tease.id) setActiveView(null);
+    setDeleting(null);
+    toast.success("Tease deleted");
+    void load();
   };
 
   const setBlurred = async (tease: TeaseWithSignedUrl, blurred: boolean) => {
@@ -1000,21 +1035,39 @@ export default function TeasesPage() {
                   )}
 
                   {isQueen && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={reteasing === t.id}
-                      onClick={() => void retease(t)}
-                      className="border-gold/40 text-gold hover:bg-gold/10"
-                    >
-                      {reteasing === t.id ? (
-                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Repeat2 className="mr-2 h-3.5 w-3.5" />
-                      )}
-                      Re-tease
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={reteasing === t.id || deleting === t.id}
+                        onClick={() => void retease(t)}
+                        className="border-gold/40 text-gold hover:bg-gold/10"
+                      >
+                        {reteasing === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Repeat2 className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        Re-tease
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={deleting === t.id || reteasing === t.id}
+                        onClick={() => void deleteTease(t)}
+                        className="text-muted-foreground hover:text-red-300"
+                        aria-label="Delete tease"
+                      >
+                        {deleting === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        Delete
+                      </Button>
+                    </div>
                   )}
 
                   <TeaseBegThread
