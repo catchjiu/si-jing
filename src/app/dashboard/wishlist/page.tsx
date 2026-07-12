@@ -88,8 +88,8 @@ export default function WishlistPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Pictures of things you like — so he can know you better"
-            : "Things Queen likes — study her taste"}
+            ? "Pictures of things you like — he tracks seen, ordered, and fulfilled"
+            : "Things Queen likes — mark status and notes as you study or fulfill them"}
         </p>
       </div>
 

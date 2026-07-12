@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { removeObject } from "@/lib/storage/client";
 import { WISHLIST_STATUS_LABELS, wishlistStatusClass } from "@/lib/wishlist";
+import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import type { WishlistItemWithSignedUrl, WishlistStatus } from "@/lib/types";
 import {
@@ -76,12 +77,14 @@ export function WishlistGallery({
   };
 
   const saveFulfillment = async () => {
-    if (!isQueen || !active) return;
+    if (!isSlave || !active) return;
     setStatusBusy(true);
     const supabase = createClient();
     const updates = {
       status: statusDraft,
-      fulfillment_notes: fulfillmentNotes.trim() || null,
+      fulfillment_notes: fulfillmentNotes.trim()
+        ? formatRoleSpeech(fulfillmentNotes.trim(), "slave")
+        : null,
       fulfilled_at:
         statusDraft === "fulfilled"
           ? active.fulfilled_at ?? new Date().toISOString()
@@ -274,10 +277,13 @@ export function WishlistGallery({
                   </div>
                   {active.fulfillment_notes && (
                     <p className="text-sm text-ivory/80 whitespace-pre-wrap">
-                      {active.fulfillment_notes}
+                      <RoleSpeech
+                        text={active.fulfillment_notes}
+                        role="slave"
+                      />
                     </p>
                   )}
-                  {isQueen && (
+                  {isSlave && (
                     <>
                       <div className="space-y-2">
                         <Label>Status</Label>
