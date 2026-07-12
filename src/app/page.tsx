@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Crown } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,15 +35,13 @@ export default function LoginPage() {
       return;
     }
 
-    // Persist longer session preference is handled by Supabase cookie defaults;
-    // remember flag reserved for future persistence tuning.
     void remember;
     router.push("/dashboard");
     router.refresh();
   };
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center px-4 overflow-hidden">
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4">
       <div
         className="pointer-events-none absolute inset-0 opacity-40"
         style={{
@@ -54,21 +52,23 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(212,175,55,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(212,175,55,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
 
       <div className="relative z-10 w-full max-w-md animate-rise">
-        <div className="mb-10 text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-gold/40 bg-charcoal/80 glow-gold">
-            <Crown className="h-8 w-8 text-gold" aria-hidden />
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex justify-center">
+            <BrandLogo
+              size="hero"
+              rounded="lg"
+              priority
+              className="h-40 w-40 border-gold/40 shadow-[0_0_40px_rgba(212,175,55,0.15)] sm:h-44 sm:w-44"
+            />
           </div>
-          <h1 className="font-heading text-4xl tracking-[0.2em] text-gold uppercase md:text-5xl">
-            Queen Sisi
-          </h1>
-          <p className="mt-3 text-sm tracking-widest text-muted-foreground uppercase">
+          <p className="text-sm uppercase tracking-[0.25em] text-muted-foreground">
             Enter the sanctum
           </p>
         </div>
 
         <form
           onSubmit={onSubmit}
-          className="rounded-xl border border-gold/20 bg-charcoal/90 p-8 backdrop-blur-sm glow-gold space-y-5"
+          className="space-y-5 rounded-xl border border-gold/20 bg-charcoal/90 p-8 glow-gold backdrop-blur-sm"
         >
           <div className="space-y-2">
             <Label htmlFor="email" className="text-ivory/80">
@@ -103,7 +103,7 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
               <Checkbox
                 checked={remember}
                 onCheckedChange={(v) => setRemember(v === true)}
@@ -113,7 +113,7 @@ export default function LoginPage() {
             </label>
             <Link
               href="/forgot-password"
-              className="text-sm text-gold/80 hover:text-gold transition-colors duration-200"
+              className="text-sm text-gold/80 transition-colors duration-200 hover:text-gold"
             >
               Forgotten your password?
             </Link>
@@ -122,7 +122,7 @@ export default function LoginPage() {
           {error && (
             <p
               role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300 animate-fade-in"
+              className="animate-fade-in rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-red-300"
             >
               {error}
             </p>
@@ -131,7 +131,7 @@ export default function LoginPage() {
           <Button
             type="submit"
             disabled={loading}
-            className="h-11 w-full bg-gold text-void font-medium tracking-wide hover:bg-gold-muted transition-all duration-300"
+            className="h-11 w-full bg-gold font-medium tracking-wide text-void transition-all duration-300 hover:bg-gold-muted"
           >
             {loading ? "Entering…" : "Enter"}
           </Button>

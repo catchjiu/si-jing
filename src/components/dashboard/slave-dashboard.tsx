@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Flame, Target, CalendarClock } from "lucide-react"
+import Link from "next/link"
+import { Flame, Target, CalendarClock, HandHeart } from "lucide-react"
 import type { Punishment, SlaveDashboardStats, Task } from "@/lib/types"
 import {
   Card,
@@ -9,6 +10,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { ContactRestrictionBanner } from "@/components/punishments/punishment-countdown"
 import { DayAgenda } from "@/components/tasks/day-agenda"
 import { groupTasksByDay } from "@/lib/day-groups"
@@ -34,12 +36,12 @@ export function SlaveDashboard({
     : 0
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="font-heading text-3xl text-[color:var(--white,#f5f5f5)]">
+        <h1 className="font-heading text-2xl text-ivory sm:text-3xl">
           Your Duties
         </h1>
-        <p className="mt-1 text-sm text-[color:var(--white,#f5f5f5)]/50">
+        <p className="mt-1 text-sm text-muted-foreground">
           {todayLeft > 0
             ? `${todayLeft} to complete today`
             : todayGroup
@@ -55,23 +57,36 @@ export function SlaveDashboard({
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--charcoal,#1a1a1a)]">
+      <div className="flex justify-end">
+        <Button
+          asChild
+          variant="outline"
+          className="border-gold/35 text-gold hover:bg-gold/10"
+        >
+          <Link href="/dashboard/requests">
+            <HandHeart className="mr-2 h-4 w-4" />
+            Make a request
+          </Link>
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="border-royal/30 bg-charcoal">
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardDescription>Completion</CardDescription>
-            <Target className="size-4 text-[color:var(--gold,#d4af37)]" />
+            <Target className="size-4 text-gold" />
           </CardHeader>
           <CardContent>
-            <p className="font-heading text-3xl text-[color:var(--gold,#d4af37)]">
+            <p className="font-heading text-3xl text-gold">
               {stats.completionRate}%
             </p>
-            <p className="mt-1 text-xs text-[color:var(--white,#f5f5f5)]/40">
+            <p className="mt-1 text-xs text-muted-foreground">
               {stats.completed} of {stats.total} tasks
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--charcoal,#1a1a1a)]">
+        <Card className="border-royal/30 bg-charcoal">
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardDescription>Streak</CardDescription>
             <Flame className="size-4 text-orange-400" />
@@ -80,30 +95,30 @@ export function SlaveDashboard({
             <p className="font-heading text-3xl text-orange-400">
               {stats.streak}
             </p>
-            <p className="mt-1 text-xs text-[color:var(--white,#f5f5f5)]/40">
+            <p className="mt-1 text-xs text-muted-foreground">
               consecutive days
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--charcoal,#1a1a1a)]">
+        <Card className="border-royal/30 bg-charcoal">
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardDescription>Today</CardDescription>
-            <CalendarClock className="size-4 text-[color:var(--gold,#d4af37)]" />
+            <CalendarClock className="size-4 text-gold" />
           </CardHeader>
           <CardContent>
-            <p className="font-heading text-3xl text-[color:var(--white,#f5f5f5)]">
+            <p className="font-heading text-3xl text-ivory">
               {todayGroup?.tasks.length ?? 0}
             </p>
-            <p className="mt-1 text-xs text-[color:var(--white,#f5f5f5)]/40">
-              due today
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">due today</p>
           </CardContent>
         </Card>
       </div>
 
       <div>
-        <h2 className="mb-4 font-heading text-xl text-gold">Schedule</h2>
+        <h2 className="mb-3 font-heading text-lg text-gold sm:mb-4 sm:text-xl">
+          Schedule
+        </h2>
         <DayAgenda tasks={tasks} activeOnly />
       </div>
     </div>

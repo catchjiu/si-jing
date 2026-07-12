@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: "Queen Sisi",
   description: "Private task sanctum",
   robots: "noindex, nofollow",
+  icons: {
+    icon: [{ url: "/brand/logo.jpg", type: "image/jpeg" }],
+    apple: [{ url: "/brand/logo.jpg", type: "image/jpeg" }],
+  },
 };
 
 export default function RootLayout({

@@ -126,7 +126,7 @@ export function DayAgenda({
           >
             <header
               className={cn(
-                "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5",
+                "flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3",
                 day.isToday
                   ? "border-gold/25 bg-gold/10"
                   : day.isPast
@@ -134,10 +134,10 @@ export function DayAgenda({
                     : "border-gold/10 bg-void/30"
               )}
             >
-              <div className="flex items-baseline gap-3">
+              <div className="flex min-w-0 items-baseline gap-2 sm:gap-3">
                 <h3
                   className={cn(
-                    "font-heading text-xl",
+                    "font-heading text-lg sm:text-xl",
                     day.isToday
                       ? "text-gold"
                       : day.isPast
@@ -147,19 +147,19 @@ export function DayAgenda({
                 >
                   {day.label}
                 </h3>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs text-muted-foreground sm:text-sm">
                   {day.shortLabel}
                 </span>
               </div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground sm:text-xs">
                 {done}/{total} done
                 {day.isToday && total - done > 0
-                  ? ` · ${total - done} left today`
+                  ? ` · ${total - done} left`
                   : ""}
               </p>
             </header>
 
-            <ul className="space-y-2 p-3 sm:p-4">
+            <ul className="space-y-2 p-2.5 sm:p-4">
               {day.tasks.map((task) => (
                 <li key={task.id}>
                   <TaskRow task={task} />

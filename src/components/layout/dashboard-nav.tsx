@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -10,9 +10,9 @@ import {
   LogOut,
   Menu,
   X,
-  Crown,
   Gift,
   Ban,
+  HandHeart,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -21,11 +21,13 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BrandLogo } from "@/components/brand-logo"
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/tasks", label: "Tasks", icon: ListTodo },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
+  { href: "/dashboard/requests", label: "Requests", icon: HandHeart },
   { href: "/dashboard/punishments", label: "Punishments", icon: Ban },
   { href: "/dashboard/profile", label: "Profile", icon: User },
 ]
@@ -34,6 +36,21 @@ export function DashboardNav() {
   const pathname = usePathname()
   const { profile, role, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (!mobileOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [mobileOpen])
+
+  // Close drawer on route change
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   const initials = profile?.username
     ?.split(" ")
@@ -44,21 +61,15 @@ export function DashboardNav() {
 
   const navContent = (
     <>
-      <div className="flex items-center gap-3 px-4 py-6">
-        <div className="flex size-10 items-center justify-center rounded-full border border-[color:var(--gold,#d4af37)]/40 bg-[color:var(--purple,#2d1b69)]/30">
-          <Crown className="size-5 text-[color:var(--gold,#d4af37)]" />
-        </div>
+      <div className="flex items-center gap-3 px-4 py-5">
+        <BrandLogo size="md" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-lg text-[color:var(--white,#f5f5f5)]">
-            Queen Sisi
-          </p>
-          <p className="text-xs text-[color:var(--white,#f5f5f5)]/50">
-            Private Chamber
-          </p>
+          <p className="truncate font-heading text-lg text-ivory">Queen Sisi</p>
+          <p className="text-xs text-muted-foreground">Private Chamber</p>
         </div>
       </div>
 
-      <Separator className="bg-[color:var(--gold,#d4af37)]/10" />
+      <Separator className="bg-gold/10" />
 
       {profile && (
         <div className="flex items-center gap-3 px-4 py-4">
@@ -66,12 +77,12 @@ export function DashboardNav() {
             {profile.avatar_url && (
               <AvatarImage src={profile.avatar_url} alt={profile.username} />
             )}
-            <AvatarFallback className="bg-[color:var(--purple,#2d1b69)] text-[color:var(--gold,#d4af37)]">
+            <AvatarFallback className="bg-royal text-gold">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-[color:var(--white,#f5f5f5)]">
+            <p className="truncate text-sm font-medium text-ivory">
               {profile.username}
             </p>
             <Badge
@@ -79,8 +90,8 @@ export function DashboardNav() {
               className={cn(
                 "mt-0.5 border text-[10px] uppercase tracking-wider",
                 role === "queen"
-                  ? "border-[color:var(--gold,#d4af37)]/50 bg-[color:var(--gold,#d4af37)]/10 text-[color:var(--gold,#d4af37)]"
-                  : "border-[color:var(--purple,#2d1b69)]/60 bg-[color:var(--purple,#2d1b69)]/30 text-[color:var(--white,#f5f5f5)]/80"
+                  ? "border-gold/50 bg-gold/10 text-gold"
+                  : "border-royal/60 bg-royal/30 text-ivory/80"
               )}
             >
               {role}
@@ -89,7 +100,7 @@ export function DashboardNav() {
         </div>
       )}
 
-      <Separator className="bg-[color:var(--gold,#d4af37)]/10" />
+      <Separator className="bg-gold/10" />
 
       <nav className="flex flex-col gap-1 px-3 py-4">
         {navLinks.map(({ href, label, icon: Icon }) => {
@@ -101,12 +112,11 @@ export function DashboardNav() {
             <Link
               key={href}
               href={href}
-              onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
                 isActive
-                  ? "border border-[color:var(--gold,#d4af37)]/30 bg-[color:var(--gold,#d4af37)]/10 text-[color:var(--gold,#d4af37)]"
-                  : "text-[color:var(--white,#f5f5f5)]/60 hover:bg-[color:var(--charcoal,#1a1a1a)] hover:text-[color:var(--white,#f5f5f5)]"
+                  ? "border border-gold/30 bg-gold/10 text-gold"
+                  : "text-ivory/60 hover:bg-charcoal hover:text-ivory"
               )}
             >
               <Icon className="size-4 shrink-0" />
@@ -119,10 +129,10 @@ export function DashboardNav() {
       <div className="mt-auto px-3 pb-4">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-[color:var(--white,#f5f5f5)]/60 hover:bg-red-500/10 hover:text-red-400"
+          className="w-full justify-start gap-3 text-ivory/60 hover:bg-red-500/10 hover:text-red-400"
           onClick={() => {
             setMobileOpen(false)
-            signOut()
+            void signOut()
           }}
         >
           <LogOut className="size-4" />
@@ -134,45 +144,57 @@ export function DashboardNav() {
 
   return (
     <>
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-[color:var(--gold,#d4af37)]/10 bg-[color:var(--black,#0a0a0a)]/95 px-4 backdrop-blur-md lg:hidden">
+      {/* Mobile top bar — full width, not a side column */}
+      <header className="sticky top-0 z-40 flex h-14 w-full shrink-0 items-center justify-between border-b border-gold/10 bg-void/95 px-4 backdrop-blur-md lg:hidden">
         <div className="flex items-center gap-2">
-          <Crown className="size-5 text-[color:var(--gold,#d4af37)]" />
-          <span className="font-heading text-[color:var(--white,#f5f5f5)]">
-            Queen Sisi
-          </span>
+          <BrandLogo size="sm" />
+          <span className="font-heading text-ivory">Queen Sisi</span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="text-[color:var(--white,#f5f5f5)]"
-          onClick={() => setMobileOpen(!mobileOpen)}
+          className="text-ivory"
+          onClick={() => setMobileOpen((o) => !o)}
+          aria-expanded={mobileOpen}
           aria-label={mobileOpen ? "Close menu" : "Open menu"}
         >
           {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
         </Button>
       </header>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer portal-like overlay (not a flex sibling that steals width) */}
       {mobileOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-          aria-hidden
-        />
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70"
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col border-r border-gold/10 bg-charcoal shadow-2xl animate-fade-in">
+            <div className="flex h-14 items-center justify-between border-b border-gold/10 px-4">
+              <span className="font-heading text-gold">Menu</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+              >
+                <X className="size-5" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="flex min-h-full flex-col">{navContent}</div>
+            </ScrollArea>
+          </aside>
+        </div>
       )}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-[color:var(--gold,#d4af37)]/10 bg-[color:var(--charcoal,#1a1a1a)] transition-transform duration-300 lg:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <ScrollArea className="flex-1">{navContent}</ScrollArea>
-      </aside>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-[color:var(--gold,#d4af37)]/10 bg-[color:var(--charcoal,#1a1a1a)] lg:flex">
-        {navContent}
+      {/* Desktop sidebar only */}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-gold/10 bg-charcoal lg:flex">
+        <ScrollArea className="h-screen">
+          <div className="flex min-h-screen flex-col">{navContent}</div>
+        </ScrollArea>
       </aside>
     </>
   )

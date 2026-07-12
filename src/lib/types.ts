@@ -72,6 +72,23 @@ export type Punishment = {
   created_at: string;
 };
 
+export type RequestType = "contact" | "mercy" | "reward" | "general";
+export type RequestStatus = "pending" | "approved" | "denied" | "withdrawn";
+
+export type DesireRequest = {
+  id: string;
+  requested_by: string;
+  request_type: RequestType;
+  title: string;
+  message: string | null;
+  desire_level: number;
+  status: RequestStatus;
+  queen_response: string | null;
+  responded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TaskWithRelations = Task & {
   assignee?: Profile | null;
   assigner?: Profile | null;

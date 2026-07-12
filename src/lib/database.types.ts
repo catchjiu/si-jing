@@ -178,6 +178,56 @@ export type Database = {
           },
         ]
       }
+      requests: {
+        Row: {
+          id: string
+          requested_by: string
+          request_type: string
+          title: string
+          message: string | null
+          desire_level: number
+          status: string
+          queen_response: string | null
+          responded_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          requested_by: string
+          request_type?: string
+          title: string
+          message?: string | null
+          desire_level: number
+          status?: string
+          queen_response?: string | null
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          requested_by?: string
+          request_type?: string
+          title?: string
+          message?: string | null
+          desire_level?: number
+          status?: string
+          queen_response?: string | null
+          responded_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submission_media: {
         Row: {
           file_path: string | null
