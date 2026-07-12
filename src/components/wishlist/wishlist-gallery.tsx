@@ -96,7 +96,7 @@ export function WishlistGallery({
       .eq("id", active.id);
     setStatusBusy(false);
     if (error) {
-      toast.error("Could not update status");
+      toast.error(error.message || "Could not update status");
       return;
     }
     toast.success("Wishlist updated");
