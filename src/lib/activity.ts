@@ -19,10 +19,24 @@ function pushItem(
   if (item) items.push(item);
 }
 
+function isFromOtherParty(
+  author:
+    | { id?: string; role?: string; username?: string }
+    | null
+    | undefined,
+  profile: ProfileRef
+): boolean {
+  if (!author?.id || author.id === profile.id) return false;
+  if (profile.role === "queen") return author.role === "slave";
+  return author.role === "queen";
+}
+
+const FETCH_LIMIT = 12;
+
 export async function fetchRecentActivity(
   supabase: SupabaseClient,
   profile: ProfileRef,
-  limit = 5
+  limit = 20
 ): Promise<ActivityItem[]> {
   const items: ActivityItem[] = [];
 
@@ -49,6 +63,11 @@ export async function fetchRecentActivity(
       locationRequests,
       voiceNotes,
       slaveTasks,
+      journalComments,
+      journalEntries,
+      submissionComments,
+      wishlistItems,
+      directMessages,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -131,6 +150,46 @@ export async function fetchRecentActivity(
             .order("updated_at", { ascending: false })
             .limit(8)
         : Promise.resolve({ data: [] }),
+      supabase
+        .from("journal_comments")
+        .select(
+          "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      slaveId
+        ? supabase
+            .from("journal_entries")
+            .select("id, body, entry_date, visibility, created_at, author_id")
+            .eq("visibility", "shared")
+            .eq("author_id", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("comments")
+        .select(
+          "id, content, created_at, submission_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      slaveId
+        ? supabase
+            .from("wishlist_items")
+            .select("id, title, created_at, created_by")
+            .eq("created_by", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("direct_messages")
+        .select(
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, sender:users!sender_id(id, role, username)"
+        )
+        .neq("sender_id", profile.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
     ]);
 
     for (const t of slaveTasks.data ?? []) {
@@ -180,8 +239,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of messages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role === "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `rmsg-${m.id}`,
         at: m.created_at as string,
@@ -190,6 +249,99 @@ export async function fetchRecentActivity(
         href: "/dashboard/requests",
         kind: "request_message",
       });
+    }
+
+    for (const jc of journalComments.data ?? []) {
+      const author = jc.author as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
+      pushItem(items, {
+        id: `journal-comment-${jc.id}`,
+        at: jc.created_at as string,
+        title: "Journal comment from D",
+        body: (jc.content as string).slice(0, 80),
+        href: "/dashboard/journal",
+        kind: "journal_comment",
+      });
+    }
+
+    for (const je of journalEntries.data ?? []) {
+      if (je.author_id === profile.id) continue;
+      pushItem(items, {
+        id: `journal-entry-${je.id}`,
+        at: je.created_at as string,
+        title: "New journal entry",
+        body:
+          (je.body as string).slice(0, 80) ||
+          (je.entry_date as string) ||
+          "Shared reflection",
+        href: "/dashboard/journal",
+        kind: "journal_entry",
+      });
+    }
+
+    for (const cm of submissionComments.data ?? []) {
+      const author = cm.author as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
+      pushItem(items, {
+        id: `sub-comment-${cm.id}`,
+        at: cm.created_at as string,
+        title: "Comment on submission",
+        body: (cm.content as string).slice(0, 80),
+        href: cm.submission_id
+          ? `/dashboard/submissions/${cm.submission_id}`
+          : "/dashboard/submissions",
+        kind: "submission_comment",
+      });
+    }
+
+    for (const w of wishlistItems.data ?? []) {
+      pushItem(items, {
+        id: `wish-${w.id}`,
+        at: w.created_at as string,
+        title: "Wishlist item added",
+        body: (w.title as string) || "Something D wants",
+        href: "/dashboard/wishlist",
+        kind: "wishlist",
+      });
+    }
+
+    for (const dm of directMessages.data ?? []) {
+      const sender = dm.sender as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(sender, profile)) continue;
+      const attachmentType = dm.attachment_type as string | null;
+      if (
+        attachmentType &&
+        ["request", "tease", "reward", "journal", "task"].includes(
+          attachmentType
+        )
+      ) {
+        continue;
+      }
+      const href =
+        attachmentType === "punishment"
+          ? "/dashboard/punishments"
+          : attachmentType === "date"
+            ? "/dashboard/dates"
+            : "/dashboard/inbox";
+      if (dm.voice_path) {
+        pushItem(items, {
+          id: `inbox-voice-${dm.id}`,
+          at: dm.created_at as string,
+          title: "Voice from D",
+          body: "Inbox voice note",
+          href,
+          kind: "inbox_voice",
+        });
+      } else if (dm.content) {
+        pushItem(items, {
+          id: `inbox-msg-${dm.id}`,
+          at: dm.created_at as string,
+          title: "Message from D",
+          body: (dm.content as string).slice(0, 80),
+          href,
+          kind: "inbox_message",
+        });
+      }
     }
 
     for (const c of checkIns.data ?? []) {
@@ -274,8 +426,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of teaseMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role === "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `tmsg-${m.id}`,
         at: m.created_at as string,
@@ -287,8 +439,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of rewardMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role === "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `rmsg-${m.id}`,
         at: m.created_at as string,
@@ -325,8 +477,8 @@ export async function fetchRecentActivity(
     }
 
     for (const v of voiceNotes.data ?? []) {
-      const author = v.author as { role?: string; username?: string } | null;
-      if (author?.role === "queen") continue;
+      const author = v.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       const href =
         v.entity_type === "date"
           ? "/dashboard/dates"
@@ -334,7 +486,13 @@ export async function fetchRecentActivity(
             ? "/dashboard/teases"
             : v.entity_type === "reward"
               ? "/dashboard/rewards"
-              : "/dashboard";
+              : v.entity_type === "journal"
+                ? "/dashboard/journal"
+                : v.entity_type === "request"
+                  ? "/dashboard/requests"
+                  : v.entity_type === "submission"
+                    ? `/dashboard/submissions/${v.entity_id}`
+                    : "/dashboard";
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -346,7 +504,11 @@ export async function fetchRecentActivity(
               ? "Voice on a date"
               : v.entity_type === "reward"
                 ? "Voice on a reward"
-                : "New voice message",
+                : v.entity_type === "journal"
+                  ? "Voice on journal"
+                  : v.entity_type === "request"
+                    ? "Voice on a request"
+                    : "New voice message",
         href,
         kind: "voice_note",
       });
@@ -367,6 +529,9 @@ export async function fetchRecentActivity(
       rewardMessages,
       locationRequests,
       voiceNotes,
+      journalComments,
+      submissionComments,
+      directMessages,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -462,7 +627,30 @@ export async function fetchRecentActivity(
           "id, entity_type, entity_id, created_at, created_by, author:users!created_by(role, username)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("journal_comments")
+        .select(
+          "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("comments")
+        .select(
+          "id, content, created_at, submission_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("direct_messages")
+        .select(
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, sender:users!sender_id(id, role, username)"
+        )
+        .neq("sender_id", profile.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
     ]);
 
     for (const t of tasks.data ?? []) {
@@ -550,8 +738,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of messages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role !== "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `rmsg-${m.id}`,
         at: m.created_at as string,
@@ -560,6 +748,73 @@ export async function fetchRecentActivity(
         href: "/dashboard/requests",
         kind: "request_message",
       });
+    }
+
+    for (const jc of journalComments.data ?? []) {
+      const author = jc.author as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
+      pushItem(items, {
+        id: `journal-comment-${jc.id}`,
+        at: jc.created_at as string,
+        title: "Queen commented on journal",
+        body: (jc.content as string).slice(0, 80),
+        href: "/dashboard/journal",
+        kind: "journal_comment",
+      });
+    }
+
+    for (const cm of submissionComments.data ?? []) {
+      const author = cm.author as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
+      pushItem(items, {
+        id: `sub-comment-${cm.id}`,
+        at: cm.created_at as string,
+        title: "Queen commented on submission",
+        body: (cm.content as string).slice(0, 80),
+        href: cm.submission_id
+          ? `/dashboard/submissions/${cm.submission_id}`
+          : "/dashboard/submissions",
+        kind: "submission_comment",
+      });
+    }
+
+    for (const dm of directMessages.data ?? []) {
+      const sender = dm.sender as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(sender, profile)) continue;
+      const attachmentType = dm.attachment_type as string | null;
+      if (
+        attachmentType &&
+        ["request", "tease", "reward", "journal", "task"].includes(
+          attachmentType
+        )
+      ) {
+        continue;
+      }
+      const href =
+        attachmentType === "punishment"
+          ? "/dashboard/punishments"
+          : attachmentType === "date"
+            ? "/dashboard/dates"
+            : "/dashboard/inbox";
+      if (dm.voice_path) {
+        pushItem(items, {
+          id: `inbox-voice-${dm.id}`,
+          at: dm.created_at as string,
+          title: "Voice from Queen",
+          body: "Inbox voice note",
+          href,
+          kind: "inbox_voice",
+        });
+      } else if (dm.content) {
+        pushItem(items, {
+          id: `inbox-msg-${dm.id}`,
+          at: dm.created_at as string,
+          title: "Message from Queen",
+          body: (dm.content as string).slice(0, 80),
+          href,
+          kind: "inbox_message",
+        });
+      }
     }
 
     for (const c of checkIns.data ?? []) {
@@ -619,8 +874,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of teaseMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role !== "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `tmsg-${m.id}`,
         at: m.created_at as string,
@@ -632,8 +887,8 @@ export async function fetchRecentActivity(
     }
 
     for (const m of rewardMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string } | null;
-      if (author?.role !== "queen") continue;
+      const author = m.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       pushItem(items, {
         id: `rmsg-${m.id}`,
         at: m.created_at as string,
@@ -667,8 +922,8 @@ export async function fetchRecentActivity(
     }
 
     for (const v of voiceNotes.data ?? []) {
-      const author = v.author as { role?: string; username?: string } | null;
-      if (author?.role !== "queen") continue;
+      const author = v.author as { role?: string; username?: string; id?: string } | null;
+      if (!isFromOtherParty(author, profile)) continue;
       const href =
         v.entity_type === "date"
           ? "/dashboard/dates"
@@ -676,7 +931,13 @@ export async function fetchRecentActivity(
             ? "/dashboard/teases"
             : v.entity_type === "reward"
               ? "/dashboard/rewards"
-              : "/dashboard";
+              : v.entity_type === "journal"
+                ? "/dashboard/journal"
+                : v.entity_type === "request"
+                  ? "/dashboard/requests"
+                  : v.entity_type === "submission"
+                    ? `/dashboard/submissions/${v.entity_id}`
+                    : "/dashboard";
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -688,7 +949,11 @@ export async function fetchRecentActivity(
               ? "Voice on a date"
               : v.entity_type === "reward"
                 ? "Voice on a reward"
-                : "New voice message",
+                : v.entity_type === "journal"
+                  ? "Voice on journal"
+                  : v.entity_type === "request"
+                    ? "Voice on a request"
+                    : "New voice message",
         href,
         kind: "voice_note",
       });
@@ -717,7 +982,11 @@ export function getActivitySeenAt(): string | null {
 export function markActivitySeen(iso = new Date().toISOString()) {
   if (typeof window === "undefined") return;
   localStorage.setItem(SEEN_KEY, iso);
+  window.dispatchEvent(new CustomEvent("activity-seen", { detail: iso }));
 }
+
+/** Fetch enough items to compute an accurate unseen badge count. */
+export const ACTIVITY_COUNT_LIMIT = 40;
 
 export function countUnseen(items: ActivityItem[], seenAt: string | null) {
   if (!seenAt) return items.length;

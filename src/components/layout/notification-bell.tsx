@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import {
+  ACTIVITY_COUNT_LIMIT,
   countUnseen,
   fetchRecentActivity,
   getActivitySeenAt,
@@ -36,24 +37,34 @@ export function NotificationBell({ className }: { className?: string }) {
     const feed = await fetchRecentActivity(
       supabase,
       { id: profile.id, role },
-      5
+      ACTIVITY_COUNT_LIMIT
     );
-    setItems(feed);
+    setItems(feed.slice(0, 10));
     setUnseen(countUnseen(feed, getActivitySeenAt()));
   }, [profile, role]);
 
   useEffect(() => {
     void load();
     const id = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(id);
+    const onSeen = () => {
+      setUnseen(0);
+      void load();
+    };
+    window.addEventListener("activity-seen", onSeen);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("activity-seen", onSeen);
+    };
   }, [load]);
 
   const onOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) {
-      markActivitySeen();
-      setUnseen(0);
-    }
+  };
+
+  const markAllSeen = () => {
+    markActivitySeen();
+    setUnseen(0);
+    setOpen(false);
   };
 
   if (!profile) return null;
@@ -71,7 +82,7 @@ export function NotificationBell({ className }: { className?: string }) {
           <Bell className="size-5" />
           {unseen > 0 && (
             <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-semibold text-void">
-              {unseen > 5 ? "5+" : unseen}
+              {unseen > 9 ? "9+" : unseen}
             </span>
           )}
         </Button>
@@ -112,6 +123,19 @@ export function NotificationBell({ className }: { className?: string }) {
             </DropdownMenuItem>
           ))
         )}
+        <DropdownMenuSeparator className="bg-gold/10" />
+        <div className="p-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full text-gold hover:bg-gold/10"
+            onClick={markAllSeen}
+            disabled={unseen === 0}
+          >
+            Mark all as seen
+          </Button>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

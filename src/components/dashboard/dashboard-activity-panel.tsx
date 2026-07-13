@@ -7,6 +7,7 @@ import {
   Ban,
   BellRing,
   CheckCircle2,
+  BookOpen,
   ClipboardList,
   Gift,
   HandHeart,
@@ -21,6 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import {
+  ACTIVITY_COUNT_LIMIT,
   countUnseen,
   fetchRecentActivity,
   getActivitySeenAt,
@@ -62,6 +64,12 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   location_request: MessageSquare,
   location_shared: MessageSquare,
   voice_note: Mic,
+  journal_comment: BookOpen,
+  journal_entry: BookOpen,
+  submission_comment: MessageSquare,
+  wishlist: Gift,
+  inbox_message: MessageSquare,
+  inbox_voice: Mic,
 };
 
 function iconForKind(kind: string) {
@@ -92,7 +100,7 @@ export function DashboardActivityPanel({
     const feed = await fetchRecentActivity(
       supabase,
       { id: profile.id, role },
-      8
+      ACTIVITY_COUNT_LIMIT
     );
     setItems(feed);
   }, [profile, role]);
@@ -108,12 +116,20 @@ export function DashboardActivityPanel({
   useEffect(() => {
     void refresh();
     const id = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(id);
+    const onSeen = () => {
+      setSeenAt(getActivitySeenAt());
+      setDismissed(true);
+    };
+    window.addEventListener("activity-seen", onSeen);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("activity-seen", onSeen);
+    };
   }, [refresh]);
 
   const unseen = countUnseen(items, seenAt);
   const showBanner = unseen > 0 && !dismissed;
-  const visibleItems = items.slice(0, 6);
+  const visibleItems = items.slice(0, 10);
 
   const dismiss = () => {
     const now = new Date().toISOString();
@@ -155,7 +171,7 @@ export function DashboardActivityPanel({
             onClick={dismiss}
             className="shrink-0 border-gold/40 text-gold hover:bg-gold/10"
           >
-            Mark all seen
+            Mark all as seen
           </Button>
         </div>
       )}

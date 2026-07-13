@@ -182,7 +182,7 @@ export default async function DashboardPage() {
     const activity = await fetchRecentActivity(
       supabase,
       { id: profile.id, role: "queen" },
-      8
+      20
     );
 
     return (
@@ -295,7 +295,7 @@ export default async function DashboardPage() {
   const activity = await fetchRecentActivity(
     supabase,
     { id: profile.id, role: "slave" },
-    8
+    20
   );
 
   return (
