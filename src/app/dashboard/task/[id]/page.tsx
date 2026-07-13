@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { StatusBadge } from "@/components/tasks/status-badge";
 import { Countdown } from "@/components/tasks/countdown";
 import { SubmissionForm } from "@/components/submissions/submission-form";
+import { SubmissionList } from "@/components/submissions/submission-list";
 import { formatDeadline, DIFFICULTY_LABELS } from "@/lib/format";
 import { recurrenceLabel } from "@/lib/tasks";
 import { formatRoleSpeech } from "@/lib/role-speech";
@@ -153,30 +154,10 @@ export default async function TaskDetailPage({
         <h2 className="font-heading text-xl text-gold">
           Submissions ({submissions.length})
         </h2>
-        {submissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No submissions yet.</p>
-        ) : (
-          <ul className="space-y-3">
-            {submissions.map((s) => (
-              <li key={s.id}>
-                <Link
-                  href={`/dashboard/submissions/${s.id}`}
-                  className="flex items-center justify-between gap-4 rounded-lg border border-gold/10 bg-void/40 px-4 py-3 transition-colors hover:border-gold/30"
-                >
-                  <div>
-                    <p className="text-sm text-ivory">
-                      {s.submission_text?.slice(0, 80) || "Submission"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatDeadline(s.submitted_at)}
-                    </p>
-                  </div>
-                  <StatusBadge status={s.status} type="submission" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <SubmissionList
+          submissions={submissions}
+          canDelete={isAssignee && !isQueen}
+        />
       </section>
 
       <VoiceNotes entityType="task" entityId={task.id} />
