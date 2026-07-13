@@ -79,40 +79,43 @@ export function TeaseUnlockChecklist({
           const interactive = canComplete && timeReady && !doneTask;
 
           return (
-            <li
-              key={task.id}
-              className={cn(
-                "flex items-start gap-2.5 text-sm",
-                doneTask && "text-muted-foreground"
-              )}
-            >
-              {interactive || busy ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void complete(task)}
-                  className="mt-0.5 shrink-0"
-                  aria-label={`Mark done: ${task.label}`}
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-gold" />
-                  ) : (
-                    <Checkbox
-                      checked={false}
-                      className="pointer-events-none border-gold/40 data-[state=checked]:bg-gold data-[state=checked]:text-void"
-                    />
-                  )}
-                </button>
-              ) : doneTask ? (
-                <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-              ) : (
-                <Checkbox
-                  checked={false}
-                  disabled
-                  className="mt-0.5 shrink-0 border-gold/25 opacity-60"
-                />
-              )}
-              <span className={cn(doneTask && "line-through")}>{task.label}</span>
+            <li key={task.id}>
+              <button
+                type="button"
+                disabled={!interactive || busy}
+                onClick={() => void complete(task)}
+                className={cn(
+                  "flex w-full items-start gap-2.5 rounded-md px-1 py-1.5 text-left text-sm transition-colors",
+                  interactive &&
+                    "cursor-pointer hover:bg-gold/10 active:bg-gold/15",
+                  doneTask && "text-muted-foreground",
+                  !interactive && !doneTask && "opacity-70"
+                )}
+                aria-label={
+                  doneTask
+                    ? `Completed: ${task.label}`
+                    : interactive
+                      ? `Mark done: ${task.label}`
+                      : task.label
+                }
+              >
+                {busy ? (
+                  <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-gold" />
+                ) : doneTask ? (
+                  <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                ) : (
+                  <Checkbox
+                    checked={false}
+                    className={cn(
+                      "mt-0.5 shrink-0 border-gold/40 pointer-events-none",
+                      interactive && "border-gold/60"
+                    )}
+                  />
+                )}
+                <span className={cn(doneTask && "line-through")}>
+                  {task.label}
+                </span>
+              </button>
             </li>
           );
         })}
