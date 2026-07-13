@@ -175,6 +175,8 @@ export default async function DashboardPage() {
     return (
       <QueenDashboard
         tasks={tasks}
+        progressTasks={slaveTasks}
+        slaveId={slaveId}
         submissions={submissions}
         pendingRequests={pendingRequests}
         activePunishments={activePunishments}

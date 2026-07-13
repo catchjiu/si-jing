@@ -30,10 +30,13 @@ import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/tasks/status-badge"
 import { PunishmentCountdown } from "@/components/punishments/punishment-countdown"
 import { MoodDisplay } from "@/components/mood/mood-picker"
+import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 
 interface QueenDashboardProps {
   tasks: TaskWithRelations[]
+  progressTasks: TaskWithRelations[]
+  slaveId?: string
   submissions: SubmissionWithRelations[]
   pendingRequests: DesireRequest[]
   activePunishments: Punishment[]
@@ -84,6 +87,8 @@ function EmptyLine({ children }: { children: ReactNode }) {
 
 export function QueenDashboard({
   tasks,
+  progressTasks,
+  slaveId,
   submissions,
   pendingRequests,
   activePunishments,
@@ -202,6 +207,8 @@ export function QueenDashboard({
           updatedAt={slaveStatus.updated_at}
         />
       )}
+
+      <TaskProgressPanel tasks={progressTasks} slaveId={slaveId} />
 
       <StreakMilestonesPanel currentStreak={stats.streak} />
 
