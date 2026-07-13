@@ -31,7 +31,52 @@ function isFromOtherParty(
   return author.role === "queen";
 }
 
-const FETCH_LIMIT = 12;
+const FETCH_LIMIT = 20;
+
+function otherPartyLabel(profile: ProfileRef): string {
+  return profile.role === "queen" ? "D" : "Queen";
+}
+
+function pushOtherPartyComment(
+  items: ActivityItem[],
+  profile: ProfileRef,
+  opts: {
+    id: string;
+    at: string;
+    content: string;
+    where: string;
+    href: string;
+    kind: string;
+    context?: string | null;
+    author?: { id?: string; role?: string } | null;
+  }
+) {
+  if (!isFromOtherParty(opts.author, profile)) return;
+  const snippet = opts.content.trim().slice(0, 80);
+  if (!snippet && !opts.context) return;
+  pushItem(items, {
+    id: opts.id,
+    at: opts.at,
+    title: `Comment on ${opts.where} · ${otherPartyLabel(profile)}`,
+    body: opts.context
+      ? `${opts.context.slice(0, 50)}${snippet ? ` — ${snippet}` : ""}`
+      : snippet,
+    href: opts.href,
+    kind: opts.kind,
+  });
+}
+
+/** Topic-thread DMs mirrored from comments — skip to avoid duplicates. */
+const COMMENT_ATTACHMENT_TYPES = new Set([
+  "request",
+  "tease",
+  "reward",
+  "journal",
+  "task",
+  "submission",
+  "date",
+  "punishment",
+]);
 
 export async function fetchRecentActivity(
   supabase: SupabaseClient,
@@ -68,6 +113,7 @@ export async function fetchRecentActivity(
       submissionComments,
       wishlistItems,
       directMessages,
+      datePosts,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -82,10 +128,10 @@ export async function fetchRecentActivity(
       supabase
         .from("request_messages")
         .select(
-          "id, content, created_at, request_id, author:users!author_id(role, username)"
+          "id, content, created_at, request_id, author_id, author:users!author_id(id, role, username), request:requests(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("check_ins")
         .select("id, title, status, responded_at, closes_at, created_at")
@@ -118,17 +164,17 @@ export async function fetchRecentActivity(
       supabase
         .from("tease_messages")
         .select(
-          "id, content, created_at, tease_id, author:users!author_id(role, username)"
+          "id, content, created_at, tease_id, author_id, author:users!author_id(id, role, username), tease:teases(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("reward_messages")
         .select(
-          "id, content, created_at, reward_id, author:users!author_id(role, username)"
+          "id, content, created_at, reward_id, author_id, author:users!author_id(id, role, username), reward:rewards(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("location_requests")
         .select("id, status, created_at, shared_at, requested_by, requested_from")
@@ -169,7 +215,7 @@ export async function fetchRecentActivity(
       supabase
         .from("comments")
         .select(
-          "id, content, created_at, submission_id, author_id, author:users!author_id(id, role, username)"
+          "id, content, created_at, submission_id, commented_by, author:users!commented_by(id, role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -188,6 +234,13 @@ export async function fetchRecentActivity(
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("date_posts")
+        .select(
+          "id, body, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
     ]);
@@ -239,28 +292,28 @@ export async function fetchRecentActivity(
     }
 
     for (const m of messages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `rmsg-${m.id}`,
+      const request = m.request as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `req-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Message from D",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "request",
         href: "/dashboard/requests",
-        kind: "request_message",
+        kind: "request_comment",
+        context: request?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
     for (const jc of journalComments.data ?? []) {
-      const author = jc.author as { role?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
+      pushOtherPartyComment(items, profile, {
         id: `journal-comment-${jc.id}`,
         at: jc.created_at as string,
-        title: "Journal comment from D",
-        body: (jc.content as string).slice(0, 80),
+        content: jc.content as string,
+        where: "journal",
         href: "/dashboard/journal",
         kind: "journal_comment",
+        author: jc.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -280,17 +333,31 @@ export async function fetchRecentActivity(
     }
 
     for (const cm of submissionComments.data ?? []) {
-      const author = cm.author as { role?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
+      pushOtherPartyComment(items, profile, {
         id: `sub-comment-${cm.id}`,
         at: cm.created_at as string,
-        title: "Comment on submission",
-        body: (cm.content as string).slice(0, 80),
+        content: cm.content as string,
+        where: "submission",
         href: cm.submission_id
           ? `/dashboard/submissions/${cm.submission_id}`
           : "/dashboard/submissions",
         kind: "submission_comment",
+        author: cm.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const dp of datePosts.data ?? []) {
+      const date = dp.date as { title?: string } | null;
+      const body = (dp.body as string | null)?.trim();
+      pushOtherPartyComment(items, profile, {
+        id: `date-comment-${dp.id}`,
+        at: dp.created_at as string,
+        content: body || "Shared on the date timeline",
+        where: "date",
+        href: "/dashboard/dates",
+        kind: "date_comment",
+        context: date?.title ?? null,
+        author: dp.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -311,9 +378,7 @@ export async function fetchRecentActivity(
       const attachmentType = dm.attachment_type as string | null;
       if (
         attachmentType &&
-        ["request", "tease", "reward", "journal", "task"].includes(
-          attachmentType
-        )
+        COMMENT_ATTACHMENT_TYPES.has(attachmentType)
       ) {
         continue;
       }
@@ -426,28 +491,30 @@ export async function fetchRecentActivity(
     }
 
     for (const m of teaseMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `tmsg-${m.id}`,
+      const tease = m.tease as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `tease-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Beg on tease",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "tease",
         href: "/dashboard/teases",
-        kind: "tease_message",
+        kind: "tease_comment",
+        context: tease?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
     for (const m of rewardMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `rmsg-${m.id}`,
+      const reward = m.reward as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `reward-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Comment on reward",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "reward",
         href: "/dashboard/rewards",
-        kind: "reward_message",
+        kind: "reward_comment",
+        context: reward?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -532,6 +599,7 @@ export async function fetchRecentActivity(
       journalComments,
       submissionComments,
       directMessages,
+      datePosts,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -570,10 +638,10 @@ export async function fetchRecentActivity(
       supabase
         .from("request_messages")
         .select(
-          "id, content, created_at, request_id, author:users!author_id(role, username)"
+          "id, content, created_at, request_id, author_id, author:users!author_id(id, role, username), request:requests(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("check_ins")
         .select("id, title, status, opens_at, created_at")
@@ -604,17 +672,17 @@ export async function fetchRecentActivity(
       supabase
         .from("tease_messages")
         .select(
-          "id, content, created_at, tease_id, author:users!author_id(role, username)"
+          "id, content, created_at, tease_id, author_id, author:users!author_id(id, role, username), tease:teases(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("reward_messages")
         .select(
-          "id, content, created_at, reward_id, author:users!author_id(role, username)"
+          "id, content, created_at, reward_id, author_id, author:users!author_id(id, role, username), reward:rewards(title)"
         )
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(FETCH_LIMIT),
       supabase
         .from("location_requests")
         .select("id, status, created_at, shared_at, requested_by, requested_from")
@@ -638,7 +706,7 @@ export async function fetchRecentActivity(
       supabase
         .from("comments")
         .select(
-          "id, content, created_at, submission_id, author_id, author:users!author_id(id, role, username)"
+          "id, content, created_at, submission_id, commented_by, author:users!commented_by(id, role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -649,6 +717,13 @@ export async function fetchRecentActivity(
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("date_posts")
+        .select(
+          "id, body, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
     ]);
@@ -738,43 +813,57 @@ export async function fetchRecentActivity(
     }
 
     for (const m of messages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `rmsg-${m.id}`,
+      const request = m.request as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `req-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Message from Queen",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "request",
         href: "/dashboard/requests",
-        kind: "request_message",
+        kind: "request_comment",
+        context: request?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
     for (const jc of journalComments.data ?? []) {
-      const author = jc.author as { role?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
+      pushOtherPartyComment(items, profile, {
         id: `journal-comment-${jc.id}`,
         at: jc.created_at as string,
-        title: "Queen commented on journal",
-        body: (jc.content as string).slice(0, 80),
+        content: jc.content as string,
+        where: "journal",
         href: "/dashboard/journal",
         kind: "journal_comment",
+        author: jc.author as { id?: string; role?: string } | null,
       });
     }
 
     for (const cm of submissionComments.data ?? []) {
-      const author = cm.author as { role?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
+      pushOtherPartyComment(items, profile, {
         id: `sub-comment-${cm.id}`,
         at: cm.created_at as string,
-        title: "Queen commented on submission",
-        body: (cm.content as string).slice(0, 80),
+        content: cm.content as string,
+        where: "submission",
         href: cm.submission_id
           ? `/dashboard/submissions/${cm.submission_id}`
           : "/dashboard/submissions",
         kind: "submission_comment",
+        author: cm.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const dp of datePosts.data ?? []) {
+      const date = dp.date as { title?: string } | null;
+      const body = (dp.body as string | null)?.trim();
+      pushOtherPartyComment(items, profile, {
+        id: `date-comment-${dp.id}`,
+        at: dp.created_at as string,
+        content: body || "Shared on the date timeline",
+        where: "date",
+        href: "/dashboard/dates",
+        kind: "date_comment",
+        context: date?.title ?? null,
+        author: dp.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -784,9 +873,7 @@ export async function fetchRecentActivity(
       const attachmentType = dm.attachment_type as string | null;
       if (
         attachmentType &&
-        ["request", "tease", "reward", "journal", "task"].includes(
-          attachmentType
-        )
+        COMMENT_ATTACHMENT_TYPES.has(attachmentType)
       ) {
         continue;
       }
@@ -874,28 +961,30 @@ export async function fetchRecentActivity(
     }
 
     for (const m of teaseMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `tmsg-${m.id}`,
+      const tease = m.tease as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `tease-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Queen replied on tease",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "tease",
         href: "/dashboard/teases",
-        kind: "tease_message",
+        kind: "tease_comment",
+        context: tease?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
     for (const m of rewardMessages.data ?? []) {
-      const author = m.author as { role?: string; username?: string; id?: string } | null;
-      if (!isFromOtherParty(author, profile)) continue;
-      pushItem(items, {
-        id: `rmsg-${m.id}`,
+      const reward = m.reward as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `reward-comment-${m.id}`,
         at: m.created_at as string,
-        title: "Queen replied on reward",
-        body: (m.content as string).slice(0, 80),
+        content: m.content as string,
+        where: "reward",
         href: "/dashboard/rewards",
-        kind: "reward_message",
+        kind: "reward_comment",
+        context: reward?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
