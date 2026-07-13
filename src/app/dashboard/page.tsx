@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { QueenDashboard } from "@/components/dashboard/queen-dashboard";
 import { SlaveDashboard } from "@/components/dashboard/slave-dashboard";
 import {
-  ensureRecurringOccurrences,
   filterListableTasks,
 } from "@/lib/tasks";
 import { dayProgress } from "@/lib/day-groups";
@@ -40,17 +39,39 @@ export default async function DashboardPage() {
   const profile = profileData as Profile | null;
   if (!profile) redirect("/");
 
-  await ensureRecurringOccurrences(supabase, 7);
-  await Promise.all([
-    supabase.rpc("open_due_check_ins"),
-    supabase.rpc("flag_missed_check_ins"),
-    supabase.rpc("complete_expired_punishments"),
-  ]);
+  // Maintenance RPCs run via /api/cron/protocol — not on every dashboard hit.
 
-  const { data: tasksData } = await supabase
+  const { data: slaveRow } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "slave")
+    .limit(1)
+    .maybeSingle();
+  const slaveId = (slaveRow?.id as string | undefined) ?? undefined;
+
+  let tasksQuery = supabase
     .from("tasks")
     .select("*, submissions(count)")
     .order("deadline", { ascending: true });
+
+  if (profile.role === "slave") {
+    tasksQuery = tasksQuery.eq("assigned_to", profile.id);
+  } else if (slaveId) {
+    tasksQuery = tasksQuery.eq("assigned_to", slaveId);
+  }
+
+  const ackUserId =
+    profile.role === "slave" ? profile.id : slaveId ?? profile.id;
+
+  const [{ data: tasksData }, { data: activeRules }, { data: ackRows }] =
+    await Promise.all([
+      tasksQuery,
+      supabase.from("rules").select("id").eq("is_active", true),
+      supabase
+        .from("rule_acknowledgments")
+        .select("rule_id, user_id, acknowledged_at")
+        .eq("user_id", ackUserId),
+    ]);
 
   const tasks = filterListableTasks(
     (tasksData ?? []).map((t) => {
@@ -62,27 +83,14 @@ export default async function DashboardPage() {
     }) as TaskWithRelations[]
   ) as TaskWithRelations[];
 
-  const [{ data: activeRules }, { data: allAcks }] = await Promise.all([
-    supabase.from("rules").select("id").eq("is_active", true),
-    supabase.from("rule_acknowledgments").select("*"),
-  ]);
-
   const activeRuleIds = (activeRules ?? []).map((r) => r.id as string);
-  const acks = (allAcks ?? []) as {
+  const acks = (ackRows ?? []) as {
     rule_id: string;
     user_id: string;
     acknowledged_at: string;
   }[];
 
   if (profile.role === "queen") {
-    const { data: slave } = await supabase
-      .from("users")
-      .select("id")
-      .eq("role", "slave")
-      .limit(1)
-      .maybeSingle();
-
-    const slaveId = slave?.id as string | undefined;
     const slaveAcks = slaveId
       ? acks.filter((a) => a.user_id === slaveId)
       : [];
@@ -95,6 +103,7 @@ export default async function DashboardPage() {
       { data: punishmentsData },
       openCheckInsRes,
       pendingPunishRes,
+      { data: slaveStatusData },
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -120,6 +129,13 @@ export default async function DashboardPage() {
         .from("punishments")
         .select("*", { count: "exact", head: true })
         .eq("status", "pending"),
+      slaveId
+        ? supabase
+            .from("user_status")
+            .select("*")
+            .eq("user_id", slaveId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
     const submissions = (submissionsData ?? []) as SubmissionWithRelations[];
@@ -136,19 +152,8 @@ export default async function DashboardPage() {
       (s) => s.status === "pending"
     ).length;
 
-    const slaveTasks = slaveId
-      ? tasks.filter((t) => t.assigned_to === slaveId)
-      : tasks;
-
-    await checkAndAwardStreakMilestones(supabase, slaveTasks as Task[]);
-
-    const { data: slaveStatusData } = slaveId
-      ? await supabase
-          .from("user_status")
-          .select("*")
-          .eq("user_id", slaveId)
-          .maybeSingle()
-      : { data: null };
+    const slaveTasks = tasks;
+    void checkAndAwardStreakMilestones(supabase, slaveTasks as Task[]);
 
     const slaveStatus = slaveStatusData as UserStatus | null;
 
@@ -187,8 +192,8 @@ export default async function DashboardPage() {
     );
   }
 
-  const myTasks = tasks.filter((t) => t.assigned_to === profile.id);
-  await checkAndAwardStreakMilestones(supabase, myTasks as Task[]);
+  const myTasks = tasks;
+  void checkAndAwardStreakMilestones(supabase, myTasks as Task[]);
   const today = new Date();
   const todayTasks = myTasks.filter((t) =>
     isSameDay(parseISO(t.deadline), today)

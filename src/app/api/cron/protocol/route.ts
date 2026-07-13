@@ -20,10 +20,18 @@ export async function POST(request: Request) {
 
   const supabase = adminClient();
 
-  const [{ data: opened }, { data: missed }] = await Promise.all([
+  const [
+    { data: opened },
+    { data: missed },
+    { data: expired },
+    { data: recurring },
+  ] = await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
     supabase.rpc("complete_expired_punishments"),
+    supabase.rpc("ensure_recurring_task_occurrences", {
+      look_ahead_days: 14,
+    }),
   ]);
 
   const nowIso = new Date().toISOString();
@@ -37,6 +45,8 @@ export async function POST(request: Request) {
     ok: true,
     opened: opened ?? 0,
     missed: missed ?? 0,
+    expired: expired ?? 0,
+    recurring: recurring ?? 0,
   });
 }
 

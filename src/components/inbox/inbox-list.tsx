@@ -92,6 +92,14 @@ export function InboxList({ className }: { className?: string }) {
 
   useEffect(() => {
     if (!profile) return;
+    let debounce: number | null = null;
+    const schedule = () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => {
+        debounce = null;
+        void load();
+      }, 350);
+    };
     const supabase = createClient();
     const channel = supabase
       .channel(`inbox-live:${profile.id}`)
@@ -103,19 +111,16 @@ export function InboxList({ className }: { className?: string }) {
           table: "notifications",
           filter: `user_id=eq.${profile.id}`,
         },
-        () => {
-          void load();
-        }
+        schedule
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "direct_messages" },
-        () => {
-          void load();
-        }
+        { event: "INSERT", schema: "public", table: "direct_messages" },
+        schedule
       )
       .subscribe();
     return () => {
+      if (debounce != null) window.clearTimeout(debounce);
       void supabase.removeChannel(channel);
     };
   }, [profile, load]);

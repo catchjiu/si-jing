@@ -1,0 +1,34 @@
+"use client";
+
+import { useState } from "react";
+import { MessageCircle } from "lucide-react";
+import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
+import { Button } from "@/components/ui/button";
+
+/** Avoid mounting beg/voice realtime channels until Queen/D opens the thread. */
+export function LazyTeaseThread({
+  teaseId,
+  teaseTitle,
+}: {
+  teaseId: string;
+  teaseTitle?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        className="w-full border-gold/25 text-ivory/80 hover:border-gold/40 hover:bg-gold/5"
+      >
+        <MessageCircle className="mr-2 h-3.5 w-3.5 text-gold" />
+        Show replies & voice
+      </Button>
+    );
+  }
+
+  return <TeaseBegThread teaseId={teaseId} teaseTitle={teaseTitle} />;
+}

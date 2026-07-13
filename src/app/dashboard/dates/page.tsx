@@ -14,15 +14,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import type { Profile, QueenDate } from "@/lib/types";
-import { VoiceNotes } from "@/components/voice/voice-notes";
-import { DateTimeline } from "@/components/dates/date-timeline";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { LazyDateDetails } from "@/components/dates/lazy-date-details";
 import {
   DateFeaturedContent,
   extrasFromDate,
   type DateExtrasDraft,
 } from "@/components/dates/date-featured-content";
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube";
-import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -506,20 +505,11 @@ export default function DatesPage() {
                   </div>
                 )}
 
-                <DateTimeline
+                <LazyDateDetails
                   dateId={d.id}
                   dateTitle={d.title}
                   canPost={!!isSlave || !!isQueen}
                   onPosted={() => void load()}
-                />
-
-                <VoiceNotes
-                  entityType="date"
-                  entityId={d.id}
-                  compact
-                  title="Voice"
-                  allowEvidencePin
-                  evidenceTitle={d.title ? `Date · ${d.title}` : "Date voice"}
                 />
               </article>
             );

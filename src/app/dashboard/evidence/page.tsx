@@ -61,12 +61,127 @@ function youtubeId(url: string) {
   }
 }
 
+function EvidenceThumb({
+  item,
+  onSigned,
+}: {
+  item: EvidenceItem;
+  onSigned: (item: EvidenceItem) => Promise<EvidenceItem>;
+}) {
+  const [url, setUrl] = useState(item.signedUrl);
+  const yt = item.youtube_url ? youtubeId(item.youtube_url) : null;
+  const isReaction = item.media_type === "reaction";
+  const isVoice = item.media_type === "voice";
+  const isVideo = item.media_type === "video";
+  const isText = item.media_type === "text";
+
+  useEffect(() => {
+    setUrl(item.signedUrl);
+  }, [item.signedUrl]);
+
+  useEffect(() => {
+    if (url || !item.file_path || isVoice || isReaction || isText) return;
+    let cancelled = false;
+    void onSigned(item).then((signed) => {
+      if (!cancelled && signed.signedUrl) setUrl(signed.signedUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item, onSigned, url, isVoice, isReaction, isText]);
+
+  if (url && !isVoice && !isVideo) {
+    return (
+      <Image
+        src={url}
+        alt={item.title}
+        fill
+        unoptimized
+        className="object-cover transition group-hover:scale-105"
+        sizes="25vw"
+      />
+    );
+  }
+  if (isVideo && url) {
+    return (
+      // eslint-disable-next-line jsx-a11y/media-has-caption
+      <video
+        src={url}
+        muted
+        playsInline
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+  if (yt) {
+    return (
+      <Image
+        src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`}
+        alt={item.title}
+        fill
+        unoptimized
+        className="object-cover"
+        sizes="25vw"
+      />
+    );
+  }
+  if (isVoice) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-gold">
+        <Mic className="h-8 w-8" />
+        <span className="text-xs text-muted-foreground">Voice</span>
+      </div>
+    );
+  }
+  if (isReaction || isText) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center">
+        <Bookmark className="h-6 w-6 text-gold" />
+        <p className="line-clamp-3 text-xs text-ivory/80">
+          {item.pin?.caption || item.title}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full items-center justify-center text-muted-foreground">
+      <Images className="h-6 w-6" />
+    </div>
+  );
+}
+
 export default function EvidencePage() {
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<EvidenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("this_week");
   const [active, setActive] = useState<EvidenceItem | null>(null);
+
+  const ensureSigned = useCallback(async (item: EvidenceItem) => {
+    if (item.signedUrl || !item.file_path) return item;
+    const bucket = item.storage_bucket ?? "";
+    if (!isStorageBucket(bucket)) return item;
+    try {
+      const signedUrl =
+        (await signObjectUrl({ bucket, path: item.file_path })) ?? undefined;
+      return { ...item, signedUrl };
+    } catch {
+      return item;
+    }
+  }, []);
+
+  const openItem = useCallback(
+    async (item: EvidenceItem) => {
+      const signed = await ensureSigned(item);
+      setActive(signed);
+      if (signed.signedUrl && signed.signedUrl !== item.signedUrl) {
+        setItems((prev) =>
+          prev.map((x) => (x.id === signed.id ? signed : x))
+        );
+      }
+    },
+    [ensureSigned]
+  );
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -103,20 +218,6 @@ export default function EvidencePage() {
         } | null;
       }[];
 
-      const softSign = async (
-        bucket: string,
-        path: string | null
-      ): Promise<string | undefined> => {
-        if (!path || !isStorageBucket(bucket)) return undefined;
-        try {
-          return (
-            (await signObjectUrl({ bucket, path })) ?? undefined
-          );
-        } catch {
-          return undefined;
-        }
-      };
-
       const mapped: EvidenceItem[] = [];
 
       if (subs.length > 0) {
@@ -139,63 +240,54 @@ export default function EvidencePage() {
           submission_id: string;
         }[];
 
-        const signedSubs = await Promise.all(
-          mediaRows.map(async (m) => {
-            const sub = bySub.get(m.submission_id);
-            const signedUrl = await softSign("submissions", m.file_path);
-            return {
-              id: `sub-${m.id}`,
-              kind: "submission" as const,
-              media_type: m.media_type,
-              file_path: m.file_path,
-              youtube_url: m.youtube_url,
-              uploaded_at: m.uploaded_at,
-              title: sub?.task?.title ?? "Task",
-              subtitle: "Task submission",
-              submission_id: m.submission_id,
-              task_id: sub?.task_id ?? "",
-              series_id:
-                sub?.task?.parent_task_id ?? sub?.task_id ?? sub?.task?.id ?? "",
-              signedUrl,
-              storage_bucket: "submissions",
-            } satisfies EvidenceItem;
-          })
-        );
+        const signedSubs = mediaRows.map((m) => {
+          const sub = bySub.get(m.submission_id);
+          return {
+            id: `sub-${m.id}`,
+            kind: "submission" as const,
+            media_type: m.media_type,
+            file_path: m.file_path,
+            youtube_url: m.youtube_url,
+            uploaded_at: m.uploaded_at,
+            title: sub?.task?.title ?? "Task",
+            subtitle: "Task submission",
+            submission_id: m.submission_id,
+            task_id: sub?.task_id ?? "",
+            series_id:
+              sub?.task?.parent_task_id ?? sub?.task_id ?? sub?.task?.id ?? "",
+            signedUrl: undefined,
+            storage_bucket: "submissions",
+          } satisfies EvidenceItem;
+        });
         mapped.push(...signedSubs);
       }
 
       const pinRows = (pins ?? []) as EvidencePin[];
-      const signedPins = await Promise.all(
-        pinRows.map(async (p) => {
-          const signedUrl = await softSign(
-            p.storage_bucket ?? "",
-            p.file_path
-          );
-          return {
-            id: `pin-${p.id}`,
-            kind: "pin" as const,
-            media_type: p.media_kind,
-            file_path: p.file_path,
-            youtube_url: p.youtube_url,
-            uploaded_at: p.pinned_at,
-            title: p.title,
-            subtitle:
-              p.source_type === "date"
-                ? "Pinned from Date"
-                : p.source_type === "date_post"
-                  ? "Pinned from Date timeline"
-                  : p.source_type === "tease"
-                    ? "Pinned from Tease"
-                    : p.source_type === "direct_message"
-                      ? "Pinned from Inbox"
-                      : "Pinned voice",
-            signedUrl,
-            storage_bucket: p.storage_bucket,
-            meta: p.meta,
-            pin: p,
-          } satisfies EvidenceItem;
-        })
-      );
+      const signedPins = pinRows.map((p) => {
+        return {
+          id: `pin-${p.id}`,
+          kind: "pin" as const,
+          media_type: p.media_kind,
+          file_path: p.file_path,
+          youtube_url: p.youtube_url,
+          uploaded_at: p.pinned_at,
+          title: p.title,
+          subtitle:
+            p.source_type === "date"
+              ? "Pinned from Date"
+              : p.source_type === "date_post"
+                ? "Pinned from Date timeline"
+                : p.source_type === "tease"
+                  ? "Pinned from Tease"
+                  : p.source_type === "direct_message"
+                    ? "Pinned from Inbox"
+                    : "Pinned voice",
+          signedUrl: undefined,
+          storage_bucket: p.storage_bucket,
+          meta: p.meta,
+          pin: p,
+        } satisfies EvidenceItem;
+      });
       mapped.push(...signedPins);
 
       mapped.sort(
@@ -323,65 +415,17 @@ export default function EvidencePage() {
       ) : (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((item) => {
-            const yt = item.youtube_url
-              ? youtubeId(item.youtube_url)
-              : null;
-            const isReaction = item.media_type === "reaction";
-            const isVoice = item.media_type === "voice";
-            const isVideo = item.media_type === "video";
-            const isText = item.media_type === "text";
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActive(item)}
+                onClick={() => void openItem(item)}
                 className={cn(
                   "group overflow-hidden rounded-xl border border-gold/15 bg-charcoal text-left transition hover:border-gold/40"
                 )}
               >
                 <div className="relative aspect-square bg-void">
-                  {item.signedUrl && !isVoice && !isVideo ? (
-                    <Image
-                      src={item.signedUrl}
-                      alt={item.title}
-                      fill
-                      unoptimized
-                      className="object-cover transition group-hover:scale-105"
-                      sizes="25vw"
-                    />
-                  ) : isVideo && item.signedUrl ? (
-                    <video
-                      src={item.signedUrl}
-                      muted
-                      playsInline
-                      className="h-full w-full object-cover"
-                    />
-                  ) : yt ? (
-                    <Image
-                      src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`}
-                      alt={item.title}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      sizes="25vw"
-                    />
-                  ) : isVoice ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-gold">
-                      <Mic className="h-8 w-8" />
-                      <span className="text-xs text-muted-foreground">Voice</span>
-                    </div>
-                  ) : isReaction || isText ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center">
-                      <Bookmark className="h-6 w-6 text-gold" />
-                      <p className="line-clamp-3 text-xs text-ivory/80">
-                        {item.pin?.caption || item.title}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Images className="h-6 w-6" />
-                    </div>
-                  )}
+                  <EvidenceThumb item={item} onSigned={ensureSigned} />
                   {item.kind === "pin" && (
                     <span className="absolute left-2 top-2 rounded-full bg-void/80 px-2 py-0.5 text-[10px] text-gold">
                       Kept

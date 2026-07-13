@@ -93,7 +93,7 @@ export function SlaveDashboard({
         username={queenUsername}
       />
 
-      <MoodPicker onUpdated={() => router.refresh()} />
+      <MoodPicker />
 
       <StreakMilestonesPanel currentStreak={stats.streak} />
 

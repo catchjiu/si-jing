@@ -14,7 +14,7 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
-import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
+import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
@@ -1328,7 +1328,7 @@ export default function TeasesPage() {
                     </div>
                   )}
 
-                  <TeaseBegThread
+                  <LazyTeaseThread
                     teaseId={t.id}
                     teaseTitle={t.title}
                   />

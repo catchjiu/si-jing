@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { countAllUnreadMessages } from "@/lib/inbox";
@@ -10,6 +10,7 @@ import { countUnreadNotifications } from "@/lib/notifications";
 export function useInboxUnreadCount() {
   const { profile } = useAuth();
   const [count, setCount] = useState(0);
+  const timerRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!profile) {
@@ -28,10 +29,19 @@ export function useInboxUnreadCount() {
     }
   }, [profile]);
 
+  const scheduleRefresh = useCallback(() => {
+    if (timerRef.current != null) window.clearTimeout(timerRef.current);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      void refresh();
+    }, 400);
+  }, [refresh]);
+
   useEffect(() => {
     void refresh();
-    const id = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(id);
+    return () => {
+      if (timerRef.current != null) window.clearTimeout(timerRef.current);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -41,23 +51,40 @@ export function useInboxUnreadCount() {
       .channel(`inbox-badge:${profile.id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${profile.id}`,
+        },
         () => {
-          void refresh();
+          scheduleRefresh();
         }
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "direct_messages" },
+        { event: "INSERT", schema: "public", table: "direct_messages" },
         () => {
-          void refresh();
+          scheduleRefresh();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversation_members",
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          scheduleRefresh();
         }
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [profile, refresh]);
+  }, [profile, scheduleRefresh]);
 
   return count;
 }

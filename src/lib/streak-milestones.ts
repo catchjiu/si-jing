@@ -21,17 +21,23 @@ export async function checkAndAwardStreakMilestones(
     (awards ?? []).map((a) => a.milestone_id as string)
   );
 
-  let count = 0;
-  for (const m of milestones ?? []) {
-    const id = m.id as string;
-    const target = m.target_days as number;
-    if (awarded.has(id) || streak < target) continue;
-
-    const { error } = await supabase.from("streak_milestone_awards").insert({
-      milestone_id: id,
+  const rows = (milestones ?? [])
+    .filter((m) => {
+      const id = m.id as string;
+      const target = m.target_days as number;
+      return !awarded.has(id) && streak >= target;
+    })
+    .map((m) => ({
+      milestone_id: m.id as string,
       streak_at_award: streak,
-    });
-    if (!error) count += 1;
-  }
-  return count;
+    }));
+
+  if (rows.length === 0) return 0;
+
+  const { error, data } = await supabase
+    .from("streak_milestone_awards")
+    .insert(rows)
+    .select("id");
+  if (error) return 0;
+  return data?.length ?? rows.length;
 }

@@ -29,7 +29,8 @@ export default function TasksPage() {
     setLoading(true);
     const supabase = createClient();
 
-    await ensureRecurringOccurrences(supabase, 7);
+    // Non-blocking — cron also generates occurrences
+    void ensureRecurringOccurrences(supabase, 7);
 
     let query = supabase.from("tasks").select("*").order("deadline", {
       ascending: true,

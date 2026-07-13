@@ -115,6 +115,8 @@ export async function presignAndUpload(opts: {
   }
 }
 
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
 export async function signObjectUrl(opts: {
   bucket: StorageBucket;
   path: string;
@@ -125,6 +127,13 @@ export async function signObjectUrl(opts: {
   if (/^https?:\/\//i.test(opts.path)) return opts.path;
 
   const expiresIn = opts.expiresIn ?? 3600;
+  const cacheKey = `${opts.bucket}:${opts.path}`;
+  const cached = signedUrlCache.get(cacheKey);
+  const now = Date.now();
+  // Refresh 2 minutes before expiry
+  if (cached && cached.expiresAt - now > 120_000) {
+    return cached.url;
+  }
 
   try {
     const { url } = await storageFetchJson<{ url: string | null }>(
@@ -135,6 +144,12 @@ export async function signObjectUrl(opts: {
         expiresIn,
       }
     );
+    if (url) {
+      signedUrlCache.set(cacheKey, {
+        url,
+        expiresAt: now + expiresIn * 1000,
+      });
+    }
     return url;
   } catch (err) {
     // Legacy Supabase objects can be signed directly from the browser
@@ -143,7 +158,13 @@ export async function signObjectUrl(opts: {
       const { data, error } = await supabase.storage
         .from(opts.bucket)
         .createSignedUrl(opts.path, expiresIn);
-      if (!error && data?.signedUrl) return data.signedUrl;
+      if (!error && data?.signedUrl) {
+        signedUrlCache.set(cacheKey, {
+          url: data.signedUrl,
+          expiresAt: now + expiresIn * 1000,
+        });
+        return data.signedUrl;
+      }
     }
     throw friendlyStorageError(err, "Could not load media");
   }
@@ -154,6 +175,7 @@ export async function removeObject(opts: {
   path: string;
 }): Promise<void> {
   if (!opts.path || /^https?:\/\//i.test(opts.path)) return;
+  signedUrlCache.delete(`${opts.bucket}:${opts.path}`);
 
   try {
     await storageFetchJson("/api/storage/delete", {

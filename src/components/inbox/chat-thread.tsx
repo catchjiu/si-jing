@@ -172,15 +172,64 @@ export function ChatThread({
           table: "direct_messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
-        () => {
-          void load();
+        (payload) => {
+          const eventType = payload.eventType;
+          if (eventType === "INSERT") {
+            const row = payload.new as DirectMessageWithSender;
+            if (row.deleted_at) return;
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === row.id)) return prev;
+              const enriched: DirectMessageWithSender = {
+                ...row,
+                sender:
+                  row.sender_id === profile?.id
+                    ? {
+                        id: profile.id,
+                        username: profile.username,
+                        role: profile.role,
+                        avatar_url: profile.avatar_url,
+                      }
+                    : row.sender ?? null,
+              };
+              return [...prev, enriched].sort(
+                (a, b) =>
+                  new Date(a.created_at).getTime() -
+                  new Date(b.created_at).getTime()
+              );
+            });
+            if (profile && row.sender_id !== profile.id) {
+              void markConversationRead(
+                createClient(),
+                conversationId,
+                profile.id
+              );
+            }
+            return;
+          }
+          if (eventType === "UPDATE") {
+            const row = payload.new as DirectMessageWithSender;
+            if (row.deleted_at) {
+              setMessages((prev) => prev.filter((m) => m.id !== row.id));
+              return;
+            }
+            setMessages((prev) =>
+              prev.map((m) => (m.id === row.id ? { ...m, ...row } : m))
+            );
+            return;
+          }
+          if (eventType === "DELETE") {
+            const row = payload.old as { id?: string };
+            if (row.id) {
+              setMessages((prev) => prev.filter((m) => m.id !== row.id));
+            }
+          }
         }
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, load]);
+  }, [conversationId, profile]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
