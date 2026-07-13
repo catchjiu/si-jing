@@ -137,6 +137,7 @@ export type DesireRequest = {
   request_type: RequestType;
   title: string;
   message: string | null;
+  image_path: string | null;
   desire_level: number;
   status: RequestStatus;
   queen_response: string | null;

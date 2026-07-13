@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Check, Loader2, MessageSquare, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +9,7 @@ import type { DesireRequest } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,6 +42,23 @@ export function RequestCard({
   const [busy, setBusy] = useState<
     "approve" | "deny" | "withdraw" | "respond" | "close" | "delete" | null
   >(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!request.image_path) {
+      setImageUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void signObjectUrl({ bucket: "messages", path: request.image_path }).then(
+      (url) => {
+        if (!cancelled) setImageUrl(url);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [request.image_path]);
 
   const isDirective = (request.direction ?? "petition") === "directive";
   const canDelete =
@@ -220,6 +238,16 @@ export function RequestCard({
                 role={isDirective ? "queen" : "slave"}
               />
             </p>
+          )}
+          {imageUrl && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-gold/15">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl}
+                alt="Request attachment"
+                className="max-h-72 w-full object-contain bg-void"
+              />
+            </div>
           )}
           <p className="text-xs text-muted-foreground">
             {formatRelative(request.created_at)}

@@ -9,6 +9,7 @@ import {
 import { dayProgress } from "@/lib/day-groups";
 import { computeStreak } from "@/lib/streak";
 import { checkAndAwardStreakMilestones } from "@/lib/streak-milestones";
+import { fetchRecentActivity } from "@/lib/activity";
 import type {
   DesireRequest,
   Profile,
@@ -178,6 +179,12 @@ export default async function DashboardPage() {
       pendingPunishments: pendingPunishRes.count ?? 0,
     };
 
+    const activity = await fetchRecentActivity(
+      supabase,
+      { id: profile.id, role: "queen" },
+      8
+    );
+
     return (
       <QueenDashboard
         tasks={tasks}
@@ -188,6 +195,7 @@ export default async function DashboardPage() {
         activePunishments={activePunishments}
         stats={stats}
         slaveStatus={slaveStatus}
+        activity={activity}
       />
     );
   }
@@ -284,6 +292,12 @@ export default async function DashboardPage() {
       (nextTease as { unlocks_at?: string } | null)?.unlocks_at ?? null,
   };
 
+  const activity = await fetchRecentActivity(
+    supabase,
+    { id: profile.id, role: "slave" },
+    8
+  );
+
   return (
     <SlaveDashboard
       tasks={myTasks}
@@ -295,6 +309,7 @@ export default async function DashboardPage() {
       }
       queenStatusUpdatedAt={queenStatusRow?.updated_at ?? null}
       queenUsername={queenJoined?.username ?? "Queen"}
+      activity={activity}
     />
   );
 }

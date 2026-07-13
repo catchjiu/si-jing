@@ -31,6 +31,11 @@ import { groupTasksByDay } from "@/lib/day-groups"
 import { MoodPicker } from "@/components/mood/mood-picker"
 import { QueenStatusDisplay } from "@/components/status/queen-status"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
+import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import type { ActivityItem } from "@/lib/activity"
+import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/tasks/status-badge"
 
 interface SlaveDashboardProps {
   tasks: Task[]
@@ -39,6 +44,7 @@ interface SlaveDashboardProps {
   queenAvailability?: QueenAvailability | null
   queenStatusUpdatedAt?: string | null
   queenUsername?: string
+  activity: ActivityItem[]
   /** @deprecated use activePunishments */
   activeContactRestriction?: Punishment | null
 }
@@ -50,6 +56,7 @@ export function SlaveDashboard({
   queenAvailability = null,
   queenStatusUpdatedAt = null,
   queenUsername = "Queen",
+  activity,
   activeContactRestriction = null,
 }: SlaveDashboardProps) {
   const router = useRouter()
@@ -59,10 +66,20 @@ export function SlaveDashboard({
   const activeTasks = tasks.filter(
     (t) => !["approved", "rejected"].includes(t.status)
   )
+  const queenVerdicts = tasks
+    .filter((t) => t.status === "rejected")
+    .sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    )
   const todayGroup = groupTasksByDay(activeTasks).find((g) => g.isToday)
   const todayLeft = todayGroup
     ? todayGroup.tasks.filter((t) => t.status !== "submitted").length
     : 0
+  const needsAttention =
+    stats.unackedRules > 0 ||
+    stats.openCheckIns > 0 ||
+    queenVerdicts.length > 0
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -78,6 +95,12 @@ export function SlaveDashboard({
               : "Your schedule by day"}
         </p>
       </div>
+
+      <DashboardActivityPanel
+        role="slave"
+        initialItems={activity}
+        otherPartyName={queenUsername}
+      />
 
       {punishments.map((p) => (
         <ContactRestrictionBanner
@@ -97,30 +120,46 @@ export function SlaveDashboard({
 
       <StreakMilestonesPanel currentStreak={stats.streak} />
 
-      {(stats.unackedRules > 0 || stats.openCheckIns > 0) && (
-        <div className="flex flex-wrap gap-2">
-          {stats.unackedRules > 0 && (
-            <Button asChild className="bg-gold text-void hover:bg-gold-muted">
-              <Link href="/dashboard/protocol">
-                <BookOpen className="mr-2 h-4 w-4" />
-                Acknowledge {stats.unackedRules} rule
-                {stats.unackedRules === 1 ? "" : "s"}
-              </Link>
-            </Button>
-          )}
-          {stats.openCheckIns > 0 && (
-            <Button
-              asChild
-              variant="outline"
-              className="border-gold/40 text-gold hover:bg-gold/10"
-            >
-              <Link href="/dashboard/check-ins">
-                <AlarmClock className="mr-2 h-4 w-4" />
-                {stats.openCheckIns} open check-in
-                {stats.openCheckIns === 1 ? "" : "s"}
-              </Link>
-            </Button>
-          )}
+      {needsAttention && (
+        <div className="space-y-3 rounded-xl border border-gold/30 bg-gold/8 p-4">
+          <p className="font-heading text-lg text-gold">From {queenUsername}</p>
+          <div className="flex flex-wrap gap-2">
+            {stats.unackedRules > 0 && (
+              <Button asChild className="bg-gold text-void hover:bg-gold-muted">
+                <Link href="/dashboard/protocol">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Acknowledge {stats.unackedRules} rule
+                  {stats.unackedRules === 1 ? "" : "s"}
+                </Link>
+              </Button>
+            )}
+            {stats.openCheckIns > 0 && (
+              <Button
+                asChild
+                variant="outline"
+                className="border-gold/40 text-gold hover:bg-gold/10"
+              >
+                <Link href="/dashboard/check-ins">
+                  <AlarmClock className="mr-2 h-4 w-4" />
+                  {stats.openCheckIns} open check-in
+                  {stats.openCheckIns === 1 ? "" : "s"}
+                </Link>
+              </Button>
+            )}
+            {queenVerdicts.length > 0 && (
+              <Button
+                asChild
+                variant="outline"
+                className="border-gold/40 text-gold hover:bg-gold/10"
+              >
+                <Link href="/dashboard/tasks">
+                  <Target className="mr-2 h-4 w-4" />
+                  {queenVerdicts.length} rejected task
+                  {queenVerdicts.length === 1 ? "" : "s"}
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -223,6 +262,42 @@ export function SlaveDashboard({
           </CardContent>
         </Card>
       </div>
+
+      {queenVerdicts.length > 0 && (
+        <section>
+          <h2 className="mb-3 font-heading text-lg text-gold sm:mb-4 sm:text-xl">
+            Rejected — resubmit
+          </h2>
+          <ul className="space-y-2">
+            {queenVerdicts.slice(0, 5).map((task) => (
+              <li key={task.id}>
+                <Link
+                  href={`/dashboard/task/${task.id}`}
+                  className="flex items-center gap-3 rounded-xl border border-red-500/35 bg-red-950/20 px-3 py-3 transition-colors hover:border-red-500/50 sm:px-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-medium text-ivory">
+                        {task.title}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className="border-red-500/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-red-300"
+                      >
+                        Needs resubmit
+                      </Badge>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Updated {formatRelative(task.updated_at)}
+                    </p>
+                  </div>
+                  <StatusBadge status={task.status} type="task" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div>
         <h2 className="mb-3 font-heading text-lg text-gold sm:mb-4 sm:text-xl">

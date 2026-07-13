@@ -33,6 +33,8 @@ import { MoodDisplay } from "@/components/mood/mood-picker"
 import { QueenStatusPicker } from "@/components/status/queen-status"
 import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
+import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import type { ActivityItem } from "@/lib/activity"
 
 interface QueenDashboardProps {
   tasks: TaskWithRelations[]
@@ -43,6 +45,7 @@ interface QueenDashboardProps {
   activePunishments: Punishment[]
   stats: QueenDashboardStats
   slaveStatus?: UserStatus | null
+  activity: ActivityItem[]
 }
 
 function SectionHeader({
@@ -95,6 +98,7 @@ export function QueenDashboard({
   activePunishments,
   stats,
   slaveStatus,
+  activity,
 }: QueenDashboardProps) {
   const activeTasks = tasks
     .filter((t) => !["approved", "rejected"].includes(t.status))
@@ -199,6 +203,8 @@ export function QueenDashboard({
           What needs your attention
         </p>
       </div>
+
+      <DashboardActivityPanel role="queen" initialItems={activity} />
 
       <QueenStatusPicker />
 
@@ -309,13 +315,19 @@ export function QueenDashboard({
                   <li key={request.id}>
                     <Link
                       href="/dashboard/requests"
-                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:gap-4 sm:px-4"
+                      className="flex items-center gap-3 rounded-xl border border-gold/35 bg-gold/8 px-3 py-3 transition-colors hover:border-gold/50 hover:bg-gold/12 sm:gap-4 sm:px-4"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate font-medium text-ivory">
                             {request.title}
                           </p>
+                          <Badge
+                            variant="outline"
+                            className="border-gold/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-gold"
+                          >
+                            Needs response
+                          </Badge>
                           <Badge
                             variant="outline"
                             className="border-muted text-[10px] uppercase tracking-wider text-muted-foreground"
@@ -414,16 +426,42 @@ export function QueenDashboard({
               <EmptyLine>No active tasks.</EmptyLine>
             ) : (
               <ul className="space-y-2">
-                {activeTasks.map((task) => (
+                {activeTasks.map((task) => {
+                  const slaveActed =
+                    task.status === "in_progress" || task.status === "submitted"
+                  return (
                   <li key={task.id}>
                     <Link
                       href={`/dashboard/task/${task.id}`}
-                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:px-4"
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors sm:px-4",
+                        slaveActed
+                          ? "border-gold/35 bg-gold/8 hover:border-gold/50 hover:bg-gold/12"
+                          : "border-gold/15 bg-charcoal/70 hover:border-gold/30 hover:bg-charcoal"
+                      )}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-ivory">
-                          {task.title}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-ivory">
+                            {task.title}
+                          </p>
+                          {task.status === "submitted" && (
+                            <Badge
+                              variant="outline"
+                              className="border-gold/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-gold"
+                            >
+                              Awaiting review
+                            </Badge>
+                          )}
+                          {task.status === "in_progress" && (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/40 px-1.5 py-0 text-[9px] uppercase tracking-wider text-emerald-300"
+                            >
+                              In progress
+                            </Badge>
+                          )}
+                        </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Due {formatDeadline(task.deadline)}
                           {task.status === "in_progress" && task.started_at && (
@@ -439,7 +477,8 @@ export function QueenDashboard({
                       <StatusBadge status={task.status} type="task" />
                     </Link>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             )}
           </section>
@@ -454,19 +493,48 @@ export function QueenDashboard({
               <EmptyLine>No submissions yet.</EmptyLine>
             ) : (
               <ul className="space-y-2">
-                {recentSubs.map((submission) => (
+                {recentSubs.map((submission) => {
+                  const needsReview = submission.status === "pending"
+                  return (
                   <li key={submission.id}>
                     <Link
                       href={`/dashboard/submissions/${submission.id}`}
-                      className="flex items-center gap-3 rounded-xl border border-gold/15 bg-charcoal/70 px-3 py-3 transition-colors hover:border-gold/30 hover:bg-charcoal sm:px-4"
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors sm:px-4",
+                        needsReview
+                          ? "border-gold/40 bg-gold/8 hover:border-gold/55 hover:bg-gold/12"
+                          : "border-gold/15 bg-charcoal/70 hover:border-gold/30 hover:bg-charcoal"
+                      )}
                     >
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-royal/25">
-                        <ImageIcon className="size-4 text-gold/60" />
+                      <div
+                        className={cn(
+                          "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                          needsReview
+                            ? "border border-gold/40 bg-gold/15"
+                            : "bg-royal/25"
+                        )}
+                      >
+                        <ImageIcon
+                          className={cn(
+                            "size-4",
+                            needsReview ? "text-gold" : "text-gold/60"
+                          )}
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-ivory">
-                          {submission.task?.title ?? "Submission"}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-ivory">
+                            {submission.task?.title ?? "Submission"}
+                          </p>
+                          {needsReview && (
+                            <Badge
+                              variant="outline"
+                              className="border-gold/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-gold"
+                            >
+                              Needs review
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {formatRelative(submission.submitted_at)}
                         </p>
@@ -477,7 +545,8 @@ export function QueenDashboard({
                       />
                     </Link>
                   </li>
-                ))}
+                  )
+                })}
               </ul>
             )}
           </section>

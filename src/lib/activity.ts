@@ -27,6 +27,14 @@ export async function fetchRecentActivity(
   const items: ActivityItem[] = [];
 
   if (profile.role === "queen") {
+    const { data: slaveRow } = await supabase
+      .from("users")
+      .select("id")
+      .eq("role", "slave")
+      .limit(1)
+      .maybeSingle();
+    const slaveId = (slaveRow?.id as string | undefined) ?? undefined;
+
     const [
       submissions,
       requests,
@@ -40,6 +48,7 @@ export async function fetchRecentActivity(
       rewardMessages,
       locationRequests,
       voiceNotes,
+      slaveTasks,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -113,7 +122,38 @@ export async function fetchRecentActivity(
         )
         .order("created_at", { ascending: false })
         .limit(8),
+      slaveId
+        ? supabase
+            .from("tasks")
+            .select("id, title, status, started_at, updated_at")
+            .eq("assigned_to", slaveId)
+            .in("status", ["in_progress", "submitted"])
+            .order("updated_at", { ascending: false })
+            .limit(8)
+        : Promise.resolve({ data: [] }),
     ]);
+
+    for (const t of slaveTasks.data ?? []) {
+      if (t.status === "in_progress" && t.started_at) {
+        pushItem(items, {
+          id: `task-start-${t.id}`,
+          at: t.started_at as string,
+          title: "D started a task",
+          body: t.title as string,
+          href: `/dashboard/task/${t.id}`,
+          kind: "task_started",
+        });
+      } else if (t.status === "submitted") {
+        pushItem(items, {
+          id: `task-sub-${t.id}`,
+          at: t.updated_at as string,
+          title: "D submitted proof",
+          body: t.title as string,
+          href: `/dashboard/task/${t.id}`,
+          kind: "task_submitted",
+        });
+      }
+    }
 
     for (const s of submissions.data ?? []) {
       const taskTitle =
@@ -356,10 +396,12 @@ export async function fetchRecentActivity(
         .limit(8),
       supabase
         .from("requests")
-        .select("id, title, status, queen_response, responded_at, created_at")
-        .eq("requested_by", profile.id)
+        .select(
+          "id, title, status, direction, queen_response, responded_at, created_at, updated_at, assigned_to"
+        )
+        .or(`requested_by.eq.${profile.id},assigned_to.eq.${profile.id}`)
         .order("updated_at", { ascending: false })
-        .limit(8),
+        .limit(12),
       supabase
         .from("request_messages")
         .select(
@@ -472,12 +514,35 @@ export async function fetchRecentActivity(
     }
 
     for (const r of requests.data ?? []) {
-      if (r.responded_at && r.queen_response) {
+      const isDirective =
+        (r.direction as string | undefined) === "directive" &&
+        r.assigned_to === profile.id;
+
+      if (isDirective && r.status === "pending") {
+        pushItem(items, {
+          id: `directive-${r.id}`,
+          at: (r.updated_at as string) || (r.created_at as string),
+          title: "Directive from Queen",
+          body: r.title as string,
+          href: "/dashboard/requests",
+          kind: "directive",
+        });
+        continue;
+      }
+
+      if (r.responded_at && r.status !== "pending" && r.status !== "withdrawn") {
         pushItem(items, {
           id: `req-reply-${r.id}`,
           at: r.responded_at as string,
-          title: `Request ${r.status}`,
-          body: r.title as string,
+          title:
+            r.status === "approved"
+              ? "Request granted"
+              : r.status === "denied"
+                ? "Request denied"
+                : `Request ${r.status}`,
+          body:
+            (r.queen_response as string | null)?.slice(0, 80) ||
+            (r.title as string),
           href: "/dashboard/requests",
           kind: "request_reply",
         });
@@ -658,4 +723,12 @@ export function countUnseen(items: ActivityItem[], seenAt: string | null) {
   if (!seenAt) return items.length;
   const t = new Date(seenAt).getTime();
   return items.filter((i) => new Date(i.at).getTime() > t).length;
+}
+
+export function isActivityUnseen(
+  item: ActivityItem,
+  seenAt: string | null
+): boolean {
+  if (!seenAt) return true;
+  return new Date(item.at).getTime() > new Date(seenAt).getTime();
 }

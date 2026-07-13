@@ -307,6 +307,7 @@ export type Database = {
           request_type: string
           title: string
           message: string | null
+          image_path: string | null
           desire_level: number
           status: string
           queen_response: string | null
@@ -324,6 +325,7 @@ export type Database = {
           request_type?: string
           title: string
           message?: string | null
+          image_path?: string | null
           desire_level: number
           status?: string
           queen_response?: string | null
@@ -341,6 +343,7 @@ export type Database = {
           request_type?: string
           title?: string
           message?: string | null
+          image_path?: string | null
           desire_level?: number
           status?: string
           queen_response?: string | null
