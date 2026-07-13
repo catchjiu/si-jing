@@ -8,7 +8,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
+import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload } from "@/lib/storage/client";
+import type { TeaseMediaKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MEDIA_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
 
 const DURATION_OPTIONS = [
   { value: "off", label: "No timed burn" },
@@ -61,7 +66,7 @@ export function InboxTeaseForm({
       return;
     }
     if (!title.trim() && !message.trim() && !file) {
-      toast.error("Add a title, message, or image");
+      toast.error("Add a title, message, or media");
       return;
     }
 
@@ -69,15 +74,28 @@ export function InboxTeaseForm({
     const supabase = createClient();
     try {
       let imagePath: string | null = null;
+      let mediaKind: TeaseMediaKind = "image";
       let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
       if (file) {
-        geo = await resolveImageLocation(file);
-        const uploadFile = await downsizeImageIfNeeded(file);
-        const ext = uploadFile.name.split(".").pop() || "jpg";
+        const isVideo = VIDEO_TYPES.includes(
+          file.type as (typeof VIDEO_TYPES)[number]
+        );
+        mediaKind = isVideo ? "video" : "image";
+        let uploadFile = file;
+        if (isVideo) {
+          const prepared = await prepareVideoForUpload(file);
+          uploadFile = prepared.file;
+        } else {
+          geo = await resolveImageLocation(file);
+          uploadFile = await downsizeImageIfNeeded(file);
+        }
+        const ext =
+          uploadFile.name.split(".").pop() || (isVideo ? "mp4" : "jpg");
         imagePath = await presignAndUpload({
           bucket: "teases",
           file: uploadFile,
-          contentType: uploadFile.type || "image/jpeg",
+          contentType:
+            uploadFile.type || (isVideo ? "video/mp4" : "image/jpeg"),
           ext,
           relativePath: `${profile.id}/${Date.now()}.${ext}`,
         });
@@ -105,6 +123,7 @@ export function InboxTeaseForm({
           title: speechTitle,
           message: speechMessage,
           image_path: imagePath,
+          media_kind: mediaKind,
           unlocks_at: unlocks.toISOString(),
           is_blurred: blurred,
           blur_amount: blurred ? 20 : 0,
@@ -121,10 +140,12 @@ export function InboxTeaseForm({
       if (error) throw error;
       if (!created?.id) throw new Error("Tease was not created");
 
-      toast.success("Tease queued");
+      toast.success(
+        mediaKind === "video" ? "Video tease queued" : "Tease queued"
+      );
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
-          title: "New tease",
+          title: mediaKind === "video" ? "New video tease" : "New tease",
           body: speechTitle || speechMessage || "Queen sent a tease",
           url: "/dashboard/inbox",
           target: "slave",
@@ -170,13 +191,17 @@ export function InboxTeaseForm({
         />
       </div>
       <div className="space-y-2">
-        <Label>Image</Label>
+        <Label>Image or video</Label>
         <Input
           type="file"
-          accept="image/*"
+          accept={MEDIA_TYPES.join(",")}
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           className="border-gold/20 bg-void/60"
         />
+        <p className="text-[11px] text-muted-foreground">
+          Video: D can watch while blurred. After reveal, one clear view then it
+          burns.
+        </p>
       </div>
       <label className="flex items-center gap-2 text-sm text-ivory/80">
         <Checkbox

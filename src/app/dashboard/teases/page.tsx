@@ -6,11 +6,12 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
-import type { Profile, TeaseWithSignedUrl } from "@/lib/types";
+import type { Profile, TeaseMediaKind, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
@@ -47,7 +48,12 @@ import {
   Repeat2,
 } from "lucide-react";
 
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ACCEPTED_MEDIA = [...ACCEPTED_IMAGE, ...VIDEO_TYPES];
+
+function isVideoFile(file: File) {
+  return VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number]);
+}
 
 /** Map 0–100 → CSS blur px (100 ≈ heavy soft veil, still some shape). */
 function blurStyle(amount: number): CSSProperties {
@@ -103,11 +109,15 @@ async function withSignedUrls(
       // Slave never gets URL for burned timed teases
       if (!isQueen && isExpired(t)) return { ...t, signedUrl: undefined };
       if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
-      // Clear timed teases: URL only in protected viewer (not the grid)
-      if (!isQueen && t.view_duration_seconds && !t.is_blurred) {
+      // Clear timed teases / clear videos: URL only in protected viewer
+      if (
+        !isQueen &&
+        !t.is_blurred &&
+        (t.view_duration_seconds || t.media_kind === "video")
+      ) {
         return { ...t, signedUrl: undefined };
       }
-      // Blurred (and non-timed clear) teases: show in grid for both roles
+      // Blurred (and non-timed clear images): show in grid for both roles
       const signedUrl =
         (await signObjectUrl({
           bucket: "teases",
@@ -217,7 +227,7 @@ export default function TeasesPage() {
       return;
     }
     if (!title.trim() && !message.trim() && !file) {
-      toast.error("Add a title, message, or image");
+      toast.error("Add a title, message, or media");
       return;
     }
 
@@ -226,7 +236,7 @@ export default function TeasesPage() {
       .filter(Boolean)
       .slice(0, 3);
     if (taskLabels.length > 0 && !file) {
-      toast.error("Unlock tasks need an image to reveal");
+      toast.error("Unlock tasks need an image or video to reveal");
       return;
     }
 
@@ -234,27 +244,40 @@ export default function TeasesPage() {
     const supabase = createClient();
     try {
       let imagePath: string | null = null;
+      let mediaKind: TeaseMediaKind = "image";
       let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
       if (file) {
-        geo = await resolveImageLocation(file);
-        if (geo) {
-          toast.message(
-            geo.source === "exif"
-              ? "Photo location from image metadata"
-              : "Photo location from device GPS"
-          );
+        mediaKind = isVideoFile(file) ? "video" : "image";
+        let uploadFile = file;
+        if (mediaKind === "video") {
+          const prepared = await prepareVideoForUpload(file);
+          uploadFile = prepared.file;
+          if (prepared.compressed) {
+            toast.message("Video compressed for upload");
+          }
+        } else {
+          geo = await resolveImageLocation(file);
+          if (geo) {
+            toast.message(
+              geo.source === "exif"
+                ? "Photo location from image metadata"
+                : "Photo location from device GPS"
+            );
+          }
+          uploadFile = await downsizeImageIfNeeded(file);
+          if (uploadFile.size < file.size) {
+            toast.message(
+              `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+            );
+          }
         }
-        const uploadFile = await downsizeImageIfNeeded(file);
-        if (uploadFile.size < file.size) {
-          toast.message(
-            `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
-          );
-        }
-        const ext = uploadFile.name.split(".").pop() || "jpg";
+        const ext = uploadFile.name.split(".").pop() || (mediaKind === "video" ? "mp4" : "jpg");
         imagePath = await presignAndUpload({
           bucket: "teases",
           file: uploadFile,
-          contentType: uploadFile.type || "image/jpeg",
+          contentType:
+            uploadFile.type ||
+            (mediaKind === "video" ? "video/mp4" : "image/jpeg"),
           ext,
           relativePath: `${profile.id}/${Date.now()}.${ext}`,
         });
@@ -285,6 +308,7 @@ export default function TeasesPage() {
             ? formatRoleSpeech(message.trim(), "queen")
             : null,
           image_path: imagePath,
+          media_kind: mediaKind,
           unlocks_at: unlocks.toISOString(),
           is_blurred: blurred,
           blur_amount: startAmount,
@@ -392,6 +416,7 @@ export default function TeasesPage() {
           title: tease.title,
           message: tease.message,
           image_path: tease.image_path,
+          media_kind: tease.media_kind ?? "image",
           unlocks_at: now,
           is_blurred: blurred,
           blur_amount: startAmount,
@@ -586,16 +611,26 @@ export default function TeasesPage() {
     if (!current || !isSlave) return;
 
     const supabase = createClient();
-    if (current.tease.view_duration_seconds) {
+    if (current.tease.view_duration_seconds || current.tease.media_kind === "video") {
       await supabase
         .from("teases")
         .update({ expired_at: new Date().toISOString() })
         .eq("id", current.tease.id)
         .is("expired_at", null);
       if (reason === "left") {
-        toast.message("Timed tease burned — you left the screen");
+        toast.message(
+          current.tease.media_kind === "video"
+            ? "Video tease burned — you left the screen"
+            : "Timed tease burned — you left the screen"
+        );
       } else if (reason === "expired") {
-        toast.message("Timed tease burned out");
+        toast.message(
+          current.tease.media_kind === "video"
+            ? "Video tease burned out"
+            : "Timed tease burned out"
+        );
+      } else if (current.tease.media_kind === "video") {
+        toast.message("Video tease burned — one view only");
       }
     }
 
@@ -729,21 +764,37 @@ export default function TeasesPage() {
             </p>
           </div>
           <div className="space-y-2">
-            <Label>Image (optional)</Label>
+            <Label>Image or video (optional)</Label>
             {preview ? (
               <div className="relative overflow-hidden rounded-lg border border-gold/20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview}
-                  alt="Preview"
-                  className="max-h-64 w-full object-contain bg-void transition"
-                  style={
-                    startBlurred ||
-                    unlockTaskLabels.some((l) => l.trim().length > 0)
-                      ? blurStyle(blurAmount)
-                      : undefined
-                  }
-                />
+                {file && isVideoFile(file) ? (
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  <video
+                    src={preview}
+                    controls
+                    playsInline
+                    className="max-h-64 w-full bg-void object-contain transition"
+                    style={
+                      startBlurred ||
+                      unlockTaskLabels.some((l) => l.trim().length > 0)
+                        ? blurStyle(blurAmount)
+                        : undefined
+                    }
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="max-h-64 w-full object-contain bg-void transition"
+                    style={
+                      startBlurred ||
+                      unlockTaskLabels.some((l) => l.trim().length > 0)
+                        ? blurStyle(blurAmount)
+                        : undefined
+                    }
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => setImage(null)}
@@ -756,18 +807,24 @@ export default function TeasesPage() {
               <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-gold/25 px-4 py-8 hover:border-gold/50">
                 <ImagePlus className="h-7 w-7 text-gold/70" />
                 <span className="text-sm text-muted-foreground">
-                  Drop or choose an image
+                  Drop or choose an image or video
                 </span>
                 <input
                   type="file"
-                  accept={ACCEPTED.join(",")}
+                  accept={ACCEPTED_MEDIA.join(",")}
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f && ACCEPTED.includes(f.type)) setImage(f);
+                    if (f && ACCEPTED_MEDIA.includes(f.type)) setImage(f);
                   }}
                 />
               </label>
+            )}
+            {file && isVideoFile(file) && (
+              <p className="text-xs text-muted-foreground">
+                Blurred: D can watch the veiled video. After you reveal, they get
+                one clear view — then it burns.
+              </p>
             )}
           </div>
           {file && (
@@ -915,6 +972,7 @@ export default function TeasesPage() {
             const amount = t.blur_amount ?? 20;
             const fullyRevealed = showImage && !visuallyBlurred && !burned;
             const timed = !!t.view_duration_seconds;
+            const isVideo = t.media_kind === "video";
             const slaveNeedsProtectedOpen =
               isSlave && fullyRevealed && !!t.image_path;
             const unlockTasks = t.unlock_tasks ?? [];
@@ -953,25 +1011,41 @@ export default function TeasesPage() {
                     </div>
                   ) : t.signedUrl && (visuallyBlurred || isQueen) ? (
                     <>
-                      <Image
-                        src={t.signedUrl}
-                        alt={t.title || "Tease"}
-                        fill
-                        unoptimized
-                        className="object-cover transition duration-500"
-                        style={
-                          visuallyBlurred ? blurStyle(amount) : undefined
-                        }
-                        sizes="50vw"
-                      />
+                      {isVideo ? (
+                        // eslint-disable-next-line jsx-a11y/media-has-caption
+                        <video
+                          src={t.signedUrl}
+                          controls
+                          playsInline
+                          className="absolute inset-0 h-full w-full object-cover transition duration-500"
+                          style={
+                            visuallyBlurred ? blurStyle(amount) : undefined
+                          }
+                          controlsList="nodownload"
+                        />
+                      ) : (
+                        <Image
+                          src={t.signedUrl}
+                          alt={t.title || "Tease"}
+                          fill
+                          unoptimized
+                          className="object-cover transition duration-500"
+                          style={
+                            visuallyBlurred ? blurStyle(amount) : undefined
+                          }
+                          sizes="50vw"
+                        />
+                      )}
                       {visuallyBlurred && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/80 to-transparent p-3 text-center">
                           <p className="text-xs text-ivory/90">
                             {isQueen
-                              ? `${amount}% blur for D · ${blurLabel(amount)}`
+                              ? `${amount}% blur for D · ${blurLabel(amount)}${isVideo ? " · video" : ""}`
                               : hasUnlockTasks && !tasksAllDone
                                 ? `${tasksDone}/${unlockTasks.length} · ${amount}% blur`
-                                : "Waiting for Queen to reveal"}
+                                : isVideo
+                                  ? "Veiled video · waiting for Queen to reveal"
+                                  : "Waiting for Queen to reveal"}
                           </p>
                         </div>
                       )}
@@ -982,11 +1056,13 @@ export default function TeasesPage() {
                       <p className="font-heading text-ivory">
                         {t.title || "Ready to view"}
                       </p>
-                      {timed && (
+                      {timed ? (
                         <p className="text-xs text-gold">
                           {t.view_duration_seconds}s timed view
                         </p>
-                      )}
+                      ) : isVideo ? (
+                        <p className="text-xs text-gold">One-shot video view</p>
+                      ) : null}
                       <Button
                         size="sm"
                         disabled={opening === t.id}
@@ -998,7 +1074,7 @@ export default function TeasesPage() {
                         ) : (
                           <Eye className="mr-2 h-3.5 w-3.5" />
                         )}
-                        {timed ? "View once" : "Open protected view"}
+                        {isVideo ? "Watch once" : "Open tease"}
                       </Button>
                     </div>
                   ) : (
@@ -1200,12 +1276,18 @@ export default function TeasesPage() {
                       <KeepInEvidenceButton
                         sourceType="tease"
                         sourceId={t.id}
-                        mediaKind="image"
-                        title={t.title ? `Tease · ${t.title}` : "Tease image"}
+                        mediaKind={isVideo ? "video" : "image"}
+                        title={
+                          t.title
+                            ? `Tease · ${t.title}`
+                            : isVideo
+                              ? "Tease video"
+                              : "Tease image"
+                        }
                         caption={t.message}
                         filePath={t.image_path}
                         storageBucket="teases"
-                        label="Keep image"
+                        label={isVideo ? "Keep video" : "Keep image"}
                       />
                     </div>
                   )}
@@ -1259,7 +1341,8 @@ export default function TeasesPage() {
 
       {activeView && profile && (
         <ProtectedTeaseViewer
-          imageUrl={activeView.url}
+          mediaUrl={activeView.url}
+          mediaKind={activeView.tease.media_kind ?? "image"}
           durationSeconds={activeView.tease.view_duration_seconds}
           title={activeView.tease.title}
           onSessionEnd={(reason) => void endProtectedView(reason)}

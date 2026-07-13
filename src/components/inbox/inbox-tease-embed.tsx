@@ -30,7 +30,7 @@ type Props = {
   className?: string;
 };
 
-/** Inline tease card for inbox — shows the veiled/blurred image in chat. */
+/** Inline tease card for inbox — shows veiled image/video in chat. */
 export function InboxTeaseEmbed({ teaseId, className }: Props) {
   const { isQueen, isSlave } = useAuth();
   const [tease, setTease] = useState<Tease | null>(null);
@@ -57,11 +57,15 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
 
     const burned = !!row.expired_at;
     const timeReady = isTimeUnlocked(row.unlocks_at);
+    const isVideo = row.media_kind === "video";
     const canSign =
       !!row.image_path &&
       (isQueen || (timeReady && !burned)) &&
-      // Slave: no clear URL for timed-clear teases (protected view on Teases page)
-      !(isSlave && row.view_duration_seconds && !row.is_blurred);
+      !(
+        isSlave &&
+        !row.is_blurred &&
+        (row.view_duration_seconds || isVideo)
+      );
 
     if (canSign && row.image_path) {
       const url = await signObjectUrl({
@@ -132,16 +136,21 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
 
   const burned = !!tease.expired_at;
   const timeReady = isTimeUnlocked(tease.unlocks_at);
+  const isVideo = tease.media_kind === "video";
   const visuallyBlurred = !!tease.image_path && tease.is_blurred && !burned;
   const amount = tease.blur_amount ?? 20;
-  const showImage = !!signedUrl && (visuallyBlurred || isQueen || !tease.view_duration_seconds);
+  const showMedia =
+    !!signedUrl &&
+    (visuallyBlurred ||
+      isQueen ||
+      (!tease.view_duration_seconds && !isVideo));
   const needsProtectedOpen =
     isSlave &&
     !!tease.image_path &&
     timeReady &&
     !burned &&
     !tease.is_blurred &&
-    !!tease.view_duration_seconds;
+    (!!tease.view_duration_seconds || isVideo);
 
   return (
     <div
@@ -176,26 +185,42 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
               {tease.title || "Ready to view"}
             </p>
             <p className="text-[11px] text-gold">
-              {tease.view_duration_seconds}s timed · open Teases
+              {isVideo
+                ? "One-shot video · open Teases"
+                : `${tease.view_duration_seconds}s timed · open Teases`}
             </p>
           </Link>
-        ) : showImage && signedUrl ? (
+        ) : showMedia && signedUrl ? (
           <>
-            <Image
-              src={signedUrl}
-              alt={tease.title || "Tease"}
-              fill
-              unoptimized
-              className="object-cover transition duration-500"
-              style={visuallyBlurred ? blurStyle(amount) : undefined}
-              sizes="400px"
-            />
+            {isVideo ? (
+              // eslint-disable-next-line jsx-a11y/media-has-caption
+              <video
+                src={signedUrl}
+                controls
+                playsInline
+                className="absolute inset-0 h-full w-full object-cover transition duration-500"
+                style={visuallyBlurred ? blurStyle(amount) : undefined}
+                controlsList="nodownload"
+              />
+            ) : (
+              <Image
+                src={signedUrl}
+                alt={tease.title || "Tease"}
+                fill
+                unoptimized
+                className="object-cover transition duration-500"
+                style={visuallyBlurred ? blurStyle(amount) : undefined}
+                sizes="400px"
+              />
+            )}
             {visuallyBlurred && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/85 to-transparent p-3 text-center">
                 <p className="text-[11px] text-ivory/90">
                   {isQueen
-                    ? `${amount}% blur for D`
-                    : "Veiled · waiting for Queen to reveal"}
+                    ? `${amount}% blur for D${isVideo ? " · video" : ""}`
+                    : isVideo
+                      ? "Veiled video · waiting for Queen to reveal"
+                      : "Veiled · waiting for Queen to reveal"}
                 </p>
               </div>
             )}
@@ -203,7 +228,9 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
         ) : tease.image_path ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
             <Sparkles className="h-7 w-7 text-gold/50" />
-            <p className="text-xs text-muted-foreground">Tease image</p>
+            <p className="text-xs text-muted-foreground">
+              {isVideo ? "Video tease" : "Tease image"}
+            </p>
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">

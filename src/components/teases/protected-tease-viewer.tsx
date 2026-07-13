@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, ShieldAlert, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import type { TeaseMediaKind } from "@/lib/types";
 
 type ProtectedTeaseViewerProps = {
-  imageUrl: string;
+  mediaUrl: string;
+  mediaKind?: TeaseMediaKind;
   durationSeconds: number | null;
   title?: string | null;
   onSessionEnd: (reason: "expired" | "left" | "closed") => void;
@@ -15,12 +17,13 @@ type ProtectedTeaseViewerProps = {
 };
 
 /**
- * Best-effort protection for ephemeral teases.
+ * Best-effort protection for ephemeral teases (image or video).
  * True screenshot blocking is not possible in iOS Safari; we blank on leave,
- * disable save/long-press affordances, and burn timed views.
+ * disable save/long-press affordances, and burn timed / one-shot views.
  */
 export function ProtectedTeaseViewer({
-  imageUrl,
+  mediaUrl,
+  mediaKind = "image",
   durationSeconds,
   title,
   onSessionEnd,
@@ -54,16 +57,16 @@ export function ProtectedTeaseViewer({
     const onVis = () => {
       if (document.visibilityState === "hidden") {
         flagAndBlank();
-        if (durationSeconds) end("left");
+        end("left");
       }
     };
     const onBlur = () => {
       flagAndBlank();
-      if (durationSeconds) end("left");
+      end("left");
     };
     const onPageHide = () => {
       flagAndBlank();
-      if (durationSeconds) end("left");
+      end("left");
     };
 
     document.addEventListener("visibilitychange", onVis);
@@ -74,7 +77,7 @@ export function ProtectedTeaseViewer({
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [durationSeconds, end, flagAndBlank]);
+  }, [end, flagAndBlank]);
 
   useEffect(() => {
     if (!durationSeconds || blanked) return;
@@ -122,7 +125,7 @@ export function ProtectedTeaseViewer({
           </p>
           <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <ShieldAlert className="size-3" />
-            Protected view · leave blanks the image
+            One-shot view · leave blanks the {mediaKind}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -152,19 +155,30 @@ export function ProtectedTeaseViewer({
             <p className="text-sm text-muted-foreground">
               {durationSeconds
                 ? "This timed tease has burned out."
-                : "Image blanked after leaving the screen."}
+                : "This tease can only be viewed once."}
             </p>
           </div>
+        ) : mediaKind === "video" ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video
+            src={mediaUrl}
+            controls
+            playsInline
+            autoPlay
+            className="h-full w-full object-contain"
+            controlsList="nodownload noremoteplayback"
+            disablePictureInPicture
+            onContextMenu={(e) => e.preventDefault()}
+          />
         ) : (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={imageUrl}
+              src={mediaUrl}
               alt=""
               draggable={false}
               className="h-full w-full object-contain pointer-events-none select-none [-webkit-touch-callout:none]"
             />
-            {/* Transparent shield against long-press save on some iOS builds */}
             <div
               className="absolute inset-0"
               onContextMenu={(e) => e.preventDefault()}

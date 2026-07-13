@@ -1097,6 +1097,7 @@ export type Database = {
           title: string | null
           message: string | null
           image_path: string | null
+          media_kind: string
           unlocks_at: string
           unlocked_notified_at: string | null
           viewed_at: string | null
@@ -1122,6 +1123,7 @@ export type Database = {
           title?: string | null
           message?: string | null
           image_path?: string | null
+          media_kind?: string
           unlocks_at: string
           unlocked_notified_at?: string | null
           viewed_at?: string | null
@@ -1147,6 +1149,7 @@ export type Database = {
           title?: string | null
           message?: string | null
           image_path?: string | null
+          media_kind?: string
           unlocks_at?: string
           unlocked_notified_at?: string | null
           viewed_at?: string | null

@@ -386,6 +386,8 @@ export type LocationRequest = {
   updated_at: string;
 };
 
+export type TeaseMediaKind = "image" | "video";
+
 export type Tease = {
   id: string;
   sent_by: string;
@@ -393,6 +395,7 @@ export type Tease = {
   title: string | null;
   message: string | null;
   image_path: string | null;
+  media_kind: TeaseMediaKind;
   unlocks_at: string;
   unlocked_notified_at: string | null;
   viewed_at: string | null;
