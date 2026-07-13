@@ -1670,6 +1670,17 @@ export type Database = {
       ensure_queen_slave_conversation: { Args: never; Returns: string }
       ensure_topic_conversations: { Args: never; Returns: string }
       get_topic_conversation: { Args: { p_topic: string }; Returns: string }
+      list_inbox_threads: {
+        Args: never
+        Returns: {
+          conversation_id: string
+          topic: string
+          unread: number
+          last_message: Record<string, unknown> | null
+          other_user: Record<string, unknown> | null
+        }[]
+      }
+      count_inbox_unread: { Args: never; Returns: number }
       notify_user: {
         Args: {
           p_user_id: string

@@ -138,57 +138,42 @@ export async function getTopicConversationId(
   return data as string;
 }
 
+type InboxThreadRow = {
+  conversation_id: string;
+  topic: InboxTopic;
+  unread: number | string;
+  last_message: DirectMessageWithSender | null;
+  other_user: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+};
+
 export async function listTopicThreads(
   supabase: Supabase,
-  myId: string
+  _myId: string
 ): Promise<TopicThreadSummary[]> {
-  await ensureConversation(supabase);
-
-  const { data: convs, error } = await supabase
-    .from("conversations")
-    .select("id, topic")
-    .order("topic", { ascending: true });
-
+  const { data, error } = await supabase.rpc("list_inbox_threads");
   if (error) throw error;
 
-  const summaries: TopicThreadSummary[] = [];
-
-  for (const meta of INBOX_TOPICS) {
-    const conv = (convs ?? []).find(
-      (c) => (c.topic as InboxTopic) === meta.topic
-    );
-    if (!conv) continue;
-
-    const [unread, lastRes, other] = await Promise.all([
-      countUnreadMessages(supabase, conv.id, myId),
-      supabase
-        .from("direct_messages")
-        .select(
-          "*, sender:users!sender_id(id, username, role, avatar_url)"
-        )
-        .eq("conversation_id", conv.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      meta.topic === "general"
-        ? getOtherMember(supabase, conv.id, myId)
-        : Promise.resolve(null),
-    ]);
-
-    summaries.push({
-      conversationId: conv.id,
-      topic: meta.topic,
-      label: meta.label,
-      description: meta.description,
-      unread,
-      lastMessage: (lastRes.data as DirectMessageWithSender | null) ?? null,
-      other,
-    });
+  const byTopic = new Map<InboxTopic, InboxThreadRow>();
+  for (const row of (data as InboxThreadRow[] | null) ?? []) {
+    byTopic.set(row.topic, row);
   }
 
   // Keep general first, then the rest in INBOX_TOPICS order
-  return summaries;
+  return INBOX_TOPICS.flatMap((meta) => {
+    const row = byTopic.get(meta.topic);
+    if (!row) return [];
+    return [
+      {
+        conversationId: row.conversation_id,
+        topic: meta.topic,
+        label: meta.label,
+        description: meta.description,
+        unread: Number(row.unread ?? 0),
+        lastMessage: row.last_message ?? null,
+        other: row.other_user ?? null,
+      },
+    ];
+  });
 }
 
 /** Post into a topic thread (mirrors entity activity into inbox). */
@@ -315,15 +300,11 @@ export async function countUnreadMessages(
 
 export async function countAllUnreadMessages(
   supabase: Supabase,
-  userId: string
+  _userId: string
 ): Promise<number> {
-  await ensureConversation(supabase);
-  const { data: convs } = await supabase.from("conversations").select("id");
-  let total = 0;
-  for (const c of convs ?? []) {
-    total += await countUnreadMessages(supabase, c.id, userId);
-  }
-  return total;
+  const { data, error } = await supabase.rpc("count_inbox_unread");
+  if (error) throw error;
+  return Number(data ?? 0);
 }
 
 export async function sendDirectMessage(

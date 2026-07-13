@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import {
-  countAllUnreadMessages,
-  ensureConversation,
-} from "@/lib/inbox";
+import { countAllUnreadMessages } from "@/lib/inbox";
 import { countUnreadNotifications } from "@/lib/notifications";
 
 /** Unread DMs across all topic threads + notifications for the Inbox nav badge. */
@@ -21,7 +18,6 @@ export function useInboxUnreadCount() {
     }
     const supabase = createClient();
     try {
-      await ensureConversation(supabase);
       const [dm, notes] = await Promise.all([
         countAllUnreadMessages(supabase, profile.id),
         countUnreadNotifications(supabase, profile.id),
