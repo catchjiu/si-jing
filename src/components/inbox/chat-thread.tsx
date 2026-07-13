@@ -182,12 +182,12 @@ export function ChatThread({
               const enriched: DirectMessageWithSender = {
                 ...row,
                 sender:
-                  row.sender_id === profile?.id
+                  row.sender_id === profile?.id && profile
                     ? {
                         id: profile.id,
                         username: profile.username,
                         role: profile.role,
-                        avatar_url: profile.avatar_url,
+                        avatar_url: profile.avatar_url ?? null,
                       }
                     : row.sender ?? null,
               };
@@ -260,7 +260,9 @@ export function ChatThread({
             No messages yet. Start the conversation.
           </p>
         ) : (
-          messages.map((m) => {
+          (() => {
+            const shownTeaseEmbeds = new Set<string>();
+            return messages.map((m) => {
             const mine = m.sender_id === profile?.id;
             const canDelete = mine || isQueen;
             const isQueenAuthor = m.sender?.role === "queen";
@@ -274,6 +276,14 @@ export function ChatThread({
                   m.attachment_type
               );
             const keep = canKeep ? keepPropsForMessage(m) : null;
+            const teaseId =
+              m.attachment_type === "tease" && m.attachment_id
+                ? m.attachment_id
+                : null;
+            const showTeaseEmbed =
+              !!teaseId && !shownTeaseEmbeds.has(teaseId);
+            if (teaseId && showTeaseEmbed) shownTeaseEmbeds.add(teaseId);
+
             return (
               <div
                 key={m.id}
@@ -353,9 +363,11 @@ export function ChatThread({
                   </div>
                 )}
 
-                {m.attachment_type === "tease" && m.attachment_id ? (
-                  <InboxTeaseEmbed teaseId={m.attachment_id} />
-                ) : m.attachment_type && m.attachment_id ? (
+                {showTeaseEmbed && teaseId ? (
+                  <InboxTeaseEmbed teaseId={teaseId} />
+                ) : m.attachment_type &&
+                  m.attachment_id &&
+                  m.attachment_type !== "tease" ? (
                   <MessageCard
                     type={m.attachment_type as MessageAttachmentType}
                     id={m.attachment_id}
@@ -364,7 +376,8 @@ export function ChatThread({
                 ) : null}
               </div>
             );
-          })
+            });
+          })()
         )}
         <div ref={bottomRef} />
       </div>

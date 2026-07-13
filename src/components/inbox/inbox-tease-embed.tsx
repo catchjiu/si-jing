@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Eye, Loader2, Lock, Sparkles, Timer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -36,75 +35,69 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
   const [tease, setTease] = useState<Tease | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("teases")
-      .select("*")
-      .eq("id", teaseId)
-      .maybeSingle();
-
-    if (error || !data) {
-      setTease(null);
-      setSignedUrl(null);
+    if (!teaseId) {
+      setFailed(true);
       setLoading(false);
       return;
     }
+    const supabase = createClient();
+    try {
+      const { data, error } = await supabase
+        .from("teases")
+        .select("*")
+        .eq("id", teaseId)
+        .maybeSingle();
 
-    const row = data as Tease;
-    setTease(row);
+      if (error || !data) {
+        setTease(null);
+        setSignedUrl(null);
+        setLoading(false);
+        return;
+      }
 
-    const burned = !!row.expired_at;
-    const timeReady = isTimeUnlocked(row.unlocks_at);
-    const isVideo = row.media_kind === "video";
-    const canSign =
-      !!row.image_path &&
-      (isQueen || (timeReady && !burned)) &&
-      !(
-        isSlave &&
-        !row.is_blurred &&
-        (row.view_duration_seconds || isVideo)
-      );
+      const row = data as Tease;
+      setTease(row);
 
-    if (canSign && row.image_path) {
-      const url = await signObjectUrl({
-        bucket: "teases",
-        path: row.image_path,
-        expiresIn: isQueen ? 3600 : 600,
-      });
-      setSignedUrl(url);
-    } else {
-      setSignedUrl(null);
+      const burned = !!row.expired_at;
+      const timeReady = isTimeUnlocked(row.unlocks_at);
+      const isVideo = (row.media_kind ?? "image") === "video";
+      const canSign =
+        !!row.image_path &&
+        (isQueen || (timeReady && !burned)) &&
+        !(
+          isSlave &&
+          !row.is_blurred &&
+          (row.view_duration_seconds || isVideo)
+        );
+
+      if (canSign && row.image_path) {
+        try {
+          const url = await signObjectUrl({
+            bucket: "teases",
+            path: row.image_path,
+            expiresIn: isQueen ? 3600 : 600,
+          });
+          setSignedUrl(url);
+        } catch {
+          setSignedUrl(null);
+        }
+      } else {
+        setSignedUrl(null);
+      }
+    } catch {
+      setFailed(true);
+      setTease(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [teaseId, isQueen, isSlave]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`inbox-tease:${teaseId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "teases",
-          filter: `id=eq.${teaseId}`,
-        },
-        () => {
-          void load();
-        }
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [teaseId, load]);
 
   if (loading) {
     return (
@@ -119,7 +112,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
     );
   }
 
-  if (!tease) {
+  if (failed || !tease) {
     return (
       <Link
         href="/dashboard/teases"
@@ -136,7 +129,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
 
   const burned = !!tease.expired_at;
   const timeReady = isTimeUnlocked(tease.unlocks_at);
-  const isVideo = tease.media_kind === "video";
+  const isVideo = (tease.media_kind ?? "image") === "video";
   const visuallyBlurred = !!tease.image_path && tease.is_blurred && !burned;
   const amount = tease.blur_amount ?? 20;
   const showMedia =
@@ -203,14 +196,12 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
                 controlsList="nodownload"
               />
             ) : (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={signedUrl}
                 alt={tease.title || "Tease"}
-                fill
-                unoptimized
-                className="object-cover transition duration-500"
+                className="absolute inset-0 h-full w-full object-cover transition duration-500"
                 style={visuallyBlurred ? blurStyle(amount) : undefined}
-                sizes="400px"
               />
             )}
             {visuallyBlurred && (
