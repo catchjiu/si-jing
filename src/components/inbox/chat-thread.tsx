@@ -133,6 +133,17 @@ export function ChatThread({
   const [contactBlocked, setContactBlocked] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, []);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -149,6 +160,9 @@ export function ChatThread({
   }, [conversationId, profile]);
 
   useEffect(() => {
+    initialScrollDone.current = false;
+    setLoading(true);
+    setMessages([]);
     void load();
   }, [load]);
 
@@ -231,9 +245,25 @@ export function ChatThread({
     };
   }, [conversationId, profile]);
 
+  // Pin to latest message on open and when new messages arrive
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (loading || messages.length === 0) return;
+    const behavior: ScrollBehavior = initialScrollDone.current
+      ? "smooth"
+      : "auto";
+    const run = () => scrollToBottom(behavior);
+    run();
+    // Re-run after layout/images settle so first open lands on the true bottom
+    const t1 = window.setTimeout(run, 50);
+    const t2 = window.setTimeout(() => {
+      run();
+      initialScrollDone.current = true;
+    }, 250);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [loading, messages.length, conversationId, scrollToBottom]);
 
   const remove = async (id: string) => {
     if (!window.confirm("Delete this message?")) return;
@@ -252,7 +282,10 @@ export function ChatThread({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4">
+      <div
+        ref={scrollerRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4"
+      >
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : messages.length === 0 ? (

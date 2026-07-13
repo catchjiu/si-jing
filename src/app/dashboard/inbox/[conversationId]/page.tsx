@@ -68,8 +68,8 @@ export default function InboxChatPage() {
     topic === "general" ? other.username : topicLabel(topic);
 
   return (
-    <div className="flex min-h-[70vh] flex-col space-y-4">
-      <div className="flex items-center gap-3">
+    <div className="flex h-[calc(100dvh-8rem)] min-h-[28rem] flex-col space-y-3">
+      <div className="flex shrink-0 items-center gap-3">
         <Link
           href="/dashboard/inbox"
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-gold"
@@ -78,7 +78,7 @@ export default function InboxChatPage() {
           Inbox
         </Link>
       </div>
-      <div className="flex items-center gap-2 border-b border-gold/10 pb-3">
+      <div className="flex shrink-0 items-center gap-2 border-b border-gold/10 pb-3">
         <h1 className="font-heading text-xl text-ivory sm:text-2xl">{title}</h1>
         {topic === "general" ? (
           <Badge
@@ -104,7 +104,7 @@ export default function InboxChatPage() {
       <ChatThread
         conversationId={conversationId}
         recipientId={other.id}
-        className="min-h-[60vh]"
+        className="min-h-0 flex-1"
       />
     </div>
   );
