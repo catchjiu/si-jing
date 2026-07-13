@@ -1031,13 +1031,13 @@ export default function TeasesPage() {
                     </div>
                   )}
 
-                  {isQueen && t.viewed_at && t.reaction_score == null && (
-                      <p className="text-xs text-muted-foreground">
-                        Viewed — waiting for D’s wrecked score
-                      </p>
-                    )}
+                  {isQueen && t.reaction_score == null && (
+                    <p className="text-xs text-muted-foreground">
+                      Waiting for D’s wrecked score
+                    </p>
+                  )}
 
-                  {isSlave && !!t.viewed_at && (
+                  {isSlave && (
                     <div className="space-y-2 rounded-lg border border-gold/15 bg-void/40 p-3">
                       <div className="flex items-end justify-between gap-2">
                         <Label className="flex items-center gap-1.5 text-xs">
@@ -1052,6 +1052,7 @@ export default function TeasesPage() {
                         {wreckedLabel(
                           reactionDrafts[t.id] ?? t.reaction_score ?? 70
                         )}
+                        {t.is_blurred ? " · even while veiled" : ""}
                       </p>
                       <Slider
                         value={[reactionDrafts[t.id] ?? t.reaction_score ?? 70]}
