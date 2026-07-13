@@ -72,6 +72,11 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   journal_entry: BookOpen,
   submission_comment: MessageSquare,
   wishlist: Gift,
+  wishlist_add: Gift,
+  wishlist_comment: MessageSquare,
+  wishlist_note: MessageSquare,
+  wishlist_seen: Gift,
+  wishlist_status: Gift,
   inbox_message: MessageSquare,
   inbox_voice: Mic,
 };

@@ -76,7 +76,48 @@ const COMMENT_ATTACHMENT_TYPES = new Set([
   "submission",
   "date",
   "punishment",
+  "wishlist",
 ]);
+
+function pushOtherPartyAdd(
+  items: ActivityItem[],
+  profile: ProfileRef,
+  opts: {
+    id: string;
+    at: string;
+    where: string;
+    body: string;
+    href: string;
+    kind: string;
+    author?: { id?: string; role?: string } | null;
+  }
+) {
+  if (!isFromOtherParty(opts.author, profile)) return;
+  pushItem(items, {
+    id: opts.id,
+    at: opts.at,
+    title: `Added to ${opts.where} · ${otherPartyLabel(profile)}`,
+    body: opts.body,
+    href: opts.href,
+    kind: opts.kind,
+  });
+}
+
+function voiceNoteHref(
+  entityType: string,
+  entityId: string | null | undefined
+): string {
+  if (entityType === "date") return "/dashboard/dates";
+  if (entityType === "tease") return "/dashboard/teases";
+  if (entityType === "reward") return "/dashboard/rewards";
+  if (entityType === "journal") return "/dashboard/journal";
+  if (entityType === "request") return "/dashboard/requests";
+  if (entityType === "wishlist") return "/dashboard/wishlist";
+  if (entityType === "submission" && entityId) {
+    return `/dashboard/submissions/${entityId}`;
+  }
+  return "/dashboard";
+}
 
 export async function fetchRecentActivity(
   supabase: SupabaseClient,
@@ -112,6 +153,7 @@ export async function fetchRecentActivity(
       journalEntries,
       submissionComments,
       wishlistItems,
+      wishlistMessages,
       directMessages,
       datePosts,
     ] = await Promise.all([
@@ -222,11 +264,22 @@ export async function fetchRecentActivity(
       slaveId
         ? supabase
             .from("wishlist_items")
-            .select("id, title, created_at, created_by")
-            .eq("created_by", slaveId)
-            .order("created_at", { ascending: false })
+            .select(
+              "id, title, status, seen_at, fulfillment_notes, fulfilled_at, updated_at, created_at, created_by"
+            )
+            .or(
+              "seen_at.not.is.null,fulfillment_notes.not.is.null,status.eq.ordered,status.eq.fulfilled"
+            )
+            .order("updated_at", { ascending: false })
             .limit(FETCH_LIMIT)
         : Promise.resolve({ data: [] }),
+      supabase
+        .from("wishlist_messages")
+        .select(
+          "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
       supabase
         .from("direct_messages")
         .select(
@@ -362,13 +415,57 @@ export async function fetchRecentActivity(
     }
 
     for (const w of wishlistItems.data ?? []) {
-      pushItem(items, {
-        id: `wish-${w.id}`,
-        at: w.created_at as string,
-        title: "Wishlist item added",
-        body: (w.title as string) || "Something D wants",
+      const at =
+        (w.updated_at as string) ||
+        (w.fulfilled_at as string) ||
+        (w.seen_at as string) ||
+        (w.created_at as string);
+      const title = (w.title as string) || "Wishlist item";
+      if (w.seen_at) {
+        pushItem(items, {
+          id: `wish-seen-${w.id}`,
+          at: w.seen_at as string,
+          title: "Wishlist item seen · D",
+          body: title,
+          href: "/dashboard/wishlist",
+          kind: "wishlist_seen",
+        });
+      }
+      const notes = (w.fulfillment_notes as string | null)?.trim();
+      if (notes) {
+        pushItem(items, {
+          id: `wish-notes-${w.id}`,
+          at,
+          title: "Note on wishlist · D",
+          body: `${title.slice(0, 40)} — ${notes.slice(0, 80)}`,
+          href: "/dashboard/wishlist",
+          kind: "wishlist_note",
+        });
+      }
+      const status = w.status as string;
+      if (status === "ordered" || status === "fulfilled") {
+        pushItem(items, {
+          id: `wish-status-${w.id}-${status}`,
+          at,
+          title: `Wishlist ${status} · D`,
+          body: title,
+          href: "/dashboard/wishlist",
+          kind: "wishlist_status",
+        });
+      }
+    }
+
+    for (const m of wishlistMessages.data ?? []) {
+      const item = m.item as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `wish-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "wishlist",
         href: "/dashboard/wishlist",
-        kind: "wishlist",
+        kind: "wishlist_comment",
+        context: item?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -387,7 +484,9 @@ export async function fetchRecentActivity(
           ? "/dashboard/punishments"
           : attachmentType === "date"
             ? "/dashboard/dates"
-            : "/dashboard/inbox";
+            : attachmentType === "wishlist"
+              ? "/dashboard/wishlist"
+              : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {
           id: `inbox-voice-${dm.id}`,
@@ -546,20 +645,10 @@ export async function fetchRecentActivity(
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string; id?: string } | null;
       if (!isFromOtherParty(author, profile)) continue;
-      const href =
-        v.entity_type === "date"
-          ? "/dashboard/dates"
-          : v.entity_type === "tease"
-            ? "/dashboard/teases"
-            : v.entity_type === "reward"
-              ? "/dashboard/rewards"
-              : v.entity_type === "journal"
-                ? "/dashboard/journal"
-                : v.entity_type === "request"
-                  ? "/dashboard/requests"
-                  : v.entity_type === "submission"
-                    ? `/dashboard/submissions/${v.entity_id}`
-                    : "/dashboard";
+      const href = voiceNoteHref(
+        v.entity_type as string,
+        v.entity_id as string | undefined
+      );
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -575,12 +664,22 @@ export async function fetchRecentActivity(
                   ? "Voice on journal"
                   : v.entity_type === "request"
                     ? "Voice on a request"
-                    : "New voice message",
+                    : v.entity_type === "wishlist"
+                      ? "Voice on wishlist"
+                      : "New voice message",
         href,
         kind: "voice_note",
       });
     }
   } else {
+    const { data: queenRow } = await supabase
+      .from("users")
+      .select("id")
+      .eq("role", "queen")
+      .limit(1)
+      .maybeSingle();
+    const queenId = (queenRow?.id as string | undefined) ?? undefined;
+
     const [
       tasks,
       submissions,
@@ -600,6 +699,8 @@ export async function fetchRecentActivity(
       submissionComments,
       directMessages,
       datePosts,
+      wishlistItems,
+      wishlistMessages,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -723,6 +824,23 @@ export async function fetchRecentActivity(
         .from("date_posts")
         .select(
           "id, body, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      queenId
+        ? supabase
+            .from("wishlist_items")
+            .select(
+              "id, title, created_at, created_by, creator:users!created_by(id, role)"
+            )
+            .eq("created_by", queenId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("wishlist_messages")
+        .select(
+          "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -867,6 +985,33 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const w of wishlistItems.data ?? []) {
+      const creator = w.creator as { id?: string; role?: string } | null;
+      pushOtherPartyAdd(items, profile, {
+        id: `wish-add-${w.id}`,
+        at: w.created_at as string,
+        where: "wishlist",
+        body: (w.title as string) || "Something she wants",
+        href: "/dashboard/wishlist",
+        kind: "wishlist_add",
+        author: creator ?? { id: w.created_by as string, role: "queen" },
+      });
+    }
+
+    for (const m of wishlistMessages.data ?? []) {
+      const item = m.item as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `wish-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "wishlist",
+        href: "/dashboard/wishlist",
+        kind: "wishlist_comment",
+        context: item?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
     for (const dm of directMessages.data ?? []) {
       const sender = dm.sender as { role?: string; id?: string } | null;
       if (!isFromOtherParty(sender, profile)) continue;
@@ -882,7 +1027,9 @@ export async function fetchRecentActivity(
           ? "/dashboard/punishments"
           : attachmentType === "date"
             ? "/dashboard/dates"
-            : "/dashboard/inbox";
+            : attachmentType === "wishlist"
+              ? "/dashboard/wishlist"
+              : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {
           id: `inbox-voice-${dm.id}`,
@@ -1013,20 +1160,10 @@ export async function fetchRecentActivity(
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string; id?: string } | null;
       if (!isFromOtherParty(author, profile)) continue;
-      const href =
-        v.entity_type === "date"
-          ? "/dashboard/dates"
-          : v.entity_type === "tease"
-            ? "/dashboard/teases"
-            : v.entity_type === "reward"
-              ? "/dashboard/rewards"
-              : v.entity_type === "journal"
-                ? "/dashboard/journal"
-                : v.entity_type === "request"
-                  ? "/dashboard/requests"
-                  : v.entity_type === "submission"
-                    ? `/dashboard/submissions/${v.entity_id}`
-                    : "/dashboard";
+      const href = voiceNoteHref(
+        v.entity_type as string,
+        v.entity_id as string | undefined
+      );
       pushItem(items, {
         id: `voice-${v.id}`,
         at: v.created_at as string,
@@ -1042,7 +1179,9 @@ export async function fetchRecentActivity(
                   ? "Voice on journal"
                   : v.entity_type === "request"
                     ? "Voice on a request"
-                    : "New voice message",
+                    : v.entity_type === "wishlist"
+                      ? "Voice on wishlist"
+                      : "New voice message",
         href,
         kind: "voice_note",
       });

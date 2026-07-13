@@ -21,7 +21,8 @@ export type MessageAttachmentType =
   | "request"
   | "date"
   | "journal"
-  | "submission";
+  | "submission"
+  | "wishlist";
 
 export type MessageMediaType = "image" | "video";
 
@@ -390,6 +391,7 @@ export function attachmentHref(
   if (type === "request") return `/dashboard/requests`;
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
+  if (type === "wishlist") return `/dashboard/wishlist`;
   return `/dashboard/inbox`;
 }
 
@@ -403,6 +405,7 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     date: "Date",
     journal: "Journal",
     submission: "Submission",
+    wishlist: "Wishlist",
   };
   return labels[type];
 }

@@ -7,6 +7,7 @@ import {
   CalendarHeart,
   Gift,
   HandHeart,
+  Heart,
   ListTodo,
   Sparkles,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const ICONS = {
   request: HandHeart,
   date: CalendarHeart,
   journal: BookOpen,
+  wishlist: Heart,
 } as const;
 
 export function MessageCard({

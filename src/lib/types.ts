@@ -199,7 +199,8 @@ export type VoiceEntityType =
   | "check_in"
   | "tease"
   | "date"
-  | "journal";
+  | "journal"
+  | "wishlist";
 
 export type StreakMilestone = {
   id: string;

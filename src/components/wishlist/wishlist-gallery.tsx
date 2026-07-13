@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WishlistCommentThread } from "@/components/wishlist/wishlist-comment-thread";
 
 interface WishlistGalleryProps {
   items: WishlistItemWithSignedUrl[];
@@ -332,6 +333,11 @@ export function WishlistGallery({
                     </>
                   )}
                 </div>
+
+                <WishlistCommentThread
+                  wishlistId={active.id}
+                  wishlistTitle={active.title}
+                />
 
                 {isQueen && (
                   <div className="flex flex-wrap gap-2">

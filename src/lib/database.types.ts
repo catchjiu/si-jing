@@ -147,6 +147,7 @@ export type Database = {
           seen_at: string | null
           fulfillment_notes: string | null
           fulfilled_at: string | null
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -164,6 +165,7 @@ export type Database = {
           seen_at?: string | null
           fulfillment_notes?: string | null
           fulfilled_at?: string | null
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -181,11 +183,51 @@ export type Database = {
           seen_at?: string | null
           fulfillment_notes?: string | null
           fulfilled_at?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "wishlist_items_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wishlist_messages: {
+        Row: {
+          id: string
+          wishlist_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          wishlist_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          wishlist_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_messages_wishlist_id_fkey"
+            columns: ["wishlist_id"]
+            isOneToOne: false
+            referencedRelation: "wishlist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wishlist_messages_author_id_fkey"
+            columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
