@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
       if (nextUser) {
@@ -97,11 +97,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
       }
       setLoading(false);
+
+      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
+        void supabase.auth.getSession();
+      }
     });
+
+    const refreshSession = () => {
+      void supabase.auth.getSession();
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshSession();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refreshSession);
+
+    const refreshInterval = window.setInterval(refreshSession, 4 * 60 * 1000);
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refreshSession);
+      window.clearInterval(refreshInterval);
     };
   }, [fetchProfile, supabase]);
 

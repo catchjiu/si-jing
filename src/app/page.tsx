@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BrandLogo } from "@/components/brand-logo";
 
+const REMEMBER_EMAIL_KEY = "queen-sisi-remember-email";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -17,6 +19,14 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(REMEMBER_EMAIL_KEY);
+    if (saved) {
+      setEmail(saved);
+      setRemember(true);
+    }
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +45,12 @@ export default function LoginPage() {
       return;
     }
 
-    void remember;
+    if (remember) {
+      localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+    } else {
+      localStorage.removeItem(REMEMBER_EMAIL_KEY);
+    }
+
     router.push("/dashboard");
     router.refresh();
   };
@@ -111,6 +126,9 @@ export default function LoginPage() {
               />
               Remember me
             </label>
+            <p className="text-[10px] text-muted-foreground/80">
+              Sessions stay signed in on this device
+            </p>
             <Link
               href="/forgot-password"
               className="text-sm text-gold/80 transition-colors duration-200 hover:text-gold"
