@@ -312,6 +312,32 @@ export default function TeasesPage() {
         if (taskError) throw taskError;
       }
 
+      if (created?.id && profile) {
+        const summary =
+          (title.trim()
+            ? formatRoleSpeech(title.trim(), "queen")
+            : null) ||
+          (message.trim()
+            ? formatRoleSpeech(message.trim(), "queen")
+            : null) ||
+          "New tease";
+        void import("@/lib/inbox").then(({ postTeaseToInboxes }) =>
+          postTeaseToInboxes(supabase, {
+            senderId: profile.id,
+            teaseId: created.id,
+            content: summary,
+          })
+        );
+        void import("@/lib/push-client").then(({ notifyPush }) =>
+          notifyPush({
+            title: "New tease",
+            body: summary,
+            url: "/dashboard/inbox",
+            target: "slave",
+          })
+        );
+      }
+
       toast.success(
         taskGated
           ? `Tease queued · ${taskLabels.length} unlock task${taskLabels.length > 1 ? "s" : ""}`
@@ -394,11 +420,21 @@ export default function TeasesPage() {
       }
 
       toast.success("Re-teased — sent again");
+      if (created?.id && profile) {
+        void import("@/lib/inbox").then(({ postTeaseToInboxes }) =>
+          postTeaseToInboxes(supabase, {
+            senderId: profile.id,
+            teaseId: created.id,
+            content: tease.title || tease.message || "New tease",
+          })
+        );
+      }
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "New tease",
           body: tease.title || "Queen sent a tease again",
-          url: "/dashboard/teases",
+          url: "/dashboard/inbox",
+          target: "slave",
         })
       );
       void load();

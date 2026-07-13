@@ -9,7 +9,6 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload } from "@/lib/storage/client";
-import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,13 +122,6 @@ export function InboxTeaseForm({
       if (!created?.id) throw new Error("Tease was not created");
 
       toast.success("Tease queued");
-      void postToTopicThread(supabase, {
-        topic: "teases",
-        senderId: profile.id,
-        content: speechTitle || speechMessage || "New tease",
-        attachmentType: "tease",
-        attachmentId: created.id,
-      });
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "New tease",

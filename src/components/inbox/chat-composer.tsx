@@ -24,6 +24,7 @@ import { normalizeVoiceBlob } from "@/lib/voice-format";
 import { pickRecorderMimeType } from "@/lib/voice-format";
 import {
   getTopicConversationId,
+  postTeaseToInboxes,
   postToTopicThread,
   sendDirectMessage,
   type InboxTopic,
@@ -248,19 +249,42 @@ export function ChatComposer({
   ) => {
     if (!profile) return;
     const supabase = createClient();
-    const topicByType: Partial<Record<MessageAttachmentType, InboxTopic>> = {
-      tease: "teases",
-      task: "tasks",
-      punishment: "punishments",
-      reward: "rewards",
-      request: "requests",
-      date: "dates",
-      journal: "journal",
-      submission: "tasks",
-    };
-    const topic = topicByType[type] ?? "general";
     try {
-      // Always land the card in the matching topic thread
+      if (type === "tease") {
+        await postTeaseToInboxes(supabase, {
+          senderId: profile.id,
+          teaseId: id,
+          content: summary,
+        });
+        const generalId = await getTopicConversationId(supabase, "general");
+        const teasesId = await getTopicConversationId(supabase, "teases");
+        if (
+          conversationId !== generalId &&
+          conversationId !== teasesId
+        ) {
+          await sendDirectMessage(supabase, {
+            conversationId,
+            senderId: profile.id,
+            content: summary,
+            attachmentType: type,
+            attachmentId: id,
+          });
+        }
+        setSheet(null);
+        onSent?.();
+        return;
+      }
+
+      const topicByType: Partial<Record<MessageAttachmentType, InboxTopic>> = {
+        task: "tasks",
+        punishment: "punishments",
+        reward: "rewards",
+        request: "requests",
+        date: "dates",
+        journal: "journal",
+        submission: "tasks",
+      };
+      const topic = topicByType[type] ?? "general";
       await postToTopicThread(supabase, {
         topic,
         senderId: profile.id,
@@ -268,10 +292,8 @@ export function ChatComposer({
         attachmentType: type,
         attachmentId: id,
       });
-      // If we're already inside that topic chat, also refresh locally via onSent
-      // If composing from another thread, leave a pointer there too
       const topicConvId = await getTopicConversationId(supabase, topic);
-      if (topicConvId !== conversationId) {
+      if (conversationId !== topicConvId) {
         await sendDirectMessage(supabase, {
           conversationId,
           senderId: profile.id,

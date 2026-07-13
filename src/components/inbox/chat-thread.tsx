@@ -23,6 +23,7 @@ import { VoicePlayer } from "@/components/voice/voice-player";
 import { MessageCard } from "@/components/inbox/message-card";
 import { ChatComposer } from "@/components/inbox/chat-composer";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import { InboxTeaseEmbed } from "@/components/inbox/inbox-tease-embed";
 import type { EvidencePinMediaKind } from "@/lib/types";
 
 function SignedMedia({
@@ -303,13 +304,15 @@ export function ChatThread({
                   </div>
                 )}
 
-                {m.attachment_type && m.attachment_id && (
+                {m.attachment_type === "tease" && m.attachment_id ? (
+                  <InboxTeaseEmbed teaseId={m.attachment_id} />
+                ) : m.attachment_type && m.attachment_id ? (
                   <MessageCard
                     type={m.attachment_type as MessageAttachmentType}
                     id={m.attachment_id}
                     summary={m.content}
                   />
-                )}
+                ) : null}
               </div>
             );
           })

@@ -210,6 +210,33 @@ export async function postToTopicThread(
   }
 }
 
+/** Tease cards land in both Teases topic and Direct inbox. */
+export async function postTeaseToInboxes(
+  supabase: Supabase,
+  opts: {
+    senderId: string;
+    teaseId: string;
+    content: string;
+  }
+): Promise<void> {
+  await Promise.all([
+    postToTopicThread(supabase, {
+      topic: "teases",
+      senderId: opts.senderId,
+      content: opts.content,
+      attachmentType: "tease",
+      attachmentId: opts.teaseId,
+    }),
+    postToTopicThread(supabase, {
+      topic: "general",
+      senderId: opts.senderId,
+      content: opts.content,
+      attachmentType: "tease",
+      attachmentId: opts.teaseId,
+    }),
+  ]);
+}
+
 export async function getOtherMember(
   supabase: Supabase,
   conversationId: string,
