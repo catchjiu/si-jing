@@ -874,6 +874,164 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          id: string
+          created_at: string
+          topic: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          topic?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      conversation_members: {
+        Row: {
+          conversation_id: string
+          user_id: string
+          last_read_at: string
+        }
+        Insert: {
+          conversation_id: string
+          user_id: string
+          last_read_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          user_id?: string
+          last_read_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_members_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      direct_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          content: string | null
+          media_path: string | null
+          media_type: string | null
+          voice_path: string | null
+          voice_duration_ms: number | null
+          attachment_type: string | null
+          attachment_id: string | null
+          deleted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          content?: string | null
+          media_path?: string | null
+          media_type?: string | null
+          voice_path?: string | null
+          voice_duration_ms?: number | null
+          attachment_type?: string | null
+          attachment_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          content?: string | null
+          media_path?: string | null
+          media_type?: string | null
+          voice_path?: string | null
+          voice_duration_ms?: number | null
+          attachment_type?: string | null
+          attachment_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          kind: string
+          title: string
+          body: string | null
+          href: string
+          entity_type: string | null
+          entity_id: string | null
+          created_at: string
+          read_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          kind: string
+          title: string
+          body?: string | null
+          href?: string
+          entity_type?: string | null
+          entity_id?: string | null
+          created_at?: string
+          read_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          kind?: string
+          title?: string
+          body?: string | null
+          href?: string
+          entity_type?: string | null
+          entity_id?: string | null
+          created_at?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       location_requests: {
         Row: {
           id: string
@@ -1476,18 +1634,21 @@ export type Database = {
           user_id: string
           mood_level: number
           mood_emoji: string
+          availability: string | null
           updated_at: string
         }
         Insert: {
           user_id: string
           mood_level?: number
           mood_emoji?: string
+          availability?: string | null
           updated_at?: string
         }
         Update: {
           user_id?: string
           mood_level?: number
           mood_emoji?: string
+          availability?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1506,6 +1667,21 @@ export type Database = {
     }
     Functions: {
       current_user_role: { Args: never; Returns: string }
+      ensure_queen_slave_conversation: { Args: never; Returns: string }
+      ensure_topic_conversations: { Args: never; Returns: string }
+      get_topic_conversation: { Args: { p_topic: string }; Returns: string }
+      notify_user: {
+        Args: {
+          p_user_id: string
+          p_kind: string
+          p_title: string
+          p_body?: string | null
+          p_href?: string | null
+          p_entity_type?: string | null
+          p_entity_id?: string | null
+        }
+        Returns: string
+      }
       ensure_recurring_task_occurrences: {
         Args: { look_ahead_days?: number }
         Returns: number

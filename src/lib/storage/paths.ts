@@ -5,6 +5,7 @@ export const STORAGE_BUCKETS = [
   "wishlist",
   "date_posts",
   "voice",
+  "messages",
 ] as const;
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];

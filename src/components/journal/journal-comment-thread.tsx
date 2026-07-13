@@ -9,6 +9,7 @@ import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -97,10 +98,17 @@ export function JournalCommentThread({
     }
     setDraft("");
     void load();
+    void postToTopicThread(supabase, {
+      topic: "journal",
+      senderId: profile.id,
+      content: text,
+      attachmentType: "journal",
+      attachmentId: entryId,
+    });
     void notifyPush({
       title: isQueen ? "Queen commented on your journal" : "New journal comment",
       body: text.slice(0, 120),
-      url: "/dashboard/journal",
+      url: "/dashboard/inbox",
       target: isQueen ? "slave" : "queen",
     });
   };

@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context"
 import type { CommentWithAuthor } from "@/lib/types"
 import { formatRelative } from "@/lib/format"
 import { formatRoleSpeech } from "@/lib/role-speech"
+import { postToTopicThread } from "@/lib/inbox"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -112,6 +113,14 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
       })
 
       if (error) throw error
+
+      void postToTopicThread(supabase, {
+        topic: "tasks",
+        senderId: profile.id,
+        content: formatRoleSpeech(content.trim(), profile.role),
+        attachmentType: "submission",
+        attachmentId: submissionId,
+      })
 
       if (parentId) {
         setReplyTo(null)

@@ -33,6 +33,8 @@ type EvidenceItem = {
   subtitle?: string;
   submission_id?: string;
   task_id?: string;
+  /** Recurring series id (parent) or the task itself — used for filter pools */
+  series_id?: string;
   signedUrl?: string;
   storage_bucket?: string | null;
   meta?: Record<string, unknown> | null;
@@ -74,7 +76,9 @@ export default function EvidencePage() {
 
       let submissionsQuery = supabase
         .from("submissions")
-        .select("id, task_id, submitted_by, task:tasks(id, title)");
+        .select(
+          "id, task_id, submitted_by, task:tasks(id, title, parent_task_id)"
+        );
 
       if (isSlave) {
         submissionsQuery = submissionsQuery.eq("submitted_by", profile.id);
@@ -92,7 +96,11 @@ export default function EvidencePage() {
         id: string;
         task_id: string;
         submitted_by: string;
-        task: { id: string; title: string } | null;
+        task: {
+          id: string;
+          title: string;
+          parent_task_id: string | null;
+        } | null;
       }[];
 
       const softSign = async (
@@ -146,6 +154,8 @@ export default function EvidencePage() {
               subtitle: "Task submission",
               submission_id: m.submission_id,
               task_id: sub?.task_id ?? "",
+              series_id:
+                sub?.task?.parent_task_id ?? sub?.task_id ?? sub?.task?.id ?? "",
               signedUrl,
               storage_bucket: "submissions",
             } satisfies EvidenceItem;
@@ -210,7 +220,8 @@ export default function EvidencePage() {
   const taskOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const i of items) {
-      if (i.task_id) map.set(i.task_id, i.title);
+      // Group recurring occurrences under one pool (parent series id)
+      if (i.series_id) map.set(i.series_id, i.title);
     }
     return Array.from(map.entries());
   }, [items]);
@@ -227,7 +238,7 @@ export default function EvidencePage() {
       if (filter === "this_week") return d >= thisWeekStart;
       if (filter === "last_week") return d >= lastWeekStart && d < thisWeekStart;
       if (filter === "all") return true;
-      return i.task_id === filter;
+      return i.series_id === filter || i.task_id === filter;
     });
   }, [items, filter]);
 

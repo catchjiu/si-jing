@@ -25,6 +25,7 @@ import {
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { getCurrentPosition, resolveImageLocation } from "@/lib/location";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { postToTopicThread } from "@/lib/inbox";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
@@ -316,11 +317,18 @@ export function DateTimeline({
       }
 
       toast.success("Posted to timeline");
+      void postToTopicThread(supabase, {
+        topic: "dates",
+        senderId: profile.id,
+        content: speechBody || dateTitle || "New timeline post",
+        attachmentType: "date",
+        attachmentId: dateId,
+      });
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: isQueen ? "Queen posted on a date" : "New date timeline post",
           body: dateTitle || text.slice(0, 80) || "New timeline post",
-          url: "/dashboard/dates",
+          url: "/dashboard/inbox",
           target: isQueen ? "slave" : "queen",
         })
       );

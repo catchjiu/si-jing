@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check, Loader2, MessageSquare, X } from "lucide-react";
+import { Check, Loader2, MessageSquare, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/auth-context";
 import type { DesireRequest } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
 import { formatRelative } from "@/lib/format";
@@ -35,12 +36,16 @@ export function RequestCard({
   isQueen = false,
   onChanged,
 }: RequestCardProps) {
+  const { profile } = useAuth();
   const [response, setResponse] = useState("");
   const [busy, setBusy] = useState<
-    "approve" | "deny" | "withdraw" | "respond" | "close" | null
+    "approve" | "deny" | "withdraw" | "respond" | "close" | "delete" | null
   >(null);
 
   const isDirective = (request.direction ?? "petition") === "directive";
+  const canDelete =
+    Boolean(profile) &&
+    (request.requested_by === profile?.id || isQueen);
 
   const respond = async (decision: "approved" | "denied") => {
     setBusy(decision === "approved" ? "approve" : "deny");
@@ -141,6 +146,30 @@ export function RequestCard({
     }
     toast.success("Directive closed");
     setResponse("");
+    onChanged?.();
+  };
+
+  const remove = async () => {
+    if (!canDelete) return;
+    if (
+      !window.confirm(
+        "Delete this request and all of its messages? This cannot be undone."
+      )
+    ) {
+      return;
+    }
+    setBusy("delete");
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("requests")
+      .delete()
+      .eq("id", request.id);
+    setBusy(null);
+    if (error) {
+      toast.error(error.message || "Could not delete request");
+      return;
+    }
+    toast.success("Request deleted");
     onChanged?.();
   };
 
@@ -359,20 +388,39 @@ export function RequestCard({
         </div>
       )}
 
-      {!isQueen && request.status === "pending" && !isDirective && (
-        <div className="mt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void withdraw()}
-            disabled={busy !== null}
-            className="border-muted text-muted-foreground"
-          >
-            {busy === "withdraw" ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : null}
-            Withdraw
-          </Button>
+      {((!isQueen && request.status === "pending" && !isDirective) ||
+        canDelete) && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {!isQueen && request.status === "pending" && !isDirective && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void withdraw()}
+              disabled={busy !== null}
+              className="border-muted text-muted-foreground"
+            >
+              {busy === "withdraw" ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              Withdraw
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void remove()}
+              disabled={busy !== null}
+              className="border-red-500/30 text-red-300 hover:bg-red-950/30 hover:text-red-200"
+            >
+              {busy === "delete" ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-3.5 w-3.5" />
+              )}
+              Delete
+            </Button>
+          )}
         </div>
       )}
 

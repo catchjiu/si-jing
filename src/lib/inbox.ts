@@ -1,0 +1,417 @@
+import type { createClient } from "@/lib/supabase/client";
+import type { Profile, UserRole } from "@/lib/types";
+
+type Supabase = ReturnType<typeof createClient>;
+
+export type InboxTopic =
+  | "general"
+  | "teases"
+  | "punishments"
+  | "dates"
+  | "tasks"
+  | "rewards"
+  | "requests"
+  | "journal";
+
+export type MessageAttachmentType =
+  | "tease"
+  | "task"
+  | "punishment"
+  | "reward"
+  | "request"
+  | "date"
+  | "journal"
+  | "submission";
+
+export type MessageMediaType = "image" | "video";
+
+export const INBOX_TOPICS: {
+  topic: InboxTopic;
+  label: string;
+  description: string;
+}[] = [
+  {
+    topic: "general",
+    label: "Direct",
+    description: "Private messages",
+  },
+  {
+    topic: "teases",
+    label: "Teases",
+    description: "Teases, reveals, and beg replies",
+  },
+  {
+    topic: "punishments",
+    label: "Punishments",
+    description: "Consequences and clearance",
+  },
+  {
+    topic: "dates",
+    label: "Dates",
+    description: "Timeline posts and date talk",
+  },
+  {
+    topic: "tasks",
+    label: "Tasks",
+    description: "Duties, submissions, and review",
+  },
+  {
+    topic: "rewards",
+    label: "Rewards",
+    description: "Gifts and thank-yous",
+  },
+  {
+    topic: "requests",
+    label: "Requests",
+    description: "Petitions and directives",
+  },
+  {
+    topic: "journal",
+    label: "Journal",
+    description: "Shared entries and comments",
+  },
+];
+
+export type DirectMessage = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string | null;
+  media_path: string | null;
+  media_type: MessageMediaType | null;
+  voice_path: string | null;
+  voice_duration_ms: number | null;
+  attachment_type: MessageAttachmentType | null;
+  attachment_id: string | null;
+  deleted_at: string | null;
+  created_at: string;
+};
+
+export type DirectMessageWithSender = DirectMessage & {
+  sender?: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+};
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  href: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type TopicThreadSummary = {
+  conversationId: string;
+  topic: InboxTopic;
+  label: string;
+  description: string;
+  unread: number;
+  lastMessage: DirectMessageWithSender | null;
+  other?: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+};
+
+export async function ensureConversation(supabase: Supabase): Promise<string> {
+  const { data, error } = await supabase.rpc("ensure_topic_conversations");
+  if (error) {
+    // Fallback for older deploy before RPC rename
+    const legacy = await supabase.rpc("ensure_queen_slave_conversation");
+    if (legacy.error) throw error;
+    return legacy.data as string;
+  }
+  if (!data) throw new Error("Could not open conversation");
+  return data as string;
+}
+
+export async function getTopicConversationId(
+  supabase: Supabase,
+  topic: InboxTopic
+): Promise<string> {
+  const { data, error } = await supabase.rpc("get_topic_conversation", {
+    p_topic: topic,
+  });
+  if (error) throw error;
+  if (!data) throw new Error(`No conversation for ${topic}`);
+  return data as string;
+}
+
+export async function listTopicThreads(
+  supabase: Supabase,
+  myId: string
+): Promise<TopicThreadSummary[]> {
+  await ensureConversation(supabase);
+
+  const { data: convs, error } = await supabase
+    .from("conversations")
+    .select("id, topic")
+    .order("topic", { ascending: true });
+
+  if (error) throw error;
+
+  const summaries: TopicThreadSummary[] = [];
+
+  for (const meta of INBOX_TOPICS) {
+    const conv = (convs ?? []).find(
+      (c) => (c.topic as InboxTopic) === meta.topic
+    );
+    if (!conv) continue;
+
+    const [unread, lastRes, other] = await Promise.all([
+      countUnreadMessages(supabase, conv.id, myId),
+      supabase
+        .from("direct_messages")
+        .select(
+          "*, sender:users!sender_id(id, username, role, avatar_url)"
+        )
+        .eq("conversation_id", conv.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      meta.topic === "general"
+        ? getOtherMember(supabase, conv.id, myId)
+        : Promise.resolve(null),
+    ]);
+
+    summaries.push({
+      conversationId: conv.id,
+      topic: meta.topic,
+      label: meta.label,
+      description: meta.description,
+      unread,
+      lastMessage: (lastRes.data as DirectMessageWithSender | null) ?? null,
+      other,
+    });
+  }
+
+  // Keep general first, then the rest in INBOX_TOPICS order
+  return summaries;
+}
+
+/** Post into a topic thread (mirrors entity activity into inbox). */
+export async function postToTopicThread(
+  supabase: Supabase,
+  opts: {
+    topic: InboxTopic;
+    senderId: string;
+    content?: string | null;
+    mediaPath?: string | null;
+    mediaType?: MessageMediaType | null;
+    voicePath?: string | null;
+    voiceDurationMs?: number | null;
+    attachmentType?: MessageAttachmentType | null;
+    attachmentId?: string | null;
+  }
+): Promise<DirectMessage | null> {
+  try {
+    const conversationId = await getTopicConversationId(supabase, opts.topic);
+    return await sendDirectMessage(supabase, {
+      conversationId,
+      senderId: opts.senderId,
+      content: opts.content,
+      mediaPath: opts.mediaPath,
+      mediaType: opts.mediaType,
+      voicePath: opts.voicePath,
+      voiceDurationMs: opts.voiceDurationMs,
+      attachmentType: opts.attachmentType,
+      attachmentId: opts.attachmentId,
+    });
+  } catch (err) {
+    console.error("postToTopicThread failed", err);
+    return null;
+  }
+}
+
+export async function getOtherMember(
+  supabase: Supabase,
+  conversationId: string,
+  myId: string
+): Promise<Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null> {
+  const { data } = await supabase
+    .from("conversation_members")
+    .select("user_id, user:users!user_id(id, username, role, avatar_url)")
+    .eq("conversation_id", conversationId)
+    .neq("user_id", myId)
+    .maybeSingle();
+
+  const row = data as
+    | {
+        user?: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+      }
+    | null;
+  return row?.user ?? null;
+}
+
+export async function getConversationTopic(
+  supabase: Supabase,
+  conversationId: string
+): Promise<InboxTopic> {
+  const { data } = await supabase
+    .from("conversations")
+    .select("topic")
+    .eq("id", conversationId)
+    .maybeSingle();
+  return ((data?.topic as InboxTopic) ?? "general");
+}
+
+export async function fetchMessages(
+  supabase: Supabase,
+  conversationId: string,
+  limit = 100
+): Promise<DirectMessageWithSender[]> {
+  const { data, error } = await supabase
+    .from("direct_messages")
+    .select(
+      "*, sender:users!sender_id(id, username, role, avatar_url)"
+    )
+    .eq("conversation_id", conversationId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data as DirectMessageWithSender[]) ?? [];
+}
+
+export async function markConversationRead(
+  supabase: Supabase,
+  conversationId: string,
+  userId: string
+) {
+  await supabase
+    .from("conversation_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId);
+}
+
+export async function countUnreadMessages(
+  supabase: Supabase,
+  conversationId: string,
+  userId: string
+): Promise<number> {
+  const { data: member } = await supabase
+    .from("conversation_members")
+    .select("last_read_at")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const since = member?.last_read_at ?? new Date(0).toISOString();
+
+  const { count } = await supabase
+    .from("direct_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .neq("sender_id", userId)
+    .is("deleted_at", null)
+    .gt("created_at", since);
+
+  return count ?? 0;
+}
+
+export async function countAllUnreadMessages(
+  supabase: Supabase,
+  userId: string
+): Promise<number> {
+  await ensureConversation(supabase);
+  const { data: convs } = await supabase.from("conversations").select("id");
+  let total = 0;
+  for (const c of convs ?? []) {
+    total += await countUnreadMessages(supabase, c.id, userId);
+  }
+  return total;
+}
+
+export async function sendDirectMessage(
+  supabase: Supabase,
+  opts: {
+    conversationId: string;
+    senderId: string;
+    content?: string | null;
+    mediaPath?: string | null;
+    mediaType?: MessageMediaType | null;
+    voicePath?: string | null;
+    voiceDurationMs?: number | null;
+    attachmentType?: MessageAttachmentType | null;
+    attachmentId?: string | null;
+  }
+): Promise<DirectMessage> {
+  const { data, error } = await supabase
+    .from("direct_messages")
+    .insert({
+      conversation_id: opts.conversationId,
+      sender_id: opts.senderId,
+      content: opts.content ?? null,
+      media_path: opts.mediaPath ?? null,
+      media_type: opts.mediaType ?? null,
+      voice_path: opts.voicePath ?? null,
+      voice_duration_ms: opts.voiceDurationMs ?? null,
+      attachment_type: opts.attachmentType ?? null,
+      attachment_id: opts.attachmentId ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as DirectMessage;
+}
+
+export async function softDeleteMessage(
+  supabase: Supabase,
+  messageId: string
+) {
+  const { error } = await supabase
+    .from("direct_messages")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", messageId);
+  if (error) throw error;
+}
+
+export function attachmentHref(
+  type: MessageAttachmentType,
+  id: string
+): string {
+  if (type === "task" || type === "submission") return `/dashboard/task/${id}`;
+  if (type === "tease") return `/dashboard/teases`;
+  if (type === "punishment") return `/dashboard/punishments`;
+  if (type === "reward") return `/dashboard/rewards`;
+  if (type === "request") return `/dashboard/requests`;
+  if (type === "date") return `/dashboard/dates`;
+  if (type === "journal") return `/dashboard/journal`;
+  return `/dashboard/inbox`;
+}
+
+export function attachmentLabel(type: MessageAttachmentType): string {
+  const labels: Record<MessageAttachmentType, string> = {
+    task: "Task",
+    tease: "Tease",
+    punishment: "Punishment",
+    reward: "Reward",
+    request: "Request",
+    date: "Date",
+    journal: "Journal",
+    submission: "Submission",
+  };
+  return labels[type];
+}
+
+export function topicLabel(topic: InboxTopic): string {
+  return INBOX_TOPICS.find((t) => t.topic === topic)?.label ?? topic;
+}
+
+export async function resolveOtherUserId(
+  supabase: Supabase,
+  myRole: UserRole
+): Promise<string | null> {
+  const otherRole = myRole === "queen" ? "slave" : "queen";
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", otherRole)
+    .maybeSingle();
+  return data?.id ?? null;
+}

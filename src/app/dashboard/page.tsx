@@ -14,6 +14,7 @@ import type {
   DesireRequest,
   Profile,
   Punishment,
+  QueenAvailability,
   QueenDashboardStats,
   SlaveDashboardStats,
   SubmissionWithRelations,
@@ -211,6 +212,7 @@ export default async function DashboardPage() {
     { data: punishmentData },
     openCheckInsRes,
     { data: nextTease },
+    { data: queenRow },
   ] = await Promise.all([
     supabase
       .from("punishments")
@@ -231,6 +233,12 @@ export default async function DashboardPage() {
       .order("unlocks_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("users")
+      .select("id, username, status:user_status(availability, updated_at)")
+      .eq("role", "queen")
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const now = new Date();
@@ -241,6 +249,20 @@ export default async function DashboardPage() {
       return new Date(p.ends_at) > now;
     }
   );
+
+  const queenJoined = queenRow as
+    | {
+        id: string;
+        username: string;
+        status:
+          | { availability: string | null; updated_at: string }
+          | { availability: string | null; updated_at: string }[]
+          | null;
+      }
+    | null;
+  const queenStatusRow = Array.isArray(queenJoined?.status)
+    ? queenJoined?.status[0]
+    : queenJoined?.status;
 
   const stats: SlaveDashboardStats = {
     completionRate:
@@ -262,6 +284,12 @@ export default async function DashboardPage() {
       tasks={myTasks}
       stats={stats}
       activePunishments={activePunishments}
+      queenAvailability={
+        (queenStatusRow?.availability as QueenAvailability | null) ??
+        "available"
+      }
+      queenStatusUpdatedAt={queenStatusRow?.updated_at ?? null}
+      queenUsername={queenJoined?.username ?? "Queen"}
     />
   );
 }

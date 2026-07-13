@@ -43,7 +43,7 @@ type TaskFormValues = z.infer<typeof taskSchema>
 interface TaskFormProps {
   assigneeId: string
   task?: Task
-  onSuccess?: () => void
+  onSuccess?: (createdId?: string) => void
   className?: string
 }
 
@@ -139,8 +139,11 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
             target: "slave",
           })
         )
+        onSuccess?.(task.id)
       } else {
-        const { error } = await supabase.from("tasks").insert({
+        const { data: created, error } = await supabase
+          .from("tasks")
+          .insert({
           title: speechTitle,
           description: speechDescription,
           assigned_by: profile.id,
@@ -156,6 +159,8 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           parent_task_id: null,
           occurrence_key: null,
         })
+          .select("id")
+          .single()
 
         if (error) throw error
 
@@ -174,13 +179,21 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           notifyPush({
             title: "New task",
             body: speechTitle,
-            url: "/dashboard/tasks",
+            url: `/dashboard/task/${created.id}`,
             target: "slave",
           })
         )
+        onSuccess?.(created.id)
+        void import("@/lib/inbox").then(({ postToTopicThread }) =>
+          postToTopicThread(supabase, {
+            topic: "tasks",
+            senderId: profile.id,
+            content: speechTitle,
+            attachmentType: "task",
+            attachmentId: created.id,
+          })
+        )
       }
-
-      onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save task"
       toast.error(message)

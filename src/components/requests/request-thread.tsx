@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Profile, RequestMessage } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,11 +30,12 @@ export function RequestThread({
   canReply = true,
   className,
 }: RequestThreadProps) {
-  const { profile } = useAuth();
+  const { profile, isQueen } = useAuth();
   const [messages, setMessages] = useState<MessageWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [contactBlocked, setContactBlocked] = useState(false);
 
   useEffect(() => {
@@ -106,14 +108,46 @@ export function RequestThread({
     const sentText = text;
     setDraft("");
     void load();
+    void postToTopicThread(supabase, {
+      topic: "requests",
+      senderId: profile.id,
+      content: text,
+      attachmentType: "request",
+      attachmentId: requestId,
+    });
     void import("@/lib/push-client").then(({ notifyPush }) =>
       notifyPush({
         title: profile.role === "queen" ? "Message from Queen" : "Message from D",
         body: sentText.slice(0, 120),
-        url: "/dashboard/requests",
+        url: "/dashboard/inbox",
         target: profile.role === "queen" ? "slave" : "queen",
       })
     );
+  };
+
+  const remove = async (messageId: string) => {
+    if (!profile) return;
+    const message = messages.find((m) => m.id === messageId);
+    if (!message) return;
+    if (message.author_id !== profile.id && !isQueen) {
+      toast.error("You can only delete your own messages");
+      return;
+    }
+    if (!window.confirm("Delete this message?")) return;
+
+    setDeletingId(messageId);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("request_messages")
+      .delete()
+      .eq("id", messageId);
+    setDeletingId(null);
+    if (error) {
+      toast.error(error.message || "Could not delete message");
+      return;
+    }
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    toast.success("Message deleted");
   };
 
   return (
@@ -130,6 +164,7 @@ export function RequestThread({
         <ul className="space-y-2">
           {messages.map((m) => {
             const mine = m.author_id === profile?.id;
+            const canDelete = mine || isQueen;
             const isQueenAuthor = m.author?.role === "queen";
             return (
               <li
@@ -151,9 +186,28 @@ export function RequestThread({
                     {m.author?.username ?? "Someone"}
                     {isQueenAuthor ? " · Queen" : ""}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatRelative(m.created_at)}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatRelative(m.created_at)}
+                    </span>
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={deletingId === m.id}
+                        onClick={() => void remove(m.id)}
+                        className="size-7 text-muted-foreground hover:text-red-400"
+                        aria-label="Delete message"
+                      >
+                        {deletingId === m.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <p className="whitespace-pre-wrap text-sm text-ivory/90">
                   <RoleSpeech text={m.content} role={m.author?.role} />

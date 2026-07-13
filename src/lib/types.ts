@@ -157,6 +157,37 @@ export type RequestMessage = {
   created_at: string;
 };
 
+export type MessageAttachmentType = "tease" | "task" | "punishment";
+export type MessageMediaType = "image" | "video";
+
+export type DirectMessage = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string | null;
+  media_path: string | null;
+  media_type: MessageMediaType | null;
+  voice_path: string | null;
+  voice_duration_ms: number | null;
+  attachment_type: MessageAttachmentType | null;
+  attachment_id: string | null;
+  deleted_at: string | null;
+  created_at: string;
+};
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  href: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
 export type VoiceEntityType =
   | "task"
   | "submission"
@@ -207,10 +238,13 @@ export type JournalComment = {
   created_at: string;
 };
 
+export type QueenAvailability = "working" | "busy" | "dating" | "available";
+
 export type UserStatus = {
   user_id: string;
   mood_level: number;
   mood_emoji: string;
+  availability?: QueenAvailability | null;
   updated_at: string;
 };
 

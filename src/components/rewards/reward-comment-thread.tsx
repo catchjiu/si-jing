@@ -9,6 +9,7 @@ import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -98,10 +99,17 @@ export function RewardCommentThread({
     }
     setDraft("");
     void load();
+    void postToTopicThread(supabase, {
+      topic: "rewards",
+      senderId: profile.id,
+      content: text,
+      attachmentType: "reward",
+      attachmentId: rewardId,
+    });
     void notifyPush({
       title: isSlave ? "Comment on a reward" : "Queen replied on a reward",
       body: text.slice(0, 120),
-      url: "/dashboard/rewards",
+      url: "/dashboard/inbox",
       target: isSlave ? "queen" : "slave",
     });
   };

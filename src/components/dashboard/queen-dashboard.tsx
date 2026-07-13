@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/tasks/status-badge"
 import { PunishmentCountdown } from "@/components/punishments/punishment-countdown"
 import { MoodDisplay } from "@/components/mood/mood-picker"
+import { QueenStatusPicker } from "@/components/status/queen-status"
 import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 
@@ -198,6 +199,8 @@ export function QueenDashboard({
           What needs your attention
         </p>
       </div>
+
+      <QueenStatusPicker />
 
       {slaveStatus && (
         <MoodDisplay

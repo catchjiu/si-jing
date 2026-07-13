@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { PunishmentType } from "@/lib/types";
 import { PUNISHMENT_TYPE_LABELS } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,7 @@ const DEFAULT_TITLES: Record<PunishmentType, string> = {
 
 interface PunishmentFormProps {
   recipientId: string;
-  onSuccess?: () => void;
+  onSuccess?: (createdId?: string) => void;
   className?: string;
 }
 
@@ -201,11 +202,20 @@ export function PunishmentForm({
       }
 
       toast.success("Punishment issued");
+      if (punishment?.id) {
+        void postToTopicThread(supabase, {
+          topic: "punishments",
+          senderId: profile.id,
+          content: speechTitle,
+          attachmentType: "punishment",
+          attachmentId: punishment.id,
+        });
+      }
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Punishment issued",
           body: title.trim() || defaultTitle,
-          url: "/dashboard/punishments",
+          url: "/dashboard/inbox",
           target: "slave",
         })
       );
@@ -215,7 +225,7 @@ export function PunishmentForm({
       setTaskCount("3");
       setTaskTitles("");
       setRequireCheckIn(false);
-      onSuccess?.();
+      onSuccess?.(punishment?.id);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Could not issue punishment";

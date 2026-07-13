@@ -11,7 +11,12 @@ import {
   Target,
   CalendarClock,
 } from "lucide-react"
-import type { Punishment, SlaveDashboardStats, Task } from "@/lib/types"
+import type {
+  Punishment,
+  QueenAvailability,
+  SlaveDashboardStats,
+  Task,
+} from "@/lib/types"
 import { formatDeadline, formatRelative } from "@/lib/format"
 import {
   Card,
@@ -24,12 +29,16 @@ import { ContactRestrictionBanner } from "@/components/punishments/punishment-co
 import { DayAgenda } from "@/components/tasks/day-agenda"
 import { groupTasksByDay } from "@/lib/day-groups"
 import { MoodPicker } from "@/components/mood/mood-picker"
+import { QueenStatusDisplay } from "@/components/status/queen-status"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 
 interface SlaveDashboardProps {
   tasks: Task[]
   stats: SlaveDashboardStats
   activePunishments?: Punishment[]
+  queenAvailability?: QueenAvailability | null
+  queenStatusUpdatedAt?: string | null
+  queenUsername?: string
   /** @deprecated use activePunishments */
   activeContactRestriction?: Punishment | null
 }
@@ -38,6 +47,9 @@ export function SlaveDashboard({
   tasks,
   stats,
   activePunishments,
+  queenAvailability = null,
+  queenStatusUpdatedAt = null,
+  queenUsername = "Queen",
   activeContactRestriction = null,
 }: SlaveDashboardProps) {
   const router = useRouter()
@@ -74,6 +86,12 @@ export function SlaveDashboard({
           onExpired={() => router.refresh()}
         />
       ))}
+
+      <QueenStatusDisplay
+        availability={queenAvailability}
+        updatedAt={queenStatusUpdatedAt}
+        username={queenUsername}
+      />
 
       <MoodPicker onUpdated={() => router.refresh()} />
 

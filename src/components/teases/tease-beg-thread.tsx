@@ -9,6 +9,7 @@ import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -98,10 +99,17 @@ export function TeaseBegThread({
     }
     setDraft("");
     void load();
+    void postToTopicThread(supabase, {
+      topic: "teases",
+      senderId: profile.id,
+      content: text,
+      attachmentType: "tease",
+      attachmentId: teaseId,
+    });
     void notifyPush({
       title: isSlave ? "D is begging" : "Queen replied on a tease",
       body: text.slice(0, 120),
-      url: "/dashboard/teases",
+      url: "/dashboard/inbox",
       target: isSlave ? "queen" : "slave",
     });
   };

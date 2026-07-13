@@ -20,6 +20,7 @@ import {
   CalendarHeart,
   Heart,
   NotebookPen,
+  Inbox,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -29,10 +30,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrandLogo } from "@/components/brand-logo"
-import { NotificationBell } from "@/components/layout/notification-bell"
+import { useInboxUnreadCount } from "@/components/inbox/use-inbox-unread"
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/inbox", label: "Inbox", icon: Inbox },
   { href: "/dashboard/tasks", label: "Tasks", icon: ListTodo },
   { href: "/dashboard/protocol", label: "Protocol", icon: BookOpen },
   { href: "/dashboard/check-ins", label: "Check-ins", icon: AlarmClock },
@@ -47,12 +49,21 @@ const navLinks = [
   { href: "/dashboard/profile", label: "Profile", icon: User },
 ]
 
+function InboxBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[10px] font-semibold text-void">
+      {count > 9 ? "9+" : count}
+    </span>
+  )
+}
+
 export function DashboardNav() {
   const pathname = usePathname()
   const { profile, role, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const unread = useInboxUnreadCount()
 
-  // Lock body scroll when drawer is open
   useEffect(() => {
     if (!mobileOpen) return
     const prev = document.body.style.overflow
@@ -62,7 +73,6 @@ export function DashboardNav() {
     }
   }, [mobileOpen])
 
-  // Close drawer on route change
   useEffect(() => {
     setMobileOpen(false)
   }, [pathname])
@@ -117,20 +127,12 @@ export function DashboardNav() {
 
       <Separator className="bg-gold/10" />
 
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          Alerts
-        </p>
-        <NotificationBell />
-      </div>
-
-      <Separator className="bg-gold/10" />
-
       <nav className="flex flex-col gap-1 px-3 py-4">
         {navLinks.map(({ href, label, icon: Icon }) => {
           const isActive =
             pathname === href ||
             (href !== "/dashboard" && pathname.startsWith(href))
+          const isInbox = href === "/dashboard/inbox"
 
           return (
             <Link
@@ -145,6 +147,7 @@ export function DashboardNav() {
             >
               <Icon className="size-4 shrink-0" />
               {label}
+              {isInbox && <InboxBadge count={unread} />}
             </Link>
           )
         })}
@@ -168,14 +171,28 @@ export function DashboardNav() {
 
   return (
     <>
-      {/* Mobile top bar — full width, not a side column */}
       <header className="sticky top-0 z-40 flex h-14 w-full shrink-0 items-center justify-between border-b border-gold/10 bg-void/95 px-4 backdrop-blur-md lg:hidden">
         <div className="flex items-center gap-2">
           <BrandLogo size="sm" />
           <span className="font-heading text-ivory">Queen Sisi</span>
         </div>
         <div className="flex items-center gap-1">
-          <NotificationBell />
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="relative text-ivory"
+            aria-label="Inbox"
+          >
+            <Link href="/dashboard/inbox">
+              <Inbox className="size-5" />
+              {unread > 0 && (
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-semibold text-void">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -189,7 +206,6 @@ export function DashboardNav() {
         </div>
       </header>
 
-      {/* Mobile drawer portal-like overlay (not a flex sibling that steals width) */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
@@ -217,7 +233,6 @@ export function DashboardNav() {
         </div>
       )}
 
-      {/* Desktop sidebar only */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-gold/10 bg-charcoal lg:flex">
         <ScrollArea className="h-screen">
           <div className="flex min-h-screen flex-col">{navContent}</div>
