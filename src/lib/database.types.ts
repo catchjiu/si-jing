@@ -954,6 +954,8 @@ export type Database = {
           longitude: number | null
           accuracy_m: number | null
           location_source: string | null
+          reaction_score: number | null
+          reacted_at: string | null
         }
         Insert: {
           id?: string
@@ -977,6 +979,8 @@ export type Database = {
           longitude?: number | null
           accuracy_m?: number | null
           location_source?: string | null
+          reaction_score?: number | null
+          reacted_at?: string | null
         }
         Update: {
           id?: string
@@ -1000,6 +1004,8 @@ export type Database = {
           longitude?: number | null
           accuracy_m?: number | null
           location_source?: string | null
+          reaction_score?: number | null
+          reacted_at?: string | null
         }
         Relationships: [
           {

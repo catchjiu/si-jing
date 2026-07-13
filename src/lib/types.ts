@@ -363,6 +363,8 @@ export type Tease = {
   longitude: number | null;
   accuracy_m: number | null;
   location_source: ImageLocationSource | null;
+  reaction_score: number | null;
+  reacted_at: string | null;
 };
 
 export type TeaseUnlockTask = {

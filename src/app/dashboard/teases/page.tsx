@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import {
   Eye,
   EyeOff,
+  Flame,
   ImagePlus,
   ListPlus,
   Loader2,
@@ -64,6 +65,14 @@ function blurLabel(amount: number) {
   if (amount <= 50) return "Veiled";
   if (amount <= 75) return "Heavy";
   return "Barely a hint";
+}
+
+function wreckedLabel(score: number) {
+  if (score <= 20) return "Barely stirred";
+  if (score <= 40) return "Warming up";
+  if (score <= 60) return "Getting wrecked";
+  if (score <= 80) return "Messed up";
+  return "Destroyed";
 }
 
 const DURATION_OPTIONS = [
@@ -128,6 +137,14 @@ export default function TeasesPage() {
   const [toggling, setToggling] = useState<string | null>(null);
   const [reteasing, setReteasing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [savingReaction, setSavingReaction] = useState<string | null>(null);
+  const [reactionDrafts, setReactionDrafts] = useState<Record<string, number>>(
+    {}
+  );
+  const [reactionPrompt, setReactionPrompt] = useState<{
+    tease: TeaseWithSignedUrl;
+    score: number;
+  } | null>(null);
   const [activeView, setActiveView] = useState<{
     tease: TeaseWithSignedUrl;
     url: string;
@@ -545,6 +562,47 @@ export default function TeasesPage() {
         toast.message("Timed tease burned out");
       }
     }
+
+    // Prompt for wrecked score after every protected view
+    setReactionPrompt({
+      tease: current.tease,
+      score: current.tease.reaction_score ?? 70,
+    });
+    void load();
+  };
+
+  const saveReaction = async (tease: TeaseWithSignedUrl, score: number) => {
+    if (!isSlave) return;
+    const clamped = Math.max(0, Math.min(100, Math.round(score)));
+    setSavingReaction(tease.id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("teases")
+      .update({
+        reaction_score: clamped,
+        reacted_at: new Date().toISOString(),
+      })
+      .eq("id", tease.id);
+    setSavingReaction(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Logged · ${clamped}% wrecked`);
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Tease reaction from D",
+        body: `${tease.title || "Tease"} · ${clamped}% wrecked`,
+        url: "/dashboard/teases",
+        target: "queen",
+      })
+    );
+    setReactionPrompt(null);
+    setReactionDrafts((prev) => {
+      const next = { ...prev };
+      delete next[tease.id];
+      return next;
+    });
     void load();
   };
 
@@ -952,6 +1010,87 @@ export default function TeasesPage() {
                     </p>
                   </div>
 
+                  {isQueen && t.reaction_score != null && (
+                    <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-void/50 px-3 py-2 text-sm text-ivory">
+                      <Flame className="h-4 w-4 text-gold" />
+                      <span>
+                        D wrecked ·{" "}
+                        <span className="font-heading text-gold">
+                          {t.reaction_score}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · {wreckedLabel(t.reaction_score)}
+                        </span>
+                      </span>
+                      {t.reacted_at && (
+                        <span className="ml-auto text-[11px] text-muted-foreground">
+                          {formatRelative(t.reacted_at)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {isQueen && t.viewed_at && t.reaction_score == null && (
+                      <p className="text-xs text-muted-foreground">
+                        Viewed — waiting for D’s wrecked score
+                      </p>
+                    )}
+
+                  {isSlave && !!t.viewed_at && (
+                    <div className="space-y-2 rounded-lg border border-gold/15 bg-void/40 p-3">
+                      <div className="flex items-end justify-between gap-2">
+                        <Label className="flex items-center gap-1.5 text-xs">
+                          <Flame className="h-3.5 w-3.5 text-gold" />
+                          How wrecked
+                        </Label>
+                        <span className="font-heading text-lg text-gold">
+                          {reactionDrafts[t.id] ?? t.reaction_score ?? 70}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {wreckedLabel(
+                          reactionDrafts[t.id] ?? t.reaction_score ?? 70
+                        )}
+                      </p>
+                      <Slider
+                        value={[reactionDrafts[t.id] ?? t.reaction_score ?? 70]}
+                        onValueChange={(v) =>
+                          setReactionDrafts((prev) => ({
+                            ...prev,
+                            [t.id]: v[0] ?? 70,
+                          }))
+                        }
+                        min={0}
+                        max={100}
+                        step={1}
+                        aria-label="How wrecked"
+                        className="py-1 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingReaction === t.id}
+                        onClick={() =>
+                          void saveReaction(
+                            t,
+                            reactionDrafts[t.id] ?? t.reaction_score ?? 70
+                          )
+                        }
+                        className="bg-gold text-void hover:bg-gold-muted"
+                      >
+                        {savingReaction === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Flame className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        {t.reaction_score != null
+                          ? "Update score"
+                          : "Submit score"}
+                      </Button>
+                    </div>
+                  )}
+
                   {hasUnlockTasks && !burned && (
                     <TeaseUnlockChecklist
                       tasks={unlockTasks}
@@ -1089,6 +1228,72 @@ export default function TeasesPage() {
           onSessionEnd={(reason) => void endProtectedView(reason)}
           onSuspiciousCapture={() => void flagScreenshot()}
         />
+      )}
+
+      {reactionPrompt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-void/80 p-4 sm:items-center">
+          <div className="w-full max-w-md space-y-4 rounded-xl border border-gold/25 bg-charcoal p-5 shadow-xl">
+            <div className="space-y-1">
+              <p className="font-heading text-xl text-ivory">How wrecked?</p>
+              <p className="text-sm text-muted-foreground">
+                {reactionPrompt.tease.title
+                  ? `Rate “${reactionPrompt.tease.title}” for Queen`
+                  : "Rate this tease for Queen"}
+              </p>
+            </div>
+            <div className="flex items-end justify-between gap-2">
+              <Label className="flex items-center gap-1.5">
+                <Flame className="h-4 w-4 text-gold" />
+                Wrecked
+              </Label>
+              <span className="font-heading text-2xl text-gold">
+                {reactionPrompt.score}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {wreckedLabel(reactionPrompt.score)}
+            </p>
+            <Slider
+              value={[reactionPrompt.score]}
+              onValueChange={(v) =>
+                setReactionPrompt((prev) =>
+                  prev ? { ...prev, score: v[0] ?? 70 } : prev
+                )
+              }
+              min={0}
+              max={100}
+              step={1}
+              aria-label="How wrecked"
+              className="py-2 **:data-[slot=slider-range]:bg-gold **:data-[slot=slider-thumb]:border-gold **:data-[slot=slider-thumb]:bg-gold"
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                className="flex-1 bg-gold text-void hover:bg-gold-muted"
+                disabled={savingReaction === reactionPrompt.tease.id}
+                onClick={() =>
+                  void saveReaction(reactionPrompt.tease, reactionPrompt.score)
+                }
+              >
+                {savingReaction === reactionPrompt.tease.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Flame className="mr-2 h-4 w-4" />
+                )}
+                Send to Queen
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={savingReaction === reactionPrompt.tease.id}
+                onClick={() => setReactionPrompt(null)}
+                className="text-muted-foreground"
+              >
+                Later
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
