@@ -11,6 +11,10 @@ export function createClient() {
       isSingleton: true,
       auth: {
         persistSession: true,
+        // Let the browser client refresh on its own schedule.
+        // Do not also hammer getSession() from AuthProvider — concurrent
+        // refresh-token use with the proxy invalidates the session and
+        // can bounce the page through / → /dashboard (looks like a reload).
         autoRefreshToken: true,
         detectSessionInUrl: true,
       },

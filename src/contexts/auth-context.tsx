@@ -91,39 +91,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
-      if (nextUser) {
-        void fetchProfile(nextUser.id);
-      } else {
+
+      // Avoid re-fetching profile on TOKEN_REFRESHED — that event fires often
+      // and concurrent refresh races with the proxy can kill the session.
+      if (!nextUser) {
         setProfile(null);
+      } else if (
+        event === "SIGNED_IN" ||
+        event === "INITIAL_SESSION" ||
+        event === "USER_UPDATED"
+      ) {
+        void fetchProfile(nextUser.id);
       }
+
       setLoading(false);
-
-      if (event === "TOKEN_REFRESHED" || event === "SIGNED_IN") {
-        void supabase.auth.getSession();
-      }
     });
-
-    const refreshSession = () => {
-      void supabase.auth.getSession();
-    };
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        refreshSession();
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", refreshSession);
-
-    const refreshInterval = window.setInterval(refreshSession, 4 * 60 * 1000);
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", refreshSession);
-      window.clearInterval(refreshInterval);
     };
   }, [fetchProfile, supabase]);
 
