@@ -186,7 +186,9 @@ export default function EvidencePage() {
                   ? "Pinned from Date timeline"
                   : p.source_type === "tease"
                     ? "Pinned from Tease"
-                    : "Pinned voice",
+                    : p.source_type === "direct_message"
+                      ? "Pinned from Inbox"
+                      : "Pinned voice",
             signedUrl,
             storage_bucket: p.storage_bucket,
             meta: p.meta,

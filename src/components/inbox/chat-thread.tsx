@@ -22,6 +22,8 @@ import { RoleSpeech } from "@/components/ui/role-speech";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { MessageCard } from "@/components/inbox/message-card";
 import { ChatComposer } from "@/components/inbox/chat-composer";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import type { EvidencePinMediaKind } from "@/lib/types";
 
 function SignedMedia({
   path,
@@ -74,6 +76,43 @@ function SignedMedia({
       className="mt-2 max-h-72 w-full rounded-lg object-contain"
     />
   );
+}
+
+function keepPropsForMessage(m: DirectMessageWithSender): {
+  mediaKind: EvidencePinMediaKind;
+  caption: string | null;
+  filePath: string | null;
+  storageBucket: "messages" | "voice" | null;
+  title: string;
+} {
+  const title = `Inbox · ${m.sender?.username ?? "D"}`;
+  if (m.media_path && m.media_type) {
+    return {
+      mediaKind: m.media_type,
+      caption: m.content,
+      filePath: m.media_path,
+      storageBucket: "messages",
+      title,
+    };
+  }
+  if (m.voice_path) {
+    return {
+      mediaKind: "voice",
+      caption: m.content,
+      filePath: m.voice_path,
+      storageBucket: "voice",
+      title,
+    };
+  }
+  return {
+    mediaKind: "text",
+    caption:
+      m.content?.trim() ||
+      (m.attachment_type ? `Shared a ${m.attachment_type}` : null),
+    filePath: null,
+    storageBucket: null,
+    title,
+  };
 }
 
 interface ChatThreadProps {
@@ -175,6 +214,16 @@ export function ChatThread({
             const mine = m.sender_id === profile?.id;
             const canDelete = mine || isQueen;
             const isQueenAuthor = m.sender?.role === "queen";
+            const canKeep =
+              isQueen &&
+              !mine &&
+              Boolean(
+                m.content?.trim() ||
+                  m.media_path ||
+                  m.voice_path ||
+                  m.attachment_type
+              );
+            const keep = canKeep ? keepPropsForMessage(m) : null;
             return (
               <div
                 key={m.id}
@@ -199,6 +248,19 @@ export function ChatThread({
                     <span className="text-[10px] text-muted-foreground">
                       {formatRelative(m.created_at)}
                     </span>
+                    {keep && (
+                      <KeepInEvidenceButton
+                        sourceType="direct_message"
+                        sourceId={m.id}
+                        mediaKind={keep.mediaKind}
+                        title={keep.title}
+                        caption={keep.caption}
+                        filePath={keep.filePath}
+                        storageBucket={keep.storageBucket}
+                        label="Keep"
+                        className="h-7 px-2 text-[11px]"
+                      />
+                    )}
                     {canDelete && (
                       <Button
                         type="button"

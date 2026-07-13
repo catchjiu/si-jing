@@ -309,7 +309,12 @@ export type QueenDate = {
   created_at: string;
 };
 
-export type EvidencePinSourceType = "date" | "tease" | "voice_note" | "date_post";
+export type EvidencePinSourceType =
+  | "date"
+  | "tease"
+  | "voice_note"
+  | "date_post"
+  | "direct_message";
 export type EvidencePinMediaKind =
   | "youtube"
   | "image"
@@ -328,7 +333,13 @@ export type EvidencePin = {
   caption: string | null;
   youtube_url: string | null;
   file_path: string | null;
-  storage_bucket: "teases" | "voice" | "submissions" | "date_posts" | null;
+  storage_bucket:
+    | "teases"
+    | "voice"
+    | "submissions"
+    | "date_posts"
+    | "messages"
+    | null;
   meta: Record<string, unknown> | null;
   pinned_at: string;
 };

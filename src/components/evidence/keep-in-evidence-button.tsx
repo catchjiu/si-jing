@@ -22,7 +22,13 @@ type Props = {
   caption?: string | null;
   youtubeUrl?: string | null;
   filePath?: string | null;
-  storageBucket?: "teases" | "voice" | "submissions" | "date_posts" | null;
+  storageBucket?:
+    | "teases"
+    | "voice"
+    | "submissions"
+    | "date_posts"
+    | "messages"
+    | null;
   meta?: Record<string, unknown> | null;
   label?: string;
   className?: string;
