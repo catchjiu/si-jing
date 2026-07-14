@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TeaseMediaKind } from "@/lib/types";
 
+/** Slave tease view auto-ends and sends reaction after this duration. */
+export const TEASE_VIEW_AUTO_END_MS = 5_000;
+
 /** Video: play count. Image: total seconds looked. */
 export function teaseWatchMetric(
   mediaKind: TeaseMediaKind,
@@ -8,6 +11,12 @@ export function teaseWatchMetric(
 ): number {
   if (mediaKind === "video") return 1;
   return Math.max(1, Math.round((Date.now() - sessionStartedAtMs) / 1000));
+}
+
+/** Metric for a completed auto-timed view session. */
+export function teaseAutoEndWatchMetric(mediaKind: TeaseMediaKind): number {
+  if (mediaKind === "video") return 1;
+  return Math.max(1, Math.round(TEASE_VIEW_AUTO_END_MS / 1000));
 }
 
 export function formatTeaseViewCount(

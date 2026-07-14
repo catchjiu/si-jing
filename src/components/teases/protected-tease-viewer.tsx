@@ -5,6 +5,10 @@ import { Eye, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
+import {
+  TEASE_VIEW_AUTO_END_MS,
+  teaseAutoEndWatchMetric,
+} from "@/lib/tease-views";
 import type { TeaseMediaKind } from "@/lib/types";
 
 type TeaseSessionViewerProps = {
@@ -18,7 +22,7 @@ type TeaseSessionViewerProps = {
 };
 
 /**
- * Fullscreen tease session — ends on close or leave, uploads reaction cam,
+ * Fullscreen tease session — auto-ends after 5s, uploads reaction cam,
  * but the tease stays available until Queen blurs it again.
  */
 export function TeaseSessionViewer({
@@ -31,11 +35,21 @@ export function TeaseSessionViewer({
   className,
 }: TeaseSessionViewerProps) {
   const [blanked, setBlanked] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(
+    Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000)
+  );
   const endedRef = useRef(false);
   const flaggedRef = useRef(false);
-  const sessionStartedAt = useRef(Date.now());
   const visibleMsRef = useRef(0);
-  const visibleSinceRef = useRef<number | null>(Date.now());
+  const visibleSinceRef = useRef<number | null>(null);
+  const onSessionEndRef = useRef(onSessionEnd);
+  const onSuspiciousCaptureRef = useRef(onSuspiciousCapture);
+  const mediaKindRef = useRef(mediaKind);
+  const endingViaButtonRef = useRef(false);
+
+  onSessionEndRef.current = onSessionEnd;
+  onSuspiciousCaptureRef.current = onSuspiciousCapture;
+  mediaKindRef.current = mediaKind;
 
   const tallyVisible = useCallback(() => {
     if (visibleSinceRef.current != null) {
@@ -44,53 +58,74 @@ export function TeaseSessionViewer({
     }
   }, []);
 
-  const resumeVisible = useCallback(() => {
-    if (document.visibilityState === "visible" && visibleSinceRef.current == null) {
-      visibleSinceRef.current = Date.now();
-    }
-  }, []);
-
-  const watchMetric = useCallback((): number => {
-    tallyVisible();
-    if (mediaKind === "video") return 1;
-    return Math.max(1, Math.round(visibleMsRef.current / 1000));
-  }, [mediaKind, tallyVisible]);
+  const watchMetric = useCallback(
+    (auto = false): number => {
+      if (auto) return teaseAutoEndWatchMetric(mediaKindRef.current);
+      tallyVisible();
+      if (mediaKindRef.current === "video") return 1;
+      return Math.max(1, Math.round(visibleMsRef.current / 1000));
+    },
+    [tallyVisible]
+  );
 
   const end = useCallback(
-    (reason: "left" | "closed") => {
+    (reason: "left" | "closed" | "auto") => {
       if (endedRef.current) return;
       endedRef.current = true;
       setBlanked(true);
-      onSessionEnd({ watchMetric: watchMetric() });
+      onSessionEndRef.current({
+        watchMetric: watchMetric(reason === "auto"),
+      });
       void reason;
     },
-    [onSessionEnd, watchMetric]
+    [watchMetric]
   );
 
   const flagAndBlank = useCallback(() => {
     setBlanked(true);
     if (!flaggedRef.current) {
       flaggedRef.current = true;
-      onSuspiciousCapture?.();
+      onSuspiciousCaptureRef.current?.();
     }
-  }, [onSuspiciousCapture]);
+  }, []);
 
   useEffect(() => {
-    sessionStartedAt.current = Date.now();
+    endedRef.current = false;
+    flaggedRef.current = false;
     visibleMsRef.current = 0;
     visibleSinceRef.current =
       document.visibilityState === "visible" ? Date.now() : null;
+    setBlanked(false);
+    setSecondsLeft(Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000));
+  }, [mediaUrl]);
 
+  useEffect(() => {
+    const countdown = window.setInterval(() => {
+      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    const autoEnd = window.setTimeout(() => {
+      end("auto");
+    }, TEASE_VIEW_AUTO_END_MS);
+
+    return () => {
+      window.clearInterval(countdown);
+      window.clearTimeout(autoEnd);
+    };
+  }, [end, mediaUrl]);
+
+  useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "hidden") {
         tallyVisible();
         flagAndBlank();
         end("left");
-      } else {
-        resumeVisible();
+      } else if (visibleSinceRef.current == null && !endedRef.current) {
+        visibleSinceRef.current = Date.now();
       }
     };
     const onBlur = () => {
+      if (endingViaButtonRef.current) return;
       tallyVisible();
       flagAndBlank();
       end("left");
@@ -109,7 +144,7 @@ export function TeaseSessionViewer({
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [end, flagAndBlank, resumeVisible, tallyVisible]);
+  }, [end, flagAndBlank, mediaUrl, tallyVisible]);
 
   useEffect(() => {
     const block = (e: Event) => e.preventDefault();
@@ -139,22 +174,32 @@ export function TeaseSessionViewer({
           </p>
           <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
             <ShieldAlert className="size-3" />
-            Reaction cam recording · watch again anytime until Queen hides it
+            {blanked
+              ? "Sending reaction to Queen…"
+              : `Auto-sending in ${secondsLeft}s · reaction cam recording`}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="border-muted"
-          onClick={() => end("closed")}
-        >
-          End view
-        </Button>
+        {!blanked && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-muted"
+            onPointerDown={() => {
+              endingViaButtonRef.current = true;
+            }}
+            onClick={() => {
+              end("closed");
+              endingViaButtonRef.current = false;
+            }}
+          >
+            Send now
+          </Button>
+        )}
       </div>
 
       <div className="relative flex-1 overflow-hidden bg-black">
-        {cameraStream && (
+        {cameraStream && !blanked && (
           <TeaseReactionCameraPip
             stream={cameraStream}
             className="absolute right-3 top-3 z-10 h-24 w-20 sm:h-28 sm:w-24"
@@ -165,7 +210,7 @@ export function TeaseSessionViewer({
             <Eye className="size-8 text-muted-foreground" />
             <p className="font-heading text-ivory">View ended</p>
             <p className="text-sm text-muted-foreground">
-              Open again anytime — Queen still has it revealed
+              Sending reaction — open again anytime
             </p>
           </div>
         ) : mediaKind === "video" ? (

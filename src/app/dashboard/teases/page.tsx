@@ -22,6 +22,9 @@ import {
 } from "@/lib/tease-reaction-recorder";
 import {
   formatTeaseViewCount,
+  recordTeaseView,
+  teaseAutoEndWatchMetric,
+  TEASE_VIEW_AUTO_END_MS,
   teaseWatchMetric,
 } from "@/lib/tease-views";
 import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
@@ -152,9 +155,16 @@ export default function TeasesPage() {
   const [opening, setOpening] = useState<string | null>(null);
   const [revealFrozen, setRevealFrozen] = useState(false);
   const [inlineViewId, setInlineViewId] = useState<string | null>(null);
+  const [viewSecondsLeft, setViewSecondsLeft] = useState<number | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const reactionRecorderRef = useRef<TeaseReactionRecorder | null>(null);
+  const uploadingReactionRef = useRef(false);
+  const activeViewRef = useRef(activeView);
+  const profileRef = useRef(profile);
   const viewSessionStartedAtRef = useRef(0);
+
+  activeViewRef.current = activeView;
+  profileRef.current = profile;
 
   useEffect(() => {
     return () => {
@@ -200,6 +210,9 @@ export default function TeasesPage() {
     setItems(signed);
     setLoading(false);
   }, [profile, isSlave, isQueen, inlineViewId]);
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
     if (!authLoading && profile) void load();
@@ -574,34 +587,57 @@ export default function TeasesPage() {
     watchMetric: number,
     mediaKind: TeaseMediaKind
   ) => {
-    const recorder = reactionRecorderRef.current;
-    if (!recorder || !profile) {
-      toast.error("No reaction recording — open the tease again with camera");
-      return;
-    }
+    const currentProfile = profileRef.current;
+    if (!currentProfile) return;
 
-    const durationMs = recorder.getDurationMs();
-    const mime =
-      recorder.getRecordedMime() || pickVideoRecorderMimeType() || "video/webm";
-    const blob = await recorder.stopRecording();
-    await recorder.dispose();
+    const recorder = reactionRecorderRef.current;
     reactionRecorderRef.current = null;
     setCameraStream(null);
+    uploadingReactionRef.current = true;
 
-    if (!blob || blob.size === 0) {
-      toast.error("Reaction video was empty — try viewing again");
-      return;
-    }
+    const metric = Math.max(1, watchMetric);
 
     try {
       const supabase = createClient();
+      try {
+        await recordTeaseView(supabase, teaseId, metric);
+        setItems((prev) =>
+          prev.map((t) =>
+            t.id === teaseId
+              ? { ...t, view_count: (t.view_count ?? 0) + metric }
+              : t
+          )
+        );
+      } catch (err) {
+        const msg =
+          err instanceof Error ? err.message : "Could not record attention";
+        toast.error(msg);
+      }
+
+      if (!recorder) {
+        toast.error("No reaction recording — open the tease again with camera");
+        return;
+      }
+
+      const durationMs = recorder.getDurationMs();
+      const mime =
+        recorder.getRecordedMime() ||
+        pickVideoRecorderMimeType() ||
+        "video/webm";
+      const blob = await recorder.stopRecording();
+
+      if (!blob || blob.size === 0) {
+        toast.error("Reaction video was empty — attention still counted");
+        return;
+      }
+
       await uploadTeaseReactionCapture(supabase, {
         teaseId,
-        viewerId: profile.id,
+        viewerId: currentProfile.id,
         blob,
         durationMs,
         mime,
-        watchMetric,
+        watchMetric: metric,
       });
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
@@ -609,7 +645,7 @@ export default function TeasesPage() {
           body:
             mediaKind === "video"
               ? `D watched again (+1 view) — reaction cam sent`
-              : `D looked ${watchMetric}s — reaction cam sent`,
+              : `D looked ${metric}s — reaction cam sent`,
           url: "/dashboard/teases",
           target: "queen",
         })
@@ -619,6 +655,18 @@ export default function TeasesPage() {
       const msg =
         err instanceof Error ? err.message : "Could not send reaction video";
       toast.error(msg);
+    } finally {
+      uploadingReactionRef.current = false;
+      if (recorder) await recorder.dispose();
+      void loadRef.current();
+    }
+  };
+
+  const waitForReactionUpload = async () => {
+    let waited = 0;
+    while (uploadingReactionRef.current && waited < 15_000) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
+      waited += 200;
     }
   };
 
@@ -630,6 +678,7 @@ export default function TeasesPage() {
       return false;
     }
     try {
+      await waitForReactionUpload();
       if (reactionRecorderRef.current) {
         await reactionRecorderRef.current.dispose();
       }
@@ -647,16 +696,16 @@ export default function TeasesPage() {
     }
   };
 
-  const endInlineView = async () => {
+  const endInlineView = async (opts?: { auto?: boolean }) => {
     if (!inlineViewId) return;
     const id = inlineViewId;
     const tease = items.find((t) => t.id === id);
     const mediaKind = tease?.media_kind ?? "image";
-    const watchMetric = teaseWatchMetric(
-      mediaKind,
-      viewSessionStartedAtRef.current
-    );
+    const watchMetric = opts?.auto
+      ? teaseAutoEndWatchMetric(mediaKind)
+      : teaseWatchMetric(mediaKind, viewSessionStartedAtRef.current);
     setInlineViewId(null);
+    setViewSecondsLeft(null);
     await uploadReactionAndCleanup(id, watchMetric, mediaKind);
     if (tease) {
       setReactionPrompt({
@@ -664,8 +713,36 @@ export default function TeasesPage() {
         score: tease.reaction_score ?? 70,
       });
     }
-    void load();
   };
+
+  const endInlineViewRef = useRef(endInlineView);
+  endInlineViewRef.current = endInlineView;
+
+  useEffect(() => {
+    if (!inlineViewId || !isSlave) {
+      setViewSecondsLeft(null);
+      return;
+    }
+
+    const totalSeconds = Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000);
+    setViewSecondsLeft(totalSeconds);
+
+    const countdown = window.setInterval(() => {
+      setViewSecondsLeft((prev) => {
+        if (prev == null || prev <= 1) return prev;
+        return prev - 1;
+      });
+    }, 1000);
+
+    const autoEnd = window.setTimeout(() => {
+      void endInlineViewRef.current({ auto: true });
+    }, TEASE_VIEW_AUTO_END_MS);
+
+    return () => {
+      window.clearInterval(countdown);
+      window.clearTimeout(autoEnd);
+    };
+  }, [inlineViewId, isSlave]);
 
   const beginInlineView = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || !tease.image_path) return;
@@ -750,24 +827,27 @@ export default function TeasesPage() {
     setOpening(null);
   };
 
-  const endSessionView = async (watchMetric: number) => {
-    const current = activeView;
+  const endSessionView = useCallback(async (watchMetric: number) => {
+    const current = activeViewRef.current;
     setActiveView(null);
-    if (!current || !isSlave) return;
+    if (!current || !profileRef.current?.role || profileRef.current.role !== "slave")
+      return;
 
     const mediaKind = current.tease.media_kind ?? "image";
-    await uploadReactionAndCleanup(
-      current.tease.id,
-      watchMetric,
-      mediaKind
-    );
+    await uploadReactionAndCleanup(current.tease.id, watchMetric, mediaKind);
 
     setReactionPrompt({
       tease: current.tease,
       score: current.tease.reaction_score ?? 70,
     });
-    void load();
-  };
+  }, []);
+
+  const handleSessionEnd = useCallback(
+    ({ watchMetric }: { watchMetric: number }) => {
+      void endSessionView(watchMetric);
+    },
+    [endSessionView]
+  );
 
   const saveReaction = async (tease: TeaseWithSignedUrl, score: number) => {
     if (!isSlave) return;
@@ -828,7 +908,7 @@ export default function TeasesPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
             ? "Blur or reveal — D can watch again until you hide it; each watch sends a reaction cam"
-            : "Front camera required every watch — Queen sees how much you like it"}
+            : "Front camera required — 5 second view auto-sends reaction to Queen"}
         </p>
       </div>
 
@@ -1111,7 +1191,7 @@ export default function TeasesPage() {
                       <Video className="h-8 w-8 text-gold" />
                       <p className="font-heading text-ivory">Camera required</p>
                       <p className="text-xs text-muted-foreground">
-                        Queen receives a short reaction video while you view
+                        Queen receives a short reaction video — view lasts 5 seconds
                       </p>
                       <Button
                         size="sm"
@@ -1164,6 +1244,11 @@ export default function TeasesPage() {
                       )}
                       {isSlave && inlineViewId === t.id && (
                         <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-void via-void/90 to-transparent p-3">
+                          <p className="mb-2 text-center text-[11px] text-gold">
+                            {viewSecondsLeft != null
+                              ? `Sending in ${viewSecondsLeft}s…`
+                              : "Sending reaction…"}
+                          </p>
                           <Button
                             type="button"
                             size="sm"
@@ -1171,7 +1256,7 @@ export default function TeasesPage() {
                             className="w-full border-gold/40 text-gold hover:bg-gold/10"
                             onClick={() => void endInlineView()}
                           >
-                            End view
+                            Send now
                           </Button>
                         </div>
                       )}
@@ -1196,7 +1281,7 @@ export default function TeasesPage() {
                         {t.title || "Ready to view"}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Front camera required · reaction for Queen each watch
+                        Front camera required · 5s view auto-sends reaction
                       </p>
                       <Button
                         size="sm"
@@ -1499,7 +1584,7 @@ export default function TeasesPage() {
           mediaKind={activeView.tease.media_kind ?? "image"}
           title={activeView.tease.title}
           cameraStream={cameraStream}
-          onSessionEnd={({ watchMetric }) => void endSessionView(watchMetric)}
+          onSessionEnd={handleSessionEnd}
           onSuspiciousCapture={() => void flagScreenshot()}
         />
       )}

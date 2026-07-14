@@ -1,20 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { presignAndUpload } from "@/lib/storage/client";
-import { recordTeaseView } from "@/lib/tease-views";
 
 export const TEASE_REACTION_MAX_MS = 8_000;
 
 const CAMERA_RELEASE_MS = 350;
-const CHUNK_WAIT_MS = 1_200;
+const CHUNK_WAIT_MS = 2_000;
 
 export function pickVideoRecorderMimeType(): string | null {
   if (typeof MediaRecorder === "undefined") return null;
-  const candidates = [
-    "video/mp4",
-    "video/webm;codecs=vp8",
-    "video/webm",
-    "video/quicktime",
-  ];
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isSafari =
+    /safari/i.test(ua) && !/chrome|chromium|android/i.test(ua);
+  const candidates = isSafari
+    ? ["video/mp4", "video/quicktime", "video/webm;codecs=vp8", "video/webm"]
+    : [
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4",
+        "video/quicktime",
+      ];
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? null;
 }
 
@@ -92,7 +96,7 @@ export class TeaseReactionRecorder {
     this.startedAt = Date.now();
     this.finalized = false;
     this.finalizePromise = null;
-    recorder.start(100);
+    recorder.start(250);
 
     this.maxTimer = window.setTimeout(() => {
       void this.finalizeMediaRecorder();
@@ -109,60 +113,66 @@ export class TeaseReactionRecorder {
   }
 
   private async finalizeMediaRecorder(): Promise<void> {
-    if (this.finalized) return;
+    if (this.finalized) {
+      await this.waitForChunks();
+      return;
+    }
     if (this.finalizePromise) {
       await this.finalizePromise;
       return;
     }
 
-    this.finalizePromise = new Promise<void>((resolve) => {
+    this.finalizePromise = (async () => {
       const recorder = this.recorder;
       if (!recorder || recorder.state === "inactive") {
         this.finalized = true;
-        resolve();
+        await this.waitForChunks();
         return;
       }
 
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        this.finalized = true;
-        resolve();
-      };
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          this.finalized = true;
+          resolve();
+        };
 
-      recorder.addEventListener(
-        "stop",
-        () => {
-          window.setTimeout(done, 120);
-        },
-        { once: true }
-      );
+        recorder.addEventListener(
+          "stop",
+          () => {
+            window.setTimeout(done, 200);
+          },
+          { once: true }
+        );
 
-      try {
-        if (recorder.state === "recording") {
-          recorder.requestData();
+        try {
+          if (recorder.state === "recording") {
+            recorder.requestData();
+          }
+          recorder.stop();
+        } catch {
+          done();
         }
-        recorder.stop();
-      } catch {
-        done();
+
+        window.setTimeout(done, CHUNK_WAIT_MS);
+      });
+
+      await this.waitForChunks();
+
+      if (this.maxTimer) {
+        window.clearTimeout(this.maxTimer);
+        this.maxTimer = null;
       }
 
-      window.setTimeout(done, CHUNK_WAIT_MS);
-    });
+      this.stream?.getTracks().forEach((t) => t.stop());
+      this.stream = null;
+      this.recorder = null;
+    })();
 
     await this.finalizePromise;
     this.finalizePromise = null;
-    await this.waitForChunks();
-
-    if (this.maxTimer) {
-      window.clearTimeout(this.maxTimer);
-      this.maxTimer = null;
-    }
-
-    this.stream?.getTracks().forEach((t) => t.stop());
-    this.stream = null;
-    this.recorder = null;
   }
 
   async stopRecording(): Promise<Blob | null> {
@@ -223,10 +233,6 @@ export async function uploadTeaseReactionCapture(
   });
 
   if (error) throw error;
-
-  if (opts.watchMetric && opts.watchMetric > 0) {
-    await recordTeaseView(supabase, opts.teaseId, opts.watchMetric);
-  }
 
   return path;
 }
