@@ -9,6 +9,7 @@ import {
   Loader2,
   Mic,
   Plus,
+  Reply,
   Send,
   Sparkles,
   Square,
@@ -24,9 +25,11 @@ import { normalizeVoiceBlob } from "@/lib/voice-format";
 import { pickRecorderMimeType } from "@/lib/voice-format";
 import {
   getTopicConversationId,
+  messageSnippet,
   postTeaseToInboxes,
   postToTopicThread,
   sendDirectMessage,
+  type DirectMessageWithSender,
   type InboxTopic,
   type MessageAttachmentType,
 } from "@/lib/inbox";
@@ -51,6 +54,8 @@ interface ChatComposerProps {
   conversationId: string;
   recipientId: string;
   contactBlocked?: boolean;
+  replyingTo?: DirectMessageWithSender | null;
+  onCancelReply?: () => void;
   onSent?: () => void;
   className?: string;
 }
@@ -61,6 +66,8 @@ export function ChatComposer({
   conversationId,
   recipientId,
   contactBlocked = false,
+  replyingTo = null,
+  onCancelReply,
   onSent,
   className,
 }: ChatComposerProps) {
@@ -101,8 +108,10 @@ export function ChatComposer({
         conversationId,
         senderId: profile.id,
         content: text,
+        replyToId: replyingTo?.id ?? null,
       });
       setDraft("");
+      onCancelReply?.();
       await notifyRecipient(
         profile.role === "queen" ? "Message from Queen" : "Message from D",
         text.slice(0, 120),
@@ -154,8 +163,10 @@ export function ChatComposer({
         content: caption,
         mediaPath: path,
         mediaType,
+        replyToId: replyingTo?.id ?? null,
       });
       setDraft("");
+      onCancelReply?.();
       await notifyRecipient(
         profile.role === "queen" ? "Media from Queen" : "Media from D",
         caption || (isVideo ? "Sent a video" : "Sent a photo"),
@@ -228,7 +239,9 @@ export function ChatComposer({
         senderId: profile.id,
         voicePath: path,
         voiceDurationMs: durationMs,
+        replyToId: replyingTo?.id ?? null,
       });
+      onCancelReply?.();
       await notifyRecipient(
         profile.role === "queen" ? "Voice from Queen" : "Voice from D",
         "Sent a voice note",
@@ -315,6 +328,31 @@ export function ChatComposer({
         <p className="rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-2 text-xs text-red-200">
           Contact is restricted — messaging is blocked.
         </p>
+      )}
+
+      {replyingTo && (
+        <div className="flex items-start gap-2 rounded-lg border border-gold/25 bg-gold/5 px-3 py-2">
+          <Reply className="mt-0.5 size-4 shrink-0 text-gold" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium text-gold">
+              Replying to {replyingTo.sender?.username ?? "message"}
+              {replyingTo.sender?.role === "queen" ? " · Queen" : ""}
+            </p>
+            <p className="line-clamp-2 text-xs text-muted-foreground">
+              {messageSnippet(replyingTo)}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => onCancelReply?.()}
+            className="size-7 shrink-0 text-muted-foreground hover:text-ivory"
+            aria-label="Cancel reply"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
       )}
 
       <Textarea

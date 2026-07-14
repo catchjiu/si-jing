@@ -1030,6 +1030,7 @@ export type Database = {
           voice_duration_ms: number | null
           attachment_type: string | null
           attachment_id: string | null
+          reply_to_id: string | null
           deleted_at: string | null
           created_at: string
         }
@@ -1044,6 +1045,7 @@ export type Database = {
           voice_duration_ms?: number | null
           attachment_type?: string | null
           attachment_id?: string | null
+          reply_to_id?: string | null
           deleted_at?: string | null
           created_at?: string
         }
@@ -1058,6 +1060,7 @@ export type Database = {
           voice_duration_ms?: number | null
           attachment_type?: string | null
           attachment_id?: string | null
+          reply_to_id?: string | null
           deleted_at?: string | null
           created_at?: string
         }
@@ -1074,6 +1077,13 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
             referencedColumns: ["id"]
           },
         ]

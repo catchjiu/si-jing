@@ -84,12 +84,25 @@ export type DirectMessage = {
   voice_duration_ms: number | null;
   attachment_type: MessageAttachmentType | null;
   attachment_id: string | null;
+  reply_to_id: string | null;
   deleted_at: string | null;
   created_at: string;
 };
 
+export type DirectMessageReplyPreview = {
+  id: string;
+  sender_id: string;
+  content: string | null;
+  media_path: string | null;
+  media_type: MessageMediaType | null;
+  voice_path: string | null;
+  attachment_type: MessageAttachmentType | null;
+  sender?: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+};
+
 export type DirectMessageWithSender = DirectMessage & {
   sender?: Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null;
+  reply_to?: DirectMessageReplyPreview | null;
 };
 
 export type AppNotification = {
@@ -270,6 +283,23 @@ export async function getConversationTopic(
   return ((data?.topic as InboxTopic) ?? "general");
 }
 
+export function messageSnippet(m: {
+  content?: string | null;
+  media_path?: string | null;
+  media_type?: MessageMediaType | string | null;
+  voice_path?: string | null;
+  attachment_type?: MessageAttachmentType | string | null;
+}): string {
+  if (m.content?.trim()) return m.content.trim();
+  if (m.voice_path) return "Voice message";
+  if (m.media_type === "video") return "Video";
+  if (m.media_path) return "Photo";
+  if (m.attachment_type) {
+    return attachmentLabel(m.attachment_type as MessageAttachmentType);
+  }
+  return "Message";
+}
+
 export async function fetchMessages(
   supabase: Supabase,
   conversationId: string,
@@ -277,16 +307,37 @@ export async function fetchMessages(
 ): Promise<DirectMessageWithSender[]> {
   const { data, error } = await supabase
     .from("direct_messages")
-    .select(
-      "*, sender:users!sender_id(id, username, role, avatar_url)"
-    )
+    .select("*, sender:users!sender_id(id, username, role, avatar_url)")
     .eq("conversation_id", conversationId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
     .limit(limit);
 
   if (error) throw error;
-  return (data as DirectMessageWithSender[]) ?? [];
+  const rows = (data as DirectMessageWithSender[]) ?? [];
+  const byId = new Map(rows.map((m) => [m.id, m]));
+  return rows.map((m) => ({
+    ...m,
+    reply_to: m.reply_to_id
+      ? replyPreviewFromMessage(byId.get(m.reply_to_id))
+      : null,
+  }));
+}
+
+function replyPreviewFromMessage(
+  m: DirectMessageWithSender | undefined
+): DirectMessageReplyPreview | null {
+  if (!m) return null;
+  return {
+    id: m.id,
+    sender_id: m.sender_id,
+    content: m.content,
+    media_path: m.media_path,
+    media_type: m.media_type,
+    voice_path: m.voice_path,
+    attachment_type: m.attachment_type,
+    sender: m.sender ?? null,
+  };
 }
 
 export async function markConversationRead(
@@ -347,6 +398,7 @@ export async function sendDirectMessage(
     voiceDurationMs?: number | null;
     attachmentType?: MessageAttachmentType | null;
     attachmentId?: string | null;
+    replyToId?: string | null;
   }
 ): Promise<DirectMessage> {
   const { data, error } = await supabase
@@ -361,6 +413,7 @@ export async function sendDirectMessage(
       voice_duration_ms: opts.voiceDurationMs ?? null,
       attachment_type: opts.attachmentType ?? null,
       attachment_id: opts.attachmentId ?? null,
+      reply_to_id: opts.replyToId ?? null,
     })
     .select("*")
     .single();

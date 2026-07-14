@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Reply, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { signObjectUrl } from "@/lib/storage/client";
@@ -11,6 +11,7 @@ import { hasPunishmentEffect } from "@/lib/punishments";
 import {
   fetchMessages,
   markConversationRead,
+  messageSnippet,
   softDeleteMessage,
   type DirectMessageWithSender,
   type MessageAttachmentType,
@@ -132,6 +133,9 @@ export function ChatThread({
   const [loading, setLoading] = useState(true);
   const [contactBlocked, setContactBlocked] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<DirectMessageWithSender | null>(
+    null
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
@@ -163,6 +167,7 @@ export function ChatThread({
     initialScrollDone.current = false;
     setLoading(true);
     setMessages([]);
+    setReplyingTo(null);
     void load();
   }, [load]);
 
@@ -193,6 +198,9 @@ export function ChatThread({
             if (row.deleted_at) return;
             setMessages((prev) => {
               if (prev.some((m) => m.id === row.id)) return prev;
+              const replyParent = row.reply_to_id
+                ? prev.find((m) => m.id === row.reply_to_id)
+                : null;
               const enriched: DirectMessageWithSender = {
                 ...row,
                 sender:
@@ -204,6 +212,20 @@ export function ChatThread({
                         avatar_url: profile.avatar_url ?? null,
                       }
                     : row.sender ?? null,
+                reply_to:
+                  (row.reply_to as DirectMessageWithSender["reply_to"]) ??
+                  (replyParent
+                    ? {
+                        id: replyParent.id,
+                        sender_id: replyParent.sender_id,
+                        content: replyParent.content,
+                        media_path: replyParent.media_path,
+                        media_type: replyParent.media_type,
+                        voice_path: replyParent.voice_path,
+                        attachment_type: replyParent.attachment_type,
+                        sender: replyParent.sender ?? null,
+                      }
+                    : null),
               };
               return [...prev, enriched].sort(
                 (a, b) =>
@@ -371,8 +393,37 @@ export function ChatThread({
                         )}
                       </Button>
                     )}
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setReplyingTo(m)}
+                      className="size-7 text-muted-foreground hover:text-gold"
+                      aria-label="Reply to message"
+                    >
+                      <Reply className="size-3.5" />
+                    </Button>
                   </div>
                 </div>
+
+                {m.reply_to && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const parent = messages.find((x) => x.id === m.reply_to?.id);
+                      if (parent) setReplyingTo(parent);
+                    }}
+                    className="mb-2 w-full rounded-md border-l-2 border-gold/50 bg-void/40 px-2 py-1.5 text-left transition-colors hover:bg-void/60"
+                  >
+                    <p className="text-[10px] font-medium text-gold/90">
+                      {m.reply_to.sender?.username ?? "Someone"}
+                      {m.reply_to.sender?.role === "queen" ? " · Queen" : ""}
+                    </p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {messageSnippet(m.reply_to)}
+                    </p>
+                  </button>
+                )}
 
                 {m.content && (
                   <p className="whitespace-pre-wrap text-sm text-ivory/90">
@@ -419,7 +470,12 @@ export function ChatThread({
         conversationId={conversationId}
         recipientId={recipientId}
         contactBlocked={contactBlocked}
-        onSent={() => void load()}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+        onSent={() => {
+          setReplyingTo(null);
+          void load();
+        }}
       />
     </div>
   );
