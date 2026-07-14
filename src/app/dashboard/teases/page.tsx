@@ -19,7 +19,12 @@ import {
   TeaseReactionRecorder,
   uploadTeaseReactionCapture,
 } from "@/lib/tease-reaction-recorder";
-import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
+import {
+  formatTeaseViewCount,
+  recordTeaseView,
+  teaseWatchMetric,
+} from "@/lib/tease-views";
+import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
 import {
   TeaseViewCapturePlayer,
@@ -34,13 +39,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   Eye,
@@ -52,11 +50,11 @@ import {
   Lock,
   Plus,
   Sparkles,
-  Timer,
   Trash2,
   Video,
   X,
   Repeat2,
+  BarChart3,
 } from "lucide-react";
 
 const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -92,43 +90,28 @@ function wreckedLabel(score: number) {
   return "Destroyed";
 }
 
-const DURATION_OPTIONS = [
-  { value: "off", label: "No timer (stays until blurred)" },
-  { value: "3", label: "3 seconds" },
-  { value: "5", label: "5 seconds" },
-  { value: "10", label: "10 seconds" },
-  { value: "15", label: "15 seconds" },
-  { value: "30", label: "30 seconds" },
-] as const;
-
 function isTimeUnlocked(unlocksAt: string) {
   return new Date(unlocksAt) <= new Date();
 }
 
-function isExpired(t: TeaseWithSignedUrl) {
-  return !!t.expired_at;
-}
-
 async function withSignedUrls(
   teases: TeaseWithSignedUrl[],
-  { isQueen }: { isQueen: boolean }
+  {
+    isQueen,
+    inlineViewId,
+  }: { isQueen: boolean; inlineViewId: string | null }
 ): Promise<TeaseWithSignedUrl[]> {
   return Promise.all(
     teases.map(async (t) => {
       if (!t.image_path) return t;
       const unlocked = isTimeUnlocked(t.unlocks_at);
-      // Slave never gets URL for burned timed teases
-      if (!isQueen && isExpired(t)) return { ...t, signedUrl: undefined };
       if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
-      // Clear timed teases / clear videos: URL only in protected viewer
-      if (
-        !isQueen &&
-        !t.is_blurred &&
-        (t.view_duration_seconds || t.media_kind === "video")
-      ) {
+      // Revealed teases open in a camera-gated session viewer
+      if (!isQueen && !t.is_blurred) return { ...t, signedUrl: undefined };
+      // Blurred teases: sign only while D is actively viewing inline
+      if (!isQueen && t.is_blurred && inlineViewId !== t.id) {
         return { ...t, signedUrl: undefined };
       }
-      // Blurred (and non-timed clear images): show in grid for both roles
       const signedUrl =
         (await signObjectUrl({
           bucket: "teases",
@@ -150,7 +133,6 @@ export default function TeasesPage() {
   const [unlockLocal, setUnlockLocal] = useState("");
   const [startBlurred, setStartBlurred] = useState(true);
   const [blurAmount, setBlurAmount] = useState(20);
-  const [viewDuration, setViewDuration] = useState("5");
   const [unlockTaskLabels, setUnlockTaskLabels] = useState<string[]>([""]);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -175,6 +157,7 @@ export default function TeasesPage() {
   const [inlineViewId, setInlineViewId] = useState<string | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const reactionRecorderRef = useRef<TeaseReactionRecorder | null>(null);
+  const viewSessionStartedAtRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -215,10 +198,11 @@ export default function TeasesPage() {
     }));
     const signed = await withSignedUrls(rows, {
       isQueen: !!isQueen,
+      inlineViewId,
     });
     setItems(signed);
     setLoading(false);
-  }, [profile, isSlave, isQueen]);
+  }, [profile, isSlave, isQueen, inlineViewId]);
 
   useEffect(() => {
     if (!authLoading && profile) void load();
@@ -312,10 +296,6 @@ export default function TeasesPage() {
 
       const taskGated = taskLabels.length > 0;
       const blurred = !!imagePath && (startBlurred || taskGated);
-      const duration =
-        imagePath && viewDuration !== "off"
-          ? parseInt(viewDuration, 10)
-          : null;
       // Task-gated teases start heavier so each completion visibly clears more
       const startAmount = blurred
         ? taskGated
@@ -340,7 +320,6 @@ export default function TeasesPage() {
           is_blurred: blurred,
           blur_amount: startAmount,
           unblurred_at: blurred ? null : new Date().toISOString(),
-          view_duration_seconds: duration,
           latitude: geo?.latitude ?? null,
           longitude: geo?.longitude ?? null,
           accuracy_m: geo?.accuracy_m ?? null,
@@ -392,18 +371,15 @@ export default function TeasesPage() {
       toast.success(
         taskGated
           ? `Tease queued · ${taskLabels.length} unlock task${taskLabels.length > 1 ? "s" : ""}`
-          : duration
-            ? `Timed tease queued (${duration}s)`
-            : blurred
-              ? "Blurred tease queued"
-              : "Tease queued"
+          : blurred
+            ? "Blurred tease queued"
+            : "Tease queued"
       );
       setTitle("");
       setMessage("");
       setUnlockLocal("");
       setStartBlurred(true);
       setBlurAmount(20);
-      setViewDuration("5");
       setUnlockTaskLabels([""]);
       setImage(null);
       void load();
@@ -448,7 +424,6 @@ export default function TeasesPage() {
           is_blurred: blurred,
           blur_amount: startAmount,
           unblurred_at: blurred ? null : now,
-          view_duration_seconds: tease.view_duration_seconds,
           latitude: tease.latitude,
           longitude: tease.longitude,
           accuracy_m: tease.accuracy_m,
@@ -597,7 +572,11 @@ export default function TeasesPage() {
     }
   };
 
-  const uploadReactionAndCleanup = async (teaseId: string) => {
+  const uploadReactionAndCleanup = async (
+    teaseId: string,
+    watchMetric: number,
+    mediaKind: TeaseMediaKind
+  ) => {
     const recorder = reactionRecorderRef.current;
     if (!recorder || !profile) return;
     const blob = recorder.stopRecording();
@@ -617,11 +596,16 @@ export default function TeasesPage() {
         blob,
         durationMs,
         mime,
+        watchMetric,
       });
+      await recordTeaseView(supabase, teaseId, watchMetric);
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Reaction video on tease",
-          body: "D viewed a tease — reaction cam sent",
+          body:
+            mediaKind === "video"
+              ? `D watched again (+1 view) — reaction cam sent`
+              : `D looked ${watchMetric}s — reaction cam sent`,
           url: "/dashboard/teases",
           target: "queen",
         })
@@ -656,8 +640,20 @@ export default function TeasesPage() {
   const endInlineView = async () => {
     if (!inlineViewId) return;
     const id = inlineViewId;
+    const tease = items.find((t) => t.id === id);
+    const mediaKind = tease?.media_kind ?? "image";
+    const watchMetric = teaseWatchMetric(
+      mediaKind,
+      viewSessionStartedAtRef.current
+    );
     setInlineViewId(null);
-    await uploadReactionAndCleanup(id);
+    await uploadReactionAndCleanup(id, watchMetric, mediaKind);
+    if (tease) {
+      setReactionPrompt({
+        tease,
+        score: tease.reaction_score ?? 70,
+      });
+    }
     void load();
   };
 
@@ -674,6 +670,7 @@ export default function TeasesPage() {
     }
 
     const now = new Date().toISOString();
+    viewSessionStartedAtRef.current = Date.now();
     const supabase = createClient();
     await supabase
       .from("teases")
@@ -683,14 +680,24 @@ export default function TeasesPage() {
       })
       .eq("id", tease.id);
 
+    const signedUrl = await signObjectUrl({
+      bucket: "teases",
+      path: tease.image_path,
+      expiresIn: 600,
+    });
+    if (signedUrl) {
+      setItems((prev) =>
+        prev.map((t) => (t.id === tease.id ? { ...t, signedUrl } : t))
+      );
+    }
+
     setInlineViewId(tease.id);
     setOpening(null);
   };
 
-  const openProtectedView = async (tease: TeaseWithSignedUrl) => {
+  const openSessionView = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || !tease.image_path) return;
-    if (tease.is_blurred || isExpired(tease) || !isTimeUnlocked(tease.unlocks_at))
-      return;
+    if (tease.is_blurred || !isTimeUnlocked(tease.unlocks_at)) return;
 
     setOpening(tease.id);
     if (inlineViewId) await endInlineView();
@@ -701,11 +708,10 @@ export default function TeasesPage() {
       return;
     }
 
-    const expiresIn = Math.max(tease.view_duration_seconds ?? 60, 60);
     const signedUrl = await signObjectUrl({
       bucket: "teases",
       path: tease.image_path,
-      expiresIn,
+      expiresIn: 3600,
     });
 
     if (!signedUrl) {
@@ -718,6 +724,7 @@ export default function TeasesPage() {
     }
 
     const now = new Date().toISOString();
+    viewSessionStartedAtRef.current = Date.now();
     const supabase = createClient();
     await supabase
       .from("teases")
@@ -731,40 +738,18 @@ export default function TeasesPage() {
     setOpening(null);
   };
 
-  const endProtectedView = async (
-    reason: "expired" | "left" | "closed"
-  ) => {
+  const endSessionView = async (watchMetric: number) => {
     const current = activeView;
     setActiveView(null);
     if (!current || !isSlave) return;
 
-    await uploadReactionAndCleanup(current.tease.id);
+    const mediaKind = current.tease.media_kind ?? "image";
+    await uploadReactionAndCleanup(
+      current.tease.id,
+      watchMetric,
+      mediaKind
+    );
 
-    const supabase = createClient();
-    if (current.tease.view_duration_seconds || current.tease.media_kind === "video") {
-      await supabase
-        .from("teases")
-        .update({ expired_at: new Date().toISOString() })
-        .eq("id", current.tease.id)
-        .is("expired_at", null);
-      if (reason === "left") {
-        toast.message(
-          current.tease.media_kind === "video"
-            ? "Video tease burned — you left the screen"
-            : "Timed tease burned — you left the screen"
-        );
-      } else if (reason === "expired") {
-        toast.message(
-          current.tease.media_kind === "video"
-            ? "Video tease burned out"
-            : "Timed tease burned out"
-        );
-      } else if (current.tease.media_kind === "video") {
-        toast.message("Video tease burned — one view only");
-      }
-    }
-
-    // Prompt for wrecked score after every protected view
     setReactionPrompt({
       tease: current.tease,
       score: current.tease.reaction_score ?? 70,
@@ -830,8 +815,8 @@ export default function TeasesPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Blur, unlock tasks, timed burn"
-            : "Front camera required for every view — Queen receives a short reaction video"}
+            ? "Blur or reveal — D can watch again until you hide it; each watch sends a reaction cam"
+            : "Front camera required every watch — Queen sees how much you like it"}
         </p>
       </div>
 
@@ -873,25 +858,6 @@ export default function TeasesPage() {
               onChange={(e) => setUnlockLocal(e.target.value)}
               className="border-gold/20 bg-void/60"
             />
-          </div>
-          <div className="space-y-2">
-            <Label>Timed view</Label>
-            <Select value={viewDuration} onValueChange={setViewDuration}>
-              <SelectTrigger className="border-gold/20 bg-void/60">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DURATION_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              After you reveal, D can open it once for this long — then it burns.
-              Leaving the screen also burns it.
-            </p>
           </div>
           <div className="space-y-2">
             <Label>Image or video (optional)</Label>
@@ -952,8 +918,8 @@ export default function TeasesPage() {
             )}
             {file && isVideoFile(file) && (
               <p className="text-xs text-muted-foreground">
-                Blurred: D can watch the veiled video. After you reveal, they get
-                one clear view — then it burns.
+                Blurred or revealed — D can watch again anytime until you blur
+                it again. Each watch sends Queen a reaction video.
               </p>
             )}
           </div>
@@ -1096,14 +1062,12 @@ export default function TeasesPage() {
         ) : (
           items.map((t) => {
             const timeReady = isTimeUnlocked(t.unlocks_at);
-            const burned = isExpired(t);
-            const showImage = isQueen || (timeReady && !burned);
-            const visuallyBlurred = !!t.image_path && t.is_blurred && !burned;
+            const showImage = isQueen || timeReady;
+            const visuallyBlurred = !!t.image_path && t.is_blurred;
             const amount = t.blur_amount ?? 20;
-            const fullyRevealed = showImage && !visuallyBlurred && !burned;
-            const timed = !!t.view_duration_seconds;
+            const fullyRevealed = showImage && !visuallyBlurred;
             const isVideo = t.media_kind === "video";
-            const slaveNeedsProtectedOpen =
+            const slaveNeedsSessionView =
               isSlave && fullyRevealed && !!t.image_path;
             const unlockTasks = t.unlock_tasks ?? [];
             const hasUnlockTasks = unlockTasks.length > 0;
@@ -1116,20 +1080,11 @@ export default function TeasesPage() {
                 key={t.id}
                 className={cn(
                   "overflow-hidden rounded-xl border bg-charcoal/80",
-                  fullyRevealed ? "border-gold/30" : "border-gold/15",
-                  burned && "opacity-70"
+                  fullyRevealed ? "border-gold/30" : "border-gold/15"
                 )}
               >
                 <div className="relative aspect-[4/5] bg-void overflow-hidden select-none">
-                  {burned && isSlave ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-                      <Timer className="h-8 w-8 text-muted-foreground" />
-                      <p className="font-heading text-ivory">Burned out</p>
-                      <p className="text-xs text-muted-foreground">
-                        This timed tease is gone
-                      </p>
-                    </div>
-                  ) : !showImage ? (
+                  {!showImage ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
                       <Lock className="h-8 w-8 text-gold/50" />
                       <p className="font-heading text-ivory">
@@ -1139,10 +1094,7 @@ export default function TeasesPage() {
                         Available {formatDeadline(t.unlocks_at)}
                       </p>
                     </div>
-                  ) : isSlave &&
-                    visuallyBlurred &&
-                    t.signedUrl &&
-                    inlineViewId !== t.id ? (
+                  ) : isSlave && visuallyBlurred && inlineViewId !== t.id ? (
                     <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
                       <Video className="h-8 w-8 text-gold" />
                       <p className="font-heading text-ivory">Camera required</p>
@@ -1225,26 +1177,19 @@ export default function TeasesPage() {
                         </div>
                       )}
                     </>
-                  ) : slaveNeedsProtectedOpen ? (
+                  ) : slaveNeedsSessionView ? (
                     <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
                       <Eye className="h-8 w-8 text-gold" />
                       <p className="font-heading text-ivory">
                         {t.title || "Ready to view"}
                       </p>
-                      {timed ? (
-                        <p className="text-xs text-gold">
-                          {t.view_duration_seconds}s timed view
-                        </p>
-                      ) : isVideo ? (
-                        <p className="text-xs text-gold">One-shot video view</p>
-                      ) : null}
                       <p className="text-[11px] text-muted-foreground">
-                        Front camera required · short reaction for Queen
+                        Front camera required · reaction for Queen each watch
                       </p>
                       <Button
                         size="sm"
                         disabled={opening === t.id}
-                        onClick={() => void openProtectedView(t)}
+                        onClick={() => void openSessionView(t)}
                         className="bg-gold text-void hover:bg-gold-muted"
                       >
                         {opening === t.id ? (
@@ -1252,7 +1197,7 @@ export default function TeasesPage() {
                         ) : (
                           <Eye className="mr-2 h-3.5 w-3.5" />
                         )}
-                        {isVideo ? "Watch once" : "Open tease"}
+                        {isVideo ? "Watch tease" : "View tease"}
                       </Button>
                     </div>
                   ) : (
@@ -1273,32 +1218,50 @@ export default function TeasesPage() {
                       accuracy_m={t.accuracy_m}
                       location_source={t.location_source}
                     />
-                    {(isQueen || fullyRevealed) && t.message && !burned && (
+                    {(isQueen || fullyRevealed) && t.message && (
                       <p className="whitespace-pre-wrap text-sm text-ivory/80">
                         <RoleSpeech text={t.message} role="queen" />
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {burned
-                        ? `Burned ${t.expired_at ? formatRelative(t.expired_at) : ""}`
-                        : visuallyBlurred
-                          ? hasUnlockTasks && !tasksAllDone
-                            ? `Tasks · ${tasksDone}/${unlockTasks.length}`
-                            : "Blurred"
-                          : timed
-                            ? `Timed · ${t.view_duration_seconds}s`
-                            : t.unblurred_at
-                              ? `Revealed ${formatRelative(t.unblurred_at)}`
-                              : timeReady
-                                ? `Available ${formatRelative(t.unlocks_at)}`
-                                : `Available ${formatDeadline(t.unlocks_at)}`}
-                      {t.screenshot_flagged_at
-                        ? " · capture alert"
+                      {visuallyBlurred
+                        ? hasUnlockTasks && !tasksAllDone
+                          ? `Tasks · ${tasksDone}/${unlockTasks.length}`
+                          : "Blurred"
+                        : t.unblurred_at
+                          ? `Revealed ${formatRelative(t.unblurred_at)}`
+                          : timeReady
+                            ? `Available ${formatRelative(t.unlocks_at)}`
+                            : `Available ${formatDeadline(t.unlocks_at)}`}
+                      {t.screenshot_flagged_at ? " · capture alert" : ""}
+                      {isQueen && (t.view_count ?? 0) > 0
+                        ? ` · ${formatTeaseViewCount(t.view_count ?? 0, t.media_kind ?? "image")}`
                         : t.viewed_at
                           ? " · viewed"
                           : ""}
                     </p>
                   </div>
+
+                  {isQueen && (t.view_count ?? 0) > 0 && (
+                    <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-void/50 px-3 py-2 text-sm text-ivory">
+                      <BarChart3 className="h-4 w-4 text-gold" />
+                      <span>
+                        D&apos;s attention ·{" "}
+                        <span className="font-heading text-gold">
+                          {formatTeaseViewCount(
+                            t.view_count ?? 0,
+                            t.media_kind ?? "image"
+                          )}
+                        </span>
+                      </span>
+                      {(t.view_captures?.length ?? 0) > 0 && (
+                        <span className="ml-auto text-[11px] text-muted-foreground">
+                          {t.view_captures?.length} reaction
+                          {(t.view_captures?.length ?? 0) === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {isQueen && t.reaction_score != null && (
                     <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-void/50 px-3 py-2 text-sm text-ivory">
@@ -1386,7 +1349,7 @@ export default function TeasesPage() {
                     </div>
                   )}
 
-                  {hasUnlockTasks && !burned && (
+                  {hasUnlockTasks && (
                     <TeaseUnlockChecklist
                       tasks={unlockTasks}
                       canComplete={!!isSlave}
@@ -1395,7 +1358,7 @@ export default function TeasesPage() {
                     />
                   )}
 
-                  {isQueen && t.image_path && !burned && (
+                  {isQueen && t.image_path && (
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <div className="flex items-end justify-between gap-2">
@@ -1522,13 +1485,12 @@ export default function TeasesPage() {
       </section>
 
       {activeView && profile && (
-        <ProtectedTeaseViewer
+        <TeaseSessionViewer
           mediaUrl={activeView.url}
           mediaKind={activeView.tease.media_kind ?? "image"}
-          durationSeconds={activeView.tease.view_duration_seconds}
           title={activeView.tease.title}
           cameraStream={cameraStream}
-          onSessionEnd={(reason) => void endProtectedView(reason)}
+          onSessionEnd={({ watchMetric }) => void endSessionView(watchMetric)}
           onSuspiciousCapture={() => void flagScreenshot()}
         />
       )}

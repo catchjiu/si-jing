@@ -417,6 +417,7 @@ export type Tease = {
   location_source: ImageLocationSource | null;
   reaction_score: number | null;
   reacted_at: string | null;
+  view_count: number;
 };
 
 export type TeaseUnlockTask = {
@@ -434,6 +435,7 @@ export type TeaseViewCapture = {
   viewer_id: string;
   video_path: string;
   duration_ms: number | null;
+  watch_metric: number | null;
   created_at: string;
 };
 

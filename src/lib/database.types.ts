@@ -536,6 +536,7 @@ export type Database = {
           viewer_id: string
           video_path: string
           duration_ms: number | null
+          watch_metric: number | null
           created_at: string
         }
         Insert: {
@@ -544,6 +545,7 @@ export type Database = {
           viewer_id: string
           video_path: string
           duration_ms?: number | null
+          watch_metric?: number | null
           created_at?: string
         }
         Update: {
@@ -552,6 +554,7 @@ export type Database = {
           viewer_id?: string
           video_path?: string
           duration_ms?: number | null
+          watch_metric?: number | null
           created_at?: string
         }
         Relationships: [
@@ -1205,6 +1208,7 @@ export type Database = {
           location_source: string | null
           reaction_score: number | null
           reacted_at: string | null
+          view_count: number
         }
         Insert: {
           id?: string
@@ -1231,6 +1235,7 @@ export type Database = {
           location_source?: string | null
           reaction_score?: number | null
           reacted_at?: string | null
+          view_count?: number
         }
         Update: {
           id?: string

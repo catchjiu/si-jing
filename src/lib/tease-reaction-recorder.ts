@@ -125,6 +125,7 @@ export async function uploadTeaseReactionCapture(
     blob: Blob;
     durationMs: number;
     mime: string;
+    watchMetric?: number;
   }
 ): Promise<string> {
   const ext = extensionForVideoMime(opts.mime);
@@ -141,6 +142,7 @@ export async function uploadTeaseReactionCapture(
     viewer_id: opts.viewerId,
     video_path: path,
     duration_ms: opts.durationMs,
+    watch_metric: opts.watchMetric ?? null,
   });
 
   if (error) throw error;

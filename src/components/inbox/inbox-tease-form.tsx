@@ -17,23 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MEDIA_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
-
-const DURATION_OPTIONS = [
-  { value: "off", label: "No timed burn" },
-  { value: "5", label: "5 seconds" },
-  { value: "10", label: "10 seconds" },
-  { value: "30", label: "30 seconds" },
-];
 
 interface InboxTeaseFormProps {
   recipientId: string;
@@ -52,7 +38,6 @@ export function InboxTeaseForm({
   const [unlockLocal, setUnlockLocal] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [startBlurred, setStartBlurred] = useState(true);
-  const [viewDuration, setViewDuration] = useState("5");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -103,10 +88,6 @@ export function InboxTeaseForm({
 
       const unlocks = unlockLocal ? new Date(unlockLocal) : new Date();
       const blurred = !!imagePath && startBlurred;
-      const duration =
-        imagePath && viewDuration !== "off"
-          ? parseInt(viewDuration, 10)
-          : null;
 
       const speechTitle = title.trim()
         ? formatRoleSpeech(title.trim(), "queen")
@@ -128,7 +109,6 @@ export function InboxTeaseForm({
           is_blurred: blurred,
           blur_amount: blurred ? 20 : 0,
           unblurred_at: blurred ? null : new Date().toISOString(),
-          view_duration_seconds: duration,
           latitude: geo?.latitude ?? null,
           longitude: geo?.longitude ?? null,
           accuracy_m: geo?.accuracy_m ?? null,
@@ -199,8 +179,8 @@ export function InboxTeaseForm({
           className="border-gold/20 bg-void/60"
         />
         <p className="text-[11px] text-muted-foreground">
-          Video: D can watch while blurred. After reveal, one clear view then it
-          burns.
+          D can watch again anytime until you blur it. Each watch sends a reaction
+          video.
         </p>
       </div>
       <label className="flex items-center gap-2 text-sm text-ivory/80">
@@ -210,21 +190,6 @@ export function InboxTeaseForm({
         />
         Start blurred
       </label>
-      <div className="space-y-2">
-        <Label>Timed view</Label>
-        <Select value={viewDuration} onValueChange={setViewDuration}>
-          <SelectTrigger className="border-gold/20 bg-void/60">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DURATION_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
       <Button
         type="submit"
         disabled={submitting}

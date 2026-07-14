@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Eye, Loader2, Lock, Sparkles, Timer } from "lucide-react";
+import { Eye, Loader2, Lock, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline } from "@/lib/format";
@@ -61,17 +61,10 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
       const row = data as Tease;
       setTease(row);
 
-      const burned = !!row.expired_at;
       const timeReady = isTimeUnlocked(row.unlocks_at);
-      const isVideo = (row.media_kind ?? "image") === "video";
       const canSign =
         !!row.image_path &&
-        (isQueen || (timeReady && !burned)) &&
-        !(
-          isSlave &&
-          !row.is_blurred &&
-          (row.view_duration_seconds || isVideo)
-        );
+        (isQueen || (timeReady && row.is_blurred));
 
       if (canSign && row.image_path) {
         try {
@@ -127,23 +120,17 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
     );
   }
 
-  const burned = !!tease.expired_at;
   const timeReady = isTimeUnlocked(tease.unlocks_at);
   const isVideo = (tease.media_kind ?? "image") === "video";
-  const visuallyBlurred = !!tease.image_path && tease.is_blurred && !burned;
+  const visuallyBlurred = !!tease.image_path && tease.is_blurred;
   const amount = tease.blur_amount ?? 20;
   const showMedia =
-    !!signedUrl &&
-    (visuallyBlurred ||
-      isQueen ||
-      (!tease.view_duration_seconds && !isVideo));
-  const needsProtectedOpen =
+    !!signedUrl && (visuallyBlurred || isQueen);
+  const needsSessionOpen =
     isSlave &&
     !!tease.image_path &&
     timeReady &&
-    !burned &&
-    !tease.is_blurred &&
-    (!!tease.view_duration_seconds || isVideo);
+    !tease.is_blurred;
 
   return (
     <div
@@ -153,12 +140,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
       )}
     >
       <div className="relative aspect-[4/5] max-h-72 bg-void overflow-hidden select-none">
-        {burned && isSlave ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-            <Timer className="h-7 w-7 text-muted-foreground" />
-            <p className="font-heading text-sm text-ivory">Burned out</p>
-          </div>
-        ) : !timeReady && !isQueen ? (
+        {!timeReady && !isQueen ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
             <Lock className="h-7 w-7 text-gold/50" />
             <p className="font-heading text-sm text-ivory">
@@ -168,7 +150,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
               Available {formatDeadline(tease.unlocks_at)}
             </p>
           </div>
-        ) : needsProtectedOpen ? (
+        ) : needsSessionOpen ? (
           <Link
             href="/dashboard/teases"
             className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center transition-colors hover:bg-gold/5"
@@ -178,9 +160,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
               {tease.title || "Ready to view"}
             </p>
             <p className="text-[11px] text-gold">
-              {isVideo
-                ? "One-shot video · open Teases"
-                : `${tease.view_duration_seconds}s timed · open Teases`}
+              {isVideo ? "Watch in Teases" : "View in Teases"} · reaction cam
             </p>
           </Link>
         ) : showMedia && signedUrl ? (
