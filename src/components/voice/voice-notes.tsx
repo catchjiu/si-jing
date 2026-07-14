@@ -13,7 +13,7 @@ import { VoicePlayer } from "@/components/voice/voice-player";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import type { MessageAttachmentType, InboxTopic } from "@/lib/inbox";
-import { postToTopicThread } from "@/lib/inbox";
+import { inboxConversationHref, notifyWorshipThread, postToTopicThread } from "@/lib/inbox";
 import { notifyPush } from "@/lib/push-client";
 import { Button } from "@/components/ui/button";
 
@@ -188,19 +188,33 @@ export function VoiceNotes({
           void load();
           if (mirrorToInbox && profile) {
             const supabase = createClient();
-            void postToTopicThread(supabase, {
-              topic: mirrorToInbox.topic,
-              senderId: profile.id,
-              content: "Voice message",
-              attachmentType: mirrorToInbox.attachmentType,
-              attachmentId: mirrorToInbox.attachmentId,
-            });
-            void notifyPush({
-              title: isSlave ? "Voice on worship" : "Queen voice on worship",
-              body: "New voice in Worship",
-              url: "/dashboard/inbox",
-              target: isSlave ? "queen" : "slave",
-            });
+            if (mirrorToInbox.topic === "worship") {
+              void notifyWorshipThread(supabase, {
+                senderId: profile.id,
+                content: "Voice message",
+                galleryId: mirrorToInbox.attachmentId,
+                pushTitle: isSlave ? "Voice on worship" : "Queen voice on worship",
+                pushBody: "New voice in Worship",
+                notifyTarget: isSlave ? "queen" : "slave",
+              });
+            } else {
+              void postToTopicThread(supabase, {
+                topic: mirrorToInbox.topic,
+                senderId: profile.id,
+                content: "Voice message",
+                attachmentType: mirrorToInbox.attachmentType,
+                attachmentId: mirrorToInbox.attachmentId,
+              }).then((dm) => {
+                void notifyPush({
+                  title: "New voice message",
+                  body: "Voice in inbox thread",
+                  url: dm
+                    ? inboxConversationHref(dm.conversation_id)
+                    : "/dashboard/inbox",
+                  target: isSlave ? "queen" : "slave",
+                });
+              });
+            }
           }
         }}
         compact={compact}

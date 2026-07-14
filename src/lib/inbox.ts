@@ -179,8 +179,7 @@ export async function listTopicThreads(
     byTopic.set(row.topic, row);
   }
 
-  // Keep general first, then the rest in INBOX_TOPICS order
-  return INBOX_TOPICS.flatMap((meta) => {
+  const threads = INBOX_TOPICS.flatMap((meta) => {
     const row = byTopic.get(meta.topic);
     if (!row) return [];
     return [
@@ -195,6 +194,17 @@ export async function listTopicThreads(
       },
     ];
   });
+
+  const general = threads.find((t) => t.topic === "general");
+  const topics = threads
+    .filter((t) => t.topic !== "general")
+    .sort((a, b) => {
+      const aTime = a.lastMessage?.created_at ?? "";
+      const bTime = b.lastMessage?.created_at ?? "";
+      return bTime.localeCompare(aTime);
+    });
+
+  return general ? [general, ...topics] : topics;
 }
 
 /** Post into a topic thread (mirrors entity activity into inbox). */
@@ -229,6 +239,39 @@ export async function postToTopicThread(
     console.error("postToTopicThread failed", err);
     return null;
   }
+}
+
+export function inboxConversationHref(conversationId: string): string {
+  return `/dashboard/inbox/${conversationId}`;
+}
+
+/** Mirror slave/Queen worship activity into the Worship inbox thread + notify. */
+export async function notifyWorshipThread(
+  supabase: Supabase,
+  opts: {
+    senderId: string;
+    content: string;
+    galleryId: string;
+    pushTitle: string;
+    pushBody: string;
+    notifyTarget: "queen" | "slave";
+  }
+): Promise<void> {
+  const dm = await postToTopicThread(supabase, {
+    topic: "worship",
+    senderId: opts.senderId,
+    content: opts.content,
+    attachmentType: "worship",
+    attachmentId: opts.galleryId,
+  });
+
+  const { notifyPush } = await import("@/lib/push-client");
+  void notifyPush({
+    title: opts.pushTitle,
+    body: opts.pushBody,
+    url: dm ? inboxConversationHref(dm.conversation_id) : "/dashboard/inbox",
+    target: opts.notifyTarget,
+  });
 }
 
 /** Tease cards land in both Teases topic and Direct inbox. */

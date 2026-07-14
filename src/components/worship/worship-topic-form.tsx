@@ -6,7 +6,7 @@ import { Crown, FolderPlus, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRoleSpeech } from "@/lib/role-speech";
-import { postToTopicThread } from "@/lib/inbox";
+import { notifyWorshipThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,21 +89,14 @@ export function WorshipTopicForm({
 
         toast.success("Gallery created");
         const gallery = data as WorshipGalleryTopic;
-        void postToTopicThread(supabase, {
-          topic: "worship",
+        void notifyWorshipThread(supabase, {
           senderId: profile.id,
           content: `New gallery: ${topic.trim()}`,
-          attachmentType: "worship",
-          attachmentId: gallery.id,
+          galleryId: gallery.id,
+          pushTitle: "New worship gallery",
+          pushBody: topic.trim(),
+          notifyTarget: "queen",
         });
-        void import("@/lib/push-client").then(({ notifyPush }) =>
-          notifyPush({
-            title: "New worship gallery",
-            body: topic.trim(),
-            url: "/dashboard/inbox",
-            target: "queen",
-          })
-        );
         setTopic("");
         setDescription("");
         onSuccess?.(data as WorshipGalleryTopic);

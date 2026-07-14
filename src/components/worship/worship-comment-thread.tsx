@@ -8,8 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
-import { notifyPush } from "@/lib/push-client";
-import { postToTopicThread } from "@/lib/inbox";
+import { notifyWorshipThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -101,18 +100,13 @@ export function WorshipCommentThread({
     }
     setDraft("");
     void load();
-    void postToTopicThread(supabase, {
-      topic: "worship",
+    void notifyWorshipThread(supabase, {
       senderId: profile.id,
       content: text,
-      attachmentType: "worship",
-      attachmentId: galleryId,
-    });
-    void notifyPush({
-      title: isSlave ? "Comment on worship" : "Queen commented on worship",
-      body: text.slice(0, 120),
-      url: "/dashboard/inbox",
-      target: isSlave ? "queen" : "slave",
+      galleryId,
+      pushTitle: isSlave ? "Comment on worship" : "Queen commented on worship",
+      pushBody: text.slice(0, 120),
+      notifyTarget: isSlave ? "queen" : "slave",
     });
   };
 
