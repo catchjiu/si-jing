@@ -579,14 +579,19 @@ export default function TeasesPage() {
   ) => {
     const recorder = reactionRecorderRef.current;
     if (!recorder || !profile) return;
-    const blob = recorder.stopRecording();
+
     const durationMs = recorder.getDurationMs();
-    const mime = pickVideoRecorderMimeType() || "video/webm";
+    const mime =
+      recorder.getRecordedMime() || pickVideoRecorderMimeType() || "video/webm";
+    const blob = await recorder.stopRecording();
     recorder.dispose();
     reactionRecorderRef.current = null;
     setCameraStream(null);
 
-    if (!blob || blob.size === 0) return;
+    if (!blob || blob.size === 0) {
+      toast.error("Reaction video was empty — try viewing again");
+      return;
+    }
 
     try {
       const supabase = createClient();
@@ -626,6 +631,8 @@ export default function TeasesPage() {
     }
     try {
       reactionRecorderRef.current?.dispose();
+      reactionRecorderRef.current = null;
+      setCameraStream(null);
       const recorder = new TeaseReactionRecorder();
       const stream = await recorder.start();
       reactionRecorderRef.current = recorder;

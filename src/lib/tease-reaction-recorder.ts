@@ -28,6 +28,10 @@ export function isTeaseReactionCaptureSupported(): boolean {
   );
 }
 
+function blobType(mime: string): string {
+  return mime.split(";")[0];
+}
+
 export class TeaseReactionRecorder {
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
@@ -35,14 +39,19 @@ export class TeaseReactionRecorder {
   private mime = "";
   private startedAt = 0;
   private maxTimer: number | null = null;
-  private stopped = false;
+  private finalized = false;
+  private finalizePromise: Promise<void> | null = null;
 
   get activeStream(): MediaStream | null {
     return this.stream;
   }
 
+  getRecordedMime(): string {
+    return this.mime;
+  }
+
   async start(): Promise<MediaStream> {
-    if (this.stream) return this.stream;
+    this.dispose();
 
     const mime = pickVideoRecorderMimeType();
     if (!mime) {
@@ -68,11 +77,12 @@ export class TeaseReactionRecorder {
     this.stream = stream;
     this.recorder = recorder;
     this.startedAt = Date.now();
-    this.stopped = false;
-    recorder.start(250);
+    this.finalized = false;
+    this.finalizePromise = null;
+    recorder.start(100);
 
     this.maxTimer = window.setTimeout(() => {
-      this.stopRecording();
+      void this.finalizeMediaRecorder();
     }, TEASE_REACTION_MAX_MS);
 
     return stream;
@@ -84,32 +94,75 @@ export class TeaseReactionRecorder {
     void videoEl.play().catch(() => undefined);
   }
 
-  stopRecording(): Blob | null {
-    if (this.stopped) {
-      return this.chunks.length
-        ? new Blob(this.chunks, { type: this.mime.split(";")[0] })
-        : null;
+  private async finalizeMediaRecorder(): Promise<void> {
+    if (this.finalized) return;
+    if (this.finalizePromise) {
+      await this.finalizePromise;
+      return;
     }
-    this.stopped = true;
+
+    this.finalizePromise = new Promise<void>((resolve) => {
+      const recorder = this.recorder;
+      if (!recorder || recorder.state === "inactive") {
+        this.finalized = true;
+        resolve();
+        return;
+      }
+
+      const done = () => {
+        this.finalized = true;
+        resolve();
+      };
+
+      recorder.addEventListener("stop", done, { once: true });
+      try {
+        if (recorder.state === "recording") {
+          recorder.requestData();
+        }
+        recorder.stop();
+      } catch {
+        done();
+      }
+    });
+
+    await this.finalizePromise;
+    this.finalizePromise = null;
+
     if (this.maxTimer) {
       window.clearTimeout(this.maxTimer);
       this.maxTimer = null;
     }
-    this.recorder?.stop();
+
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.recorder = null;
+  }
+
+  async stopRecording(): Promise<Blob | null> {
+    await this.finalizeMediaRecorder();
     if (!this.chunks.length) return null;
-    return new Blob(this.chunks, { type: this.mime.split(";")[0] });
+    return new Blob(this.chunks, { type: blobType(this.mime) });
   }
 
   dispose() {
-    if (this.maxTimer) window.clearTimeout(this.maxTimer);
-    this.recorder?.stop();
+    if (this.maxTimer) {
+      window.clearTimeout(this.maxTimer);
+      this.maxTimer = null;
+    }
+    try {
+      if (this.recorder && this.recorder.state !== "inactive") {
+        this.recorder.stop();
+      }
+    } catch {
+      // ignore
+    }
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     this.recorder = null;
     this.chunks = [];
+    this.mime = "";
+    this.finalized = false;
+    this.finalizePromise = null;
   }
 
   getDurationMs(): number {
