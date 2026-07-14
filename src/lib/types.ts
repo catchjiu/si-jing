@@ -63,10 +63,12 @@ export type RewardWithSignedUrl = Reward & {
 };
 
 export type WishlistStatus = "new" | "seen" | "ordered" | "fulfilled";
+export type WishlistItemKind = "queen_taste" | "slave_gift";
 
 export type WishlistItem = {
   id: string;
   created_by: string;
+  item_kind: WishlistItemKind;
   title: string | null;
   notes: string | null;
   link_url: string | null;

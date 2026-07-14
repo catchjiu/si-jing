@@ -11,7 +11,11 @@ import { removeObject } from "@/lib/storage/client";
 import { WISHLIST_STATUS_LABELS, wishlistStatusClass } from "@/lib/wishlist";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
-import type { WishlistItemWithSignedUrl, WishlistStatus } from "@/lib/types";
+import type {
+  WishlistItemKind,
+  WishlistItemWithSignedUrl,
+  WishlistStatus,
+} from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +40,7 @@ import { WishlistCommentThread } from "@/components/wishlist/wishlist-comment-th
 
 interface WishlistGalleryProps {
   items: WishlistItemWithSignedUrl[];
+  itemKind: WishlistItemKind;
   onDeleted?: (id: string) => void;
   onEdit?: (item: WishlistItemWithSignedUrl) => void;
   onChanged?: () => void;
@@ -44,12 +49,15 @@ interface WishlistGalleryProps {
 
 export function WishlistGallery({
   items,
+  itemKind,
   onDeleted,
   onEdit,
   onChanged,
   className,
 }: WishlistGalleryProps) {
-  const { isQueen, isSlave } = useAuth();
+  const { isQueen, isSlave, profile } = useAuth();
+  const isSlaveGift = itemKind === "slave_gift";
+  const speechRole = isSlaveGift ? "slave" : "queen";
   const [active, setActive] = useState<WishlistItemWithSignedUrl | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -60,7 +68,7 @@ export function WishlistGallery({
     setActive(item);
     setStatusDraft(item.status ?? "new");
     setFulfillmentNotes(item.fulfillment_notes ?? "");
-    if (isSlave && item.status === "new") {
+    if (isSlave && !isSlaveGift && item.status === "new") {
       void markSeen(item);
     }
   };
@@ -106,12 +114,24 @@ export function WishlistGallery({
     onChanged?.();
   };
 
-  const emptyMessage = isQueen
-    ? "Add items you love so he can study your taste."
-    : "Queen has not shared wishlist items yet.";
+  const emptyMessage = isSlaveGift
+    ? isSlave
+      ? "Suggest something you want to buy her."
+      : "D has not suggested gift ideas yet."
+    : isQueen
+      ? "Add items you love so he can study your taste."
+      : "Queen has not shared wishlist items yet.";
+
+  const canDelete =
+    (isQueen && active) ||
+    (isSlave &&
+      isSlaveGift &&
+      active &&
+      profile &&
+      active.created_by === profile.id);
 
   const handleDelete = async () => {
-    if (!isQueen || !active) return;
+    if (!canDelete || !active) return;
     setDeleting(true);
     const supabase = createClient();
 
@@ -128,7 +148,9 @@ export function WishlistGallery({
         // Row is gone; storage cleanup is best-effort
       }
 
-      toast.success("Wishlist item removed");
+      toast.success(
+        isSlaveGift ? "Gift idea removed" : "Wishlist item removed"
+      );
       onDeleted?.(active.id);
       setActive(null);
     } catch (err) {
@@ -197,6 +219,11 @@ export function WishlistGallery({
                   {WISHLIST_STATUS_LABELS[item.status ?? "new"]}
                 </Badge>
               </div>
+              {isSlaveGift && (
+                <p className="text-[10px] uppercase tracking-wider text-gold/80">
+                  Gift idea
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {formatRelative(item.created_at)}
               </p>
@@ -229,13 +256,13 @@ export function WishlistGallery({
                 <DialogHeader>
                   <DialogTitle className="font-heading text-gold">
                     <RoleSpeech
-                      text={active.title || "Wishlist item"}
-                      role="queen"
+                      text={active.title || (isSlaveGift ? "Gift idea" : "Wishlist item")}
+                      role={speechRole}
                     />
                   </DialogTitle>
                   {active.notes && (
                     <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
-                      <RoleSpeech text={active.notes} role="queen" />
+                      <RoleSpeech text={active.notes} role={speechRole} />
                     </DialogDescription>
                   )}
                 </DialogHeader>
@@ -288,7 +315,9 @@ export function WishlistGallery({
                   {isSlave && (
                     <>
                       <div className="space-y-2">
-                        <Label>Status</Label>
+                        <Label>
+                          {isSlaveGift ? "Purchase status" : "Status"}
+                        </Label>
                         <Select
                           value={statusDraft}
                           onValueChange={(v) =>
@@ -310,12 +339,18 @@ export function WishlistGallery({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Fulfillment notes</Label>
+                        <Label>
+                          {isSlaveGift ? "Purchase notes" : "Fulfillment notes"}
+                        </Label>
                         <Textarea
                           value={fulfillmentNotes}
                           onChange={(e) => setFulfillmentNotes(e.target.value)}
                           rows={2}
-                          placeholder="Ordered from… arrived on…"
+                          placeholder={
+                            isSlaveGift
+                              ? "Ordered from… plan to give on…"
+                              : "Ordered from… arrived on…"
+                          }
                           className="border-gold/20 bg-void/60"
                         />
                       </div>
@@ -339,20 +374,23 @@ export function WishlistGallery({
                   wishlistTitle={active.title}
                 />
 
-                {isQueen && (
+                {(isQueen || (isSlave && isSlaveGift && active?.created_by === profile?.id)) &&
+                  (onEdit || canDelete) && (
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-gold/40 text-gold hover:bg-gold/10"
-                      onClick={() => {
-                        onEdit?.(active);
-                        setActive(null);
-                      }}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
+                    {onEdit && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-gold/40 text-gold hover:bg-gold/10"
+                        onClick={() => {
+                          onEdit?.(active);
+                          setActive(null);
+                        }}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="destructive"

@@ -134,6 +134,7 @@ export type Database = {
         Row: {
           id: string
           created_by: string
+          item_kind: string
           title: string | null
           notes: string | null
           link_url: string | null
@@ -152,6 +153,7 @@ export type Database = {
         Insert: {
           id?: string
           created_by: string
+          item_kind?: string
           title?: string | null
           notes?: string | null
           link_url?: string | null
@@ -170,6 +172,7 @@ export type Database = {
         Update: {
           id?: string
           created_by?: string
+          item_kind?: string
           title?: string | null
           notes?: string | null
           link_url?: string | null

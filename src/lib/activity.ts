@@ -153,6 +153,7 @@ export async function fetchRecentActivity(
       journalEntries,
       submissionComments,
       wishlistItems,
+      wishlistGiftItems,
       wishlistMessages,
       directMessages,
       datePosts,
@@ -268,10 +269,20 @@ export async function fetchRecentActivity(
             .select(
               "id, title, status, seen_at, fulfillment_notes, fulfilled_at, updated_at, created_at, created_by"
             )
+            .eq("item_kind", "queen_taste")
             .or(
               "seen_at.not.is.null,fulfillment_notes.not.is.null,status.eq.ordered,status.eq.fulfilled"
             )
             .order("updated_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      slaveId
+        ? supabase
+            .from("wishlist_items")
+            .select("id, title, created_at, created_by")
+            .eq("item_kind", "slave_gift")
+            .eq("created_by", slaveId)
+            .order("created_at", { ascending: false })
             .limit(FETCH_LIMIT)
         : Promise.resolve({ data: [] }),
       supabase
@@ -419,6 +430,17 @@ export async function fetchRecentActivity(
         kind: "date_comment",
         context: date?.title ?? null,
         author: dp.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const w of wishlistGiftItems.data ?? []) {
+      pushItem(items, {
+        id: `wish-gift-${w.id}`,
+        at: w.created_at as string,
+        title: "Gift idea · D",
+        body: (w.title as string) || "Something he wants to buy you",
+        href: "/dashboard/wishlist",
+        kind: "wishlist_gift_add",
       });
     }
 
@@ -856,6 +878,7 @@ export async function fetchRecentActivity(
               "id, title, created_at, created_by, creator:users!created_by(id, role)"
             )
             .eq("created_by", queenId)
+            .eq("item_kind", "queen_taste")
             .order("created_at", { ascending: false })
             .limit(FETCH_LIMIT)
         : Promise.resolve({ data: [] }),

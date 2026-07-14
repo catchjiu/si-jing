@@ -14,12 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { WishlistItemWithSignedUrl } from "@/lib/types";
+import type { WishlistItemKind, WishlistItemWithSignedUrl } from "@/lib/types";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface WishlistFormProps {
+  variant?: WishlistItemKind;
   editingItem?: WishlistItemWithSignedUrl | null;
   onCancelEdit?: () => void;
   onSuccess?: () => void;
@@ -28,13 +29,17 @@ interface WishlistFormProps {
 }
 
 export function WishlistForm({
+  variant = "queen_taste",
   editingItem = null,
   onCancelEdit,
   onSuccess,
   onUpdated,
   className,
 }: WishlistFormProps) {
-  const { profile, isQueen } = useAuth();
+  const { profile, isQueen, isSlave } = useAuth();
+  const isSlaveGift = variant === "slave_gift";
+  const canUseForm = isSlaveGift ? isSlave : isQueen;
+  const speechRole = isSlaveGift ? "slave" : "queen";
   const isEditing = !!editingItem;
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -100,8 +105,12 @@ export function WishlistForm({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isQueen || !profile) {
-      toast.error("Only the Queen can manage wishlist items");
+    if (!canUseForm || !profile) {
+      toast.error(
+        isSlaveGift
+          ? "Only D can suggest gift ideas"
+          : "Only the Queen can manage wishlist items"
+      );
       return;
     }
     if (!isEditing && !file) {
@@ -182,10 +191,10 @@ export function WishlistForm({
           .from("wishlist_items")
           .update({
             title: title.trim()
-              ? formatRoleSpeech(title.trim(), "queen")
+              ? formatRoleSpeech(title.trim(), speechRole)
               : null,
             notes: notes.trim()
-              ? formatRoleSpeech(notes.trim(), "queen")
+              ? formatRoleSpeech(notes.trim(), speechRole)
               : null,
             link_url: trimmedLink || null,
             image_path: imagePath,
@@ -211,11 +220,12 @@ export function WishlistForm({
           .from("wishlist_items")
           .insert({
             created_by: profile.id,
+            item_kind: variant,
             title: title.trim()
-              ? formatRoleSpeech(title.trim(), "queen")
+              ? formatRoleSpeech(title.trim(), speechRole)
               : null,
             notes: notes.trim()
-              ? formatRoleSpeech(notes.trim(), "queen")
+              ? formatRoleSpeech(notes.trim(), speechRole)
               : null,
             link_url: trimmedLink || null,
             image_path: imagePath,
@@ -227,7 +237,19 @@ export function WishlistForm({
 
         if (insertError) throw insertError;
 
-        toast.success("Wishlist item added");
+        toast.success(
+          isSlaveGift ? "Gift idea added for Queen" : "Wishlist item added"
+        );
+        if (isSlaveGift) {
+          void import("@/lib/push-client").then(({ notifyPush }) =>
+            notifyPush({
+              title: "Gift idea on wishlist",
+              body: title.trim() || "D suggested something to buy you",
+              url: "/dashboard/wishlist",
+              target: "queen",
+            })
+          );
+        }
         setTitle("");
         setNotes("");
         setLinkUrl("");
@@ -243,9 +265,21 @@ export function WishlistForm({
     }
   };
 
-  if (!isQueen) return null;
+  if (!canUseForm) return null;
 
   const displayPreview = preview || existingImageUrl;
+  const formTitle = isEditing
+    ? isSlaveGift
+      ? "Edit gift idea"
+      : "Edit wishlist item"
+    : isSlaveGift
+      ? "Suggest a gift"
+      : "Add to wishlist";
+  const formSubtitle = isEditing
+    ? "Update details or replace the photo"
+    : isSlaveGift
+      ? "Something you want to buy her — photo, link, and notes"
+      : "Share something you like so he can know your taste";
 
   return (
     <form
@@ -261,14 +295,8 @@ export function WishlistForm({
             <Heart className="h-5 w-5 text-gold" />
           </div>
           <div>
-            <h3 className="font-heading text-xl text-ivory">
-              {isEditing ? "Edit wishlist item" : "Add to wishlist"}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {isEditing
-                ? "Update details or replace the photo"
-                : "Share something you like so he can know your taste"}
-            </p>
+            <h3 className="font-heading text-xl text-ivory">{formTitle}</h3>
+            <p className="text-xs text-muted-foreground">{formSubtitle}</p>
           </div>
         </div>
         {isEditing && (
@@ -289,7 +317,7 @@ export function WishlistForm({
           id="wishlist-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="What is it?"
+          placeholder={isSlaveGift ? "What would you buy her?" : "What is it?"}
           className="border-gold/20 bg-void/60"
         />
       </div>
@@ -300,7 +328,11 @@ export function WishlistForm({
           id="wishlist-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Why you like it, size, color…"
+          placeholder={
+            isSlaveGift
+              ? "Why she’d love it, price range, when you plan to buy…"
+              : "Why you like it, size, color…"
+          }
           rows={3}
           className="border-gold/20 bg-void/60"
         />
@@ -396,7 +428,7 @@ export function WishlistForm({
         ) : (
           <>
             <Heart className="mr-2 h-4 w-4" />
-            {isEditing ? "Save changes" : "Add to wishlist"}
+            {isEditing ? "Save changes" : isSlaveGift ? "Suggest gift" : "Add to wishlist"}
           </>
         )}
       </Button>

@@ -77,6 +77,7 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   submission_comment: MessageSquare,
   wishlist: Gift,
   wishlist_add: Gift,
+  wishlist_gift_add: Gift,
   wishlist_comment: MessageSquare,
   wishlist_note: MessageSquare,
   wishlist_seen: Gift,

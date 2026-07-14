@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -23,7 +23,6 @@ async function withSignedUrls(
           })) ?? undefined;
         return { ...item, signedUrl };
       } catch {
-        // Keep the row even if signing fails — never drop persisted items
         return { ...item, signedUrl: undefined };
       }
     })
@@ -34,7 +33,10 @@ export default function WishlistPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const [items, setItems] = useState<WishlistItemWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<WishlistItemWithSignedUrl | null>(null);
+  const [editingQueen, setEditingQueen] =
+    useState<WishlistItemWithSignedUrl | null>(null);
+  const [editingGift, setEditingGift] =
+    useState<WishlistItemWithSignedUrl | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -65,14 +67,28 @@ export default function WishlistPage() {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
 
+  const queenItems = useMemo(
+    () => items.filter((item) => (item.item_kind ?? "queen_taste") === "queen_taste"),
+    [items]
+  );
+  const giftItems = useMemo(
+    () => items.filter((item) => item.item_kind === "slave_gift"),
+    [items]
+  );
+
   const onDeleted = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
-    if (editing?.id === id) setEditing(null);
+    if (editingQueen?.id === id) setEditingQueen(null);
+    if (editingGift?.id === id) setEditingGift(null);
   };
 
   const onUpdated = (item: WishlistItemWithSignedUrl) => {
     setItems((prev) => prev.map((row) => (row.id === item.id ? item : row)));
-    setEditing(null);
+    if (item.item_kind === "slave_gift") {
+      setEditingGift(null);
+    } else {
+      setEditingQueen(null);
+    }
   };
 
   if (authLoading) {
@@ -88,16 +104,28 @@ export default function WishlistPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Pictures of things you like — he tracks seen, ordered, and fulfilled"
-            : "Things Queen likes — mark status and notes as you study or fulfill them"}
+            ? "Her taste and his gift ideas — track seen, ordered, and fulfilled"
+            : "Her taste to study, plus gifts you want to buy her"}
         </p>
       </div>
 
       {isQueen && (
         <WishlistForm
-          key={editing?.id ?? "create"}
-          editingItem={editing}
-          onCancelEdit={() => setEditing(null)}
+          key={editingQueen?.id ?? "queen-create"}
+          variant="queen_taste"
+          editingItem={editingQueen}
+          onCancelEdit={() => setEditingQueen(null)}
+          onSuccess={load}
+          onUpdated={onUpdated}
+        />
+      )}
+
+      {isSlave && (
+        <WishlistForm
+          key={editingGift?.id ?? "gift-create"}
+          variant="slave_gift"
+          editingItem={editingGift}
+          onCancelEdit={() => setEditingGift(null)}
           onSuccess={load}
           onUpdated={onUpdated}
         />
@@ -105,19 +133,48 @@ export default function WishlistPage() {
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">
-          {isSlave ? "Her wishlist" : "Items"}
+          {isSlave ? "Her wishlist" : "Her taste"}
         </h2>
-        {loading && items.length === 0 ? (
+        {loading && queenItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <WishlistGallery
-            items={items}
+            items={queenItems}
+            itemKind="queen_taste"
             onDeleted={onDeleted}
             onChanged={load}
-            onEdit={(item) => {
-              setEditing(item);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+            onEdit={
+              isQueen
+                ? (item) => {
+                    setEditingQueen(item);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                : undefined
+            }
+          />
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-heading text-xl text-gold">
+          {isSlave ? "Your gift ideas" : "D’s gift ideas"}
+        </h2>
+        {loading && giftItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <WishlistGallery
+            items={giftItems}
+            itemKind="slave_gift"
+            onDeleted={onDeleted}
+            onChanged={load}
+            onEdit={
+              isSlave
+                ? (item) => {
+                    setEditingGift(item);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                : undefined
+            }
           />
         )}
       </section>
