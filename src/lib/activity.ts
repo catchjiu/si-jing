@@ -77,6 +77,7 @@ const COMMENT_ATTACHMENT_TYPES = new Set([
   "date",
   "punishment",
   "wishlist",
+  "worship",
 ]);
 
 function pushOtherPartyAdd(
@@ -113,6 +114,7 @@ function voiceNoteHref(
   if (entityType === "journal") return "/dashboard/journal";
   if (entityType === "request") return "/dashboard/requests";
   if (entityType === "wishlist") return "/dashboard/wishlist";
+  if (entityType === "worship") return "/dashboard/worship";
   if (entityType === "submission" && entityId) {
     return `/dashboard/submissions/${entityId}`;
   }
@@ -155,6 +157,8 @@ export async function fetchRecentActivity(
       wishlistItems,
       wishlistGiftItems,
       wishlistMessages,
+      worshipEntries,
+      worshipMessages,
       directMessages,
       datePosts,
       teaseViewCaptures,
@@ -289,6 +293,21 @@ export async function fetchRecentActivity(
         .from("wishlist_messages")
         .select(
           "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      slaveId
+        ? supabase
+            .from("worship_entries")
+            .select("id, title, love_level, created_at, created_by")
+            .eq("created_by", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("worship_messages")
+        .select(
+          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -499,6 +518,31 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const w of worshipEntries.data ?? []) {
+      pushItem(items, {
+        id: `worship-add-${w.id}`,
+        at: w.created_at as string,
+        title: "Worship · D",
+        body: (w.title as string) || "A photo of you in devotion",
+        href: "/dashboard/worship",
+        kind: "worship_add",
+      });
+    }
+
+    for (const m of worshipMessages.data ?? []) {
+      const entry = m.entry as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `worship-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "worship",
+        href: "/dashboard/worship",
+        kind: "worship_comment",
+        context: entry?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
     for (const dm of directMessages.data ?? []) {
       const sender = dm.sender as { role?: string; id?: string } | null;
       if (!isFromOtherParty(sender, profile)) continue;
@@ -516,6 +560,8 @@ export async function fetchRecentActivity(
             ? "/dashboard/dates"
             : attachmentType === "wishlist"
               ? "/dashboard/wishlist"
+              : attachmentType === "worship"
+                ? "/dashboard/worship"
               : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {
@@ -710,6 +756,8 @@ export async function fetchRecentActivity(
                     ? "Voice on a request"
                     : v.entity_type === "wishlist"
                       ? "Voice on wishlist"
+                      : v.entity_type === "worship"
+                        ? "Voice on worship"
                       : "New voice message",
         href,
         kind: "voice_note",
@@ -745,6 +793,8 @@ export async function fetchRecentActivity(
       datePosts,
       wishlistItems,
       wishlistMessages,
+      worshipEntries,
+      worshipMessages,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -886,6 +936,19 @@ export async function fetchRecentActivity(
         .from("wishlist_messages")
         .select(
           "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("worship_entries")
+        .select("id, title, viewed_at, created_at, created_by")
+        .eq("created_by", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("worship_messages")
+        .select(
+          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1057,6 +1120,33 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const w of worshipEntries.data ?? []) {
+      if (w.viewed_at) {
+        pushItem(items, {
+          id: `worship-viewed-${w.id}`,
+          at: w.viewed_at as string,
+          title: "Queen viewed your worship",
+          body: (w.title as string) || "Your offering",
+          href: "/dashboard/worship",
+          kind: "worship_viewed",
+        });
+      }
+    }
+
+    for (const m of worshipMessages.data ?? []) {
+      const entry = m.entry as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `worship-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "worship",
+        href: "/dashboard/worship",
+        kind: "worship_comment",
+        context: entry?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
     for (const dm of directMessages.data ?? []) {
       const sender = dm.sender as { role?: string; id?: string } | null;
       if (!isFromOtherParty(sender, profile)) continue;
@@ -1074,6 +1164,8 @@ export async function fetchRecentActivity(
             ? "/dashboard/dates"
             : attachmentType === "wishlist"
               ? "/dashboard/wishlist"
+              : attachmentType === "worship"
+                ? "/dashboard/worship"
               : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {

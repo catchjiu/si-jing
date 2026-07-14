@@ -130,6 +130,101 @@ export type Database = {
           },
         ]
       }
+      worship_entries: {
+        Row: {
+          id: string
+          created_by: string
+          title: string | null
+          description: string | null
+          image_path: string
+          love_level: number
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
+          viewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          title?: string | null
+          description?: string | null
+          image_path: string
+          love_level?: number
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          title?: string | null
+          description?: string | null
+          image_path?: string
+          love_level?: number
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worship_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worship_messages: {
+        Row: {
+          id: string
+          worship_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          worship_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          worship_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worship_messages_worship_id_fkey"
+            columns: ["worship_id"]
+            isOneToOne: false
+            referencedRelation: "worship_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worship_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wishlist_items: {
         Row: {
           id: string

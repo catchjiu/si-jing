@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarHeart,
   Gift,
+  Crown,
   HandHeart,
   Heart,
   ListTodo,
@@ -32,6 +33,7 @@ const ICONS = {
   date: CalendarHeart,
   journal: BookOpen,
   wishlist: Heart,
+  worship: Crown,
 } as const;
 
 export function MessageCard({

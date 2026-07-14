@@ -88,6 +88,26 @@ export type WishlistItemWithSignedUrl = WishlistItem & {
   signedUrl?: string;
 };
 
+export type WorshipEntry = {
+  id: string;
+  created_by: string;
+  title: string | null;
+  description: string | null;
+  image_path: string;
+  love_level: number;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_m: number | null;
+  location_source: ImageLocationSource | null;
+  viewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorshipEntryWithSignedUrl = WorshipEntry & {
+  signedUrl?: string;
+};
+
 export type PunishmentType =
   | "contact_restriction"
   | "custom"
@@ -202,7 +222,8 @@ export type VoiceEntityType =
   | "tease"
   | "date"
   | "journal"
-  | "wishlist";
+  | "wishlist"
+  | "worship";
 
 export type StreakMilestone = {
   id: string;

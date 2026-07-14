@@ -10,6 +10,7 @@ import {
   BookOpen,
   ClipboardList,
   Gift,
+  Crown,
   HandHeart,
   Heart,
   ImageIcon,
@@ -82,6 +83,10 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   wishlist_note: MessageSquare,
   wishlist_seen: Gift,
   wishlist_status: Gift,
+  worship: Crown,
+  worship_add: Crown,
+  worship_comment: MessageSquare,
+  worship_viewed: Crown,
   inbox_message: MessageSquare,
   inbox_voice: Mic,
 };
