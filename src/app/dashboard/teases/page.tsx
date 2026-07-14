@@ -18,17 +18,17 @@ import {
   pickVideoRecorderMimeType,
   TeaseReactionRecorder,
   uploadTeaseReactionCapture,
+  releaseCameraPause,
 } from "@/lib/tease-reaction-recorder";
 import {
   formatTeaseViewCount,
-  recordTeaseView,
   teaseWatchMetric,
 } from "@/lib/tease-views";
 import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
 import {
-  TeaseViewCapturePlayer,
-} from "@/components/teases/tease-view-capture-player";
+  TeaseViewCaptureGallery,
+} from "@/components/teases/tease-view-capture-gallery";
 import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
@@ -161,7 +161,7 @@ export default function TeasesPage() {
 
   useEffect(() => {
     return () => {
-      reactionRecorderRef.current?.dispose();
+      void reactionRecorderRef.current?.dispose();
       reactionRecorderRef.current = null;
     };
   }, []);
@@ -578,13 +578,16 @@ export default function TeasesPage() {
     mediaKind: TeaseMediaKind
   ) => {
     const recorder = reactionRecorderRef.current;
-    if (!recorder || !profile) return;
+    if (!recorder || !profile) {
+      toast.error("No reaction recording — open the tease again with camera");
+      return;
+    }
 
     const durationMs = recorder.getDurationMs();
     const mime =
       recorder.getRecordedMime() || pickVideoRecorderMimeType() || "video/webm";
     const blob = await recorder.stopRecording();
-    recorder.dispose();
+    await recorder.dispose();
     reactionRecorderRef.current = null;
     setCameraStream(null);
 
@@ -603,7 +606,6 @@ export default function TeasesPage() {
         mime,
         watchMetric,
       });
-      await recordTeaseView(supabase, teaseId, watchMetric);
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Reaction video on tease",
@@ -615,6 +617,7 @@ export default function TeasesPage() {
           target: "queen",
         })
       );
+      toast.success("Reaction video sent to Queen");
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Could not send reaction video";
@@ -630,9 +633,12 @@ export default function TeasesPage() {
       return false;
     }
     try {
-      reactionRecorderRef.current?.dispose();
+      if (reactionRecorderRef.current) {
+        await reactionRecorderRef.current.dispose();
+      }
       reactionRecorderRef.current = null;
       setCameraStream(null);
+      await releaseCameraPause();
       const recorder = new TeaseReactionRecorder();
       const stream = await recorder.start();
       reactionRecorderRef.current = recorder;
@@ -723,7 +729,9 @@ export default function TeasesPage() {
 
     if (!signedUrl) {
       setOpening(null);
-      reactionRecorderRef.current?.dispose();
+      if (reactionRecorderRef.current) {
+        await reactionRecorderRef.current.dispose();
+      }
       reactionRecorderRef.current = null;
       setCameraStream(null);
       toast.error("Could not open tease");
@@ -1241,19 +1249,19 @@ export default function TeasesPage() {
                             ? `Available ${formatRelative(t.unlocks_at)}`
                             : `Available ${formatDeadline(t.unlocks_at)}`}
                       {t.screenshot_flagged_at ? " · capture alert" : ""}
-                      {isQueen && (t.view_count ?? 0) > 0
+                      {(t.view_count ?? 0) > 0
                         ? ` · ${formatTeaseViewCount(t.view_count ?? 0, t.media_kind ?? "image")}`
-                        : t.viewed_at
+                        : isQueen && t.viewed_at
                           ? " · viewed"
                           : ""}
                     </p>
                   </div>
 
-                  {isQueen && (t.view_count ?? 0) > 0 && (
+                  {(isQueen || isSlave) && (
                     <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-void/50 px-3 py-2 text-sm text-ivory">
                       <BarChart3 className="h-4 w-4 text-gold" />
                       <span>
-                        D&apos;s attention ·{" "}
+                        {isQueen ? "D's attention · " : "Your attention · "}
                         <span className="font-heading text-gold">
                           {formatTeaseViewCount(
                             t.view_count ?? 0,
@@ -1297,8 +1305,11 @@ export default function TeasesPage() {
                     </p>
                   )}
 
-                  {isQueen && t.view_captures?.[0] && (
-                    <TeaseViewCapturePlayer capture={t.view_captures[0]} />
+                  {isQueen && (t.view_captures?.length ?? 0) > 0 && (
+                    <TeaseViewCaptureGallery
+                      captures={t.view_captures ?? []}
+                      mediaKind={t.media_kind ?? "image"}
+                    />
                   )}
 
                   {isSlave && (

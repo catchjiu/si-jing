@@ -14,6 +14,9 @@ export function formatTeaseViewCount(
   count: number,
   mediaKind: TeaseMediaKind
 ): string {
+  if (count <= 0) {
+    return mediaKind === "video" ? "0 views" : "0s looked";
+  }
   if (mediaKind === "video") {
     return count === 1 ? "1 view" : `${count} views`;
   }

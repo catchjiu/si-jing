@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { presignAndUpload } from "@/lib/storage/client";
+import { recordTeaseView } from "@/lib/tease-views";
 
 export const TEASE_REACTION_MAX_MS = 8_000;
+
+const CAMERA_RELEASE_MS = 350;
+const CHUNK_WAIT_MS = 1_200;
 
 export function pickVideoRecorderMimeType(): string | null {
   if (typeof MediaRecorder === "undefined") return null;
@@ -32,6 +36,15 @@ function blobType(mime: string): string {
   return mime.split(";")[0];
 }
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+/** Let the browser fully release the camera before opening it again. */
+export async function releaseCameraPause() {
+  await sleep(CAMERA_RELEASE_MS);
+}
+
 export class TeaseReactionRecorder {
   private stream: MediaStream | null = null;
   private recorder: MediaRecorder | null = null;
@@ -51,7 +64,7 @@ export class TeaseReactionRecorder {
   }
 
   async start(): Promise<MediaStream> {
-    this.dispose();
+    await this.dispose();
 
     const mime = pickVideoRecorderMimeType();
     if (!mime) {
@@ -88,10 +101,11 @@ export class TeaseReactionRecorder {
     return stream;
   }
 
-  attachPreview(videoEl: HTMLVideoElement | null) {
-    if (!videoEl || !this.stream) return;
-    videoEl.srcObject = this.stream;
-    void videoEl.play().catch(() => undefined);
+  private async waitForChunks(): Promise<void> {
+    const deadline = Date.now() + CHUNK_WAIT_MS;
+    while (!this.chunks.length && Date.now() < deadline) {
+      await sleep(50);
+    }
   }
 
   private async finalizeMediaRecorder(): Promise<void> {
@@ -109,12 +123,22 @@ export class TeaseReactionRecorder {
         return;
       }
 
+      let settled = false;
       const done = () => {
+        if (settled) return;
+        settled = true;
         this.finalized = true;
         resolve();
       };
 
-      recorder.addEventListener("stop", done, { once: true });
+      recorder.addEventListener(
+        "stop",
+        () => {
+          window.setTimeout(done, 120);
+        },
+        { once: true }
+      );
+
       try {
         if (recorder.state === "recording") {
           recorder.requestData();
@@ -123,10 +147,13 @@ export class TeaseReactionRecorder {
       } catch {
         done();
       }
+
+      window.setTimeout(done, CHUNK_WAIT_MS);
     });
 
     await this.finalizePromise;
     this.finalizePromise = null;
+    await this.waitForChunks();
 
     if (this.maxTimer) {
       window.clearTimeout(this.maxTimer);
@@ -140,21 +167,18 @@ export class TeaseReactionRecorder {
 
   async stopRecording(): Promise<Blob | null> {
     await this.finalizeMediaRecorder();
+    await this.waitForChunks();
     if (!this.chunks.length) return null;
     return new Blob(this.chunks, { type: blobType(this.mime) });
   }
 
-  dispose() {
+  async dispose() {
     if (this.maxTimer) {
       window.clearTimeout(this.maxTimer);
       this.maxTimer = null;
     }
-    try {
-      if (this.recorder && this.recorder.state !== "inactive") {
-        this.recorder.stop();
-      }
-    } catch {
-      // ignore
+    if (this.recorder && this.recorder.state !== "inactive") {
+      await this.finalizeMediaRecorder();
     }
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
@@ -199,5 +223,10 @@ export async function uploadTeaseReactionCapture(
   });
 
   if (error) throw error;
+
+  if (opts.watchMetric && opts.watchMetric > 0) {
+    await recordTeaseView(supabase, opts.teaseId, opts.watchMetric);
+  }
+
   return path;
 }
