@@ -23,6 +23,8 @@ import { RoleSpeech } from "@/components/ui/role-speech";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { MessageCard } from "@/components/inbox/message-card";
 import { ChatComposer } from "@/components/inbox/chat-composer";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { InboxTeaseEmbed } from "@/components/inbox/inbox-tease-embed";
 import type { EvidencePinMediaKind } from "@/lib/types";
@@ -339,16 +341,50 @@ export function ChatThread({
               !!teaseId && !shownTeaseEmbeds.has(teaseId);
             if (teaseId && showTeaseEmbed) shownTeaseEmbeds.add(teaseId);
 
+            const senderName = m.sender?.username ?? "Someone";
+            const senderInitial = senderName[0]?.toUpperCase() ?? "?";
+
             return (
               <div
                 key={m.id}
                 className={cn(
-                  "rounded-lg border px-3 py-2",
-                  mine
-                    ? "ml-6 border-gold/25 bg-gold/5"
-                    : "mr-6 border-royal/40 bg-royal/15"
+                  "flex items-start gap-2.5",
+                  mine ? "ml-2 flex-row-reverse" : "mr-2"
                 )}
               >
+                <Avatar
+                  size="sm"
+                  className={cn(
+                    "mt-0.5 shrink-0",
+                    isQueenAuthor && "ring-1 ring-gold/35"
+                  )}
+                >
+                  {m.sender?.avatar_url && (
+                    <SignedAvatarImage
+                      avatarUrl={m.sender.avatar_url}
+                      alt={senderName}
+                    />
+                  )}
+                  <AvatarFallback
+                    className={cn(
+                      "text-xs font-medium",
+                      isQueenAuthor
+                        ? "bg-royal text-gold"
+                        : "bg-charcoal text-ivory"
+                    )}
+                  >
+                    {senderInitial}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div
+                  className={cn(
+                    "min-w-0 flex-1 rounded-lg border px-3 py-2",
+                    mine
+                      ? "border-gold/25 bg-gold/5"
+                      : "border-royal/40 bg-royal/15"
+                  )}
+                >
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span
                     className={cn(
@@ -356,8 +392,7 @@ export function ChatThread({
                       isQueenAuthor ? "text-gold" : "text-ivory/80"
                     )}
                   >
-                    {m.sender?.username ?? "Someone"}
-                    {isQueenAuthor ? " · Queen" : ""}
+                    {isQueenAuthor ? "Queen" : "slave"}
                   </span>
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-muted-foreground">
@@ -458,6 +493,7 @@ export function ChatThread({
                     summary={m.content}
                   />
                 ) : null}
+                </div>
               </div>
             );
             });
