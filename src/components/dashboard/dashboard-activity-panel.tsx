@@ -85,6 +85,8 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   wishlist_status: Gift,
   worship: Crown,
   worship_add: Crown,
+  worship_gallery_add: Crown,
+  worship_gallery_viewed: Crown,
   worship_comment: MessageSquare,
   worship_viewed: Crown,
   inbox_message: MessageSquare,

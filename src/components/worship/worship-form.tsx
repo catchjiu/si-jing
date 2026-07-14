@@ -22,6 +22,8 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface WorshipFormProps {
+  galleryId: string;
+  galleryTopic?: string | null;
   editingEntry?: WorshipEntryWithSignedUrl | null;
   onCancelEdit?: () => void;
   onSuccess?: () => void;
@@ -30,6 +32,8 @@ interface WorshipFormProps {
 }
 
 export function WorshipForm({
+  galleryId,
+  galleryTopic,
   editingEntry = null,
   onCancelEdit,
   onSuccess,
@@ -207,17 +211,22 @@ export function WorshipForm({
           .from("worship_entries")
           .insert({
             created_by: profile.id,
+            gallery_id: galleryId,
             ...payload,
           });
 
         if (insertError) throw insertError;
 
-        toast.success("Worship offered to Queen");
+        toast.success("Photo added to gallery");
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
-            title: "New worship",
-            body: title.trim() || description.trim().slice(0, 80) || "D shared a photo of you",
-            url: "/dashboard/worship",
+            title: "New worship photo",
+            body:
+              title.trim() ||
+              description.trim().slice(0, 80) ||
+              galleryTopic ||
+              "D added a photo of you",
+            url: `/dashboard/worship/${galleryId}`,
             target: "queen",
           })
         );
@@ -255,12 +264,14 @@ export function WorshipForm({
           </div>
           <div>
             <h3 className="font-heading text-xl text-ivory">
-              {isEditing ? "Edit worship" : "Offer worship"}
+              {isEditing ? "Edit photo" : "Add photo"}
             </h3>
             <p className="text-xs text-muted-foreground">
               {isEditing
                 ? "Update the photo, description, or love rating"
-                : "Upload a photo of Queen and describe what she means to you"}
+                : galleryTopic
+                  ? `Add to “${galleryTopic}”`
+                  : "Upload a photo of Queen for this gallery"}
             </p>
           </div>
         </div>
@@ -407,7 +418,7 @@ export function WorshipForm({
         ) : (
           <>
             <Crown className="mr-2 h-4 w-4" />
-            {isEditing ? "Save worship" : "Offer worship"}
+            {isEditing ? "Save photo" : "Add photo"}
           </>
         )}
       </Button>

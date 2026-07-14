@@ -133,6 +133,7 @@ export type Database = {
       worship_entries: {
         Row: {
           id: string
+          gallery_id: string
           created_by: string
           title: string | null
           description: string | null
@@ -148,6 +149,7 @@ export type Database = {
         }
         Insert: {
           id?: string
+          gallery_id: string
           created_by: string
           title?: string | null
           description?: string | null
@@ -163,6 +165,7 @@ export type Database = {
         }
         Update: {
           id?: string
+          gallery_id?: string
           created_by?: string
           title?: string | null
           description?: string | null
@@ -180,6 +183,90 @@ export type Database = {
           {
             foreignKeyName: "worship_entries_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worship_entries_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "worship_galleries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worship_galleries: {
+        Row: {
+          id: string
+          created_by: string
+          topic: string
+          description: string | null
+          viewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          topic: string
+          description?: string | null
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          topic?: string
+          description?: string | null
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worship_galleries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worship_gallery_messages: {
+        Row: {
+          id: string
+          gallery_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          gallery_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          gallery_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worship_gallery_messages_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "worship_galleries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worship_gallery_messages_author_id_fkey"
+            columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]

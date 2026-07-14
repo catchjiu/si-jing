@@ -90,6 +90,7 @@ export type WishlistItemWithSignedUrl = WishlistItem & {
 
 export type WorshipEntry = {
   id: string;
+  gallery_id: string;
   created_by: string;
   title: string | null;
   description: string | null;
@@ -106,6 +107,23 @@ export type WorshipEntry = {
 
 export type WorshipEntryWithSignedUrl = WorshipEntry & {
   signedUrl?: string;
+};
+
+export type WorshipGalleryTopic = {
+  id: string;
+  created_by: string;
+  topic: string;
+  description: string | null;
+  viewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorshipGalleryTopicWithMeta = WorshipGalleryTopic & {
+  coverSignedUrl?: string;
+  entryCount: number;
+  unviewedCount: number;
+  avgLoveLevel: number | null;
 };
 
 export type PunishmentType =
@@ -223,7 +241,8 @@ export type VoiceEntityType =
   | "date"
   | "journal"
   | "wishlist"
-  | "worship";
+  | "worship"
+  | "worship_gallery";
 
 export type StreakMilestone = {
   id: string;

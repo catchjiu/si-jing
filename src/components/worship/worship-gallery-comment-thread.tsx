@@ -9,37 +9,34 @@ import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
-import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RoleSpeech } from "@/components/ui/role-speech";
 
-type WorshipMessage = {
+type WorshipGalleryMessage = {
   id: string;
-  worship_id: string;
+  gallery_id: string;
   author_id: string;
   content: string;
   created_at: string;
   author?: Pick<Profile, "id" | "username" | "role"> | null;
 };
 
-interface WorshipCommentThreadProps {
-  worshipId: string;
-  galleryId?: string;
-  worshipTitle?: string | null;
+interface WorshipGalleryCommentThreadProps {
+  galleryId: string;
+  galleryTopic?: string | null;
   className?: string;
 }
 
-export function WorshipCommentThread({
-  worshipId,
+export function WorshipGalleryCommentThread({
   galleryId,
-  worshipTitle,
+  galleryTopic,
   className,
-}: WorshipCommentThreadProps) {
+}: WorshipGalleryCommentThreadProps) {
   const { profile, isSlave } = useAuth();
-  const [messages, setMessages] = useState<WorshipMessage[]>([]);
+  const [messages, setMessages] = useState<WorshipGalleryMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,32 +44,32 @@ export function WorshipCommentThread({
   const load = useCallback(async () => {
     const supabase = createClient();
     const { data, error } = await supabase
-      .from("worship_messages")
+      .from("worship_gallery_messages")
       .select("*, author:users!author_id(id, username, role)")
-      .eq("worship_id", worshipId)
+      .eq("gallery_id", galleryId)
       .order("created_at", { ascending: true });
 
     if (error) {
-      toast.error("Could not load comments");
+      toast.error("Could not load gallery comments");
       setLoading(false);
       return;
     }
-    setMessages((data as WorshipMessage[]) ?? []);
+    setMessages((data as WorshipGalleryMessage[]) ?? []);
     setLoading(false);
-  }, [worshipId]);
+  }, [galleryId]);
 
   useEffect(() => {
     void load();
     const supabase = createClient();
     const channel = supabase
-      .channel(`worship-messages:${worshipId}`)
+      .channel(`worship-gallery-messages:${galleryId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "worship_messages",
-          filter: `worship_id=eq.${worshipId}`,
+          table: "worship_gallery_messages",
+          filter: `gallery_id=eq.${galleryId}`,
         },
         () => {
           void load();
@@ -82,15 +79,15 @@ export function WorshipCommentThread({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [worshipId, load]);
+  }, [galleryId, load]);
 
   const send = async () => {
     if (!profile || !draft.trim()) return;
     setSending(true);
     const supabase = createClient();
     const text = formatRoleSpeech(draft.trim(), profile.role);
-    const { error } = await supabase.from("worship_messages").insert({
-      worship_id: worshipId,
+    const { error } = await supabase.from("worship_gallery_messages").insert({
+      gallery_id: galleryId,
       author_id: profile.id,
       content: text,
     });
@@ -101,17 +98,10 @@ export function WorshipCommentThread({
     }
     setDraft("");
     void load();
-    void postToTopicThread(supabase, {
-      topic: "general",
-      senderId: profile.id,
-      content: text,
-      attachmentType: "worship",
-      attachmentId: worshipId,
-    });
     void notifyPush({
-      title: isSlave ? "Comment on worship" : "Queen commented on worship",
+      title: isSlave ? "Comment on worship gallery" : "Queen commented on gallery",
       body: text.slice(0, 120),
-      url: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
+      url: `/dashboard/worship/${galleryId}`,
       target: isSlave ? "queen" : "slave",
     });
   };
@@ -119,13 +109,13 @@ export function WorshipCommentThread({
   return (
     <div className={cn("space-y-4 border-t border-gold/10 pt-4", className)}>
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        Comments
+        Gallery comments
       </p>
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No comments yet.</p>
+        <p className="text-xs text-muted-foreground">No comments on this gallery yet.</p>
       ) : (
         <ul className="space-y-2">
           {messages.map((m) => {
@@ -171,8 +161,8 @@ export function WorshipCommentThread({
           rows={2}
           placeholder={
             isSlave
-              ? "Add to your worship or respond to Queen…"
-              : "Reply to his worship…"
+              ? "Notes about this collection…"
+              : "Reply on this gallery…"
           }
           className="border-gold/20 bg-void/60"
           onKeyDown={(e) => {
@@ -199,13 +189,13 @@ export function WorshipCommentThread({
       </div>
 
       <VoiceNotes
-        entityType="worship"
-        entityId={worshipId}
+        entityType="worship_gallery"
+        entityId={galleryId}
         compact
         title={
           isSlave
-            ? "Voice comment"
-            : `Voice on ${worshipTitle || "worship"}`
+            ? "Voice on gallery"
+            : `Voice on ${galleryTopic || "gallery"}`
         }
       />
     </div>

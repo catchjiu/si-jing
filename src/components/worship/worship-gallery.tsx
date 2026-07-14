@@ -26,6 +26,7 @@ import { WorshipCommentThread } from "@/components/worship/worship-comment-threa
 
 interface WorshipGalleryProps {
   entries: WorshipEntryWithSignedUrl[];
+  galleryId?: string;
   onDeleted?: (id: string) => void;
   onEdit?: (entry: WorshipEntryWithSignedUrl) => void;
   onChanged?: () => void;
@@ -35,6 +36,7 @@ interface WorshipGalleryProps {
 
 export function WorshipGallery({
   entries,
+  galleryId,
   onDeleted,
   onEdit,
   onChanged,
@@ -111,8 +113,8 @@ export function WorshipGallery({
         <Crown className="mx-auto mb-3 h-8 w-8 text-gold/40" />
         <p className="text-sm text-muted-foreground">
           {isSlave
-            ? "Offer your first photo of Queen."
-            : "D has not offered worship yet."}
+            ? "Add your first photo to this gallery."
+            : "No photos in this gallery yet."}
         </p>
       </div>
     );
@@ -244,6 +246,7 @@ export function WorshipGallery({
 
                 <WorshipCommentThread
                   worshipId={active.id}
+                  galleryId={galleryId}
                   worshipTitle={active.title}
                 />
 

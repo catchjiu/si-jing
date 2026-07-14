@@ -115,6 +115,9 @@ function voiceNoteHref(
   if (entityType === "request") return "/dashboard/requests";
   if (entityType === "wishlist") return "/dashboard/wishlist";
   if (entityType === "worship") return "/dashboard/worship";
+  if (entityType === "worship_gallery" && entityId) {
+    return `/dashboard/worship/${entityId}`;
+  }
   if (entityType === "submission" && entityId) {
     return `/dashboard/submissions/${entityId}`;
   }
@@ -157,6 +160,7 @@ export async function fetchRecentActivity(
       wishlistItems,
       wishlistGiftItems,
       wishlistMessages,
+      worshipGalleries,
       worshipEntries,
       worshipMessages,
       directMessages,
@@ -298,8 +302,16 @@ export async function fetchRecentActivity(
         .limit(FETCH_LIMIT),
       slaveId
         ? supabase
+            .from("worship_galleries")
+            .select("id, topic, created_at, created_by")
+            .eq("created_by", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      slaveId
+        ? supabase
             .from("worship_entries")
-            .select("id, title, love_level, created_at, created_by")
+            .select("id, title, love_level, gallery_id, created_at, created_by")
             .eq("created_by", slaveId)
             .order("created_at", { ascending: false })
             .limit(FETCH_LIMIT)
@@ -307,7 +319,7 @@ export async function fetchRecentActivity(
       supabase
         .from("worship_messages")
         .select(
-          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title)"
+          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title, gallery_id)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -518,25 +530,39 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const g of worshipGalleries.data ?? []) {
+      pushItem(items, {
+        id: `worship-gallery-${g.id}`,
+        at: g.created_at as string,
+        title: "Worship gallery · D",
+        body: (g.topic as string) || "A new themed collection",
+        href: `/dashboard/worship/${g.id as string}`,
+        kind: "worship_gallery_add",
+      });
+    }
+
     for (const w of worshipEntries.data ?? []) {
+      const galleryId = w.gallery_id as string | undefined;
       pushItem(items, {
         id: `worship-add-${w.id}`,
         at: w.created_at as string,
-        title: "Worship · D",
-        body: (w.title as string) || "A photo of you in devotion",
-        href: "/dashboard/worship",
+        title: "Worship photo · D",
+        body: (w.title as string) || "A new photo of you",
+        href: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
         kind: "worship_add",
       });
     }
 
     for (const m of worshipMessages.data ?? []) {
-      const entry = m.entry as { title?: string } | null;
+      const entry = m.entry as { title?: string; gallery_id?: string } | null;
       pushOtherPartyComment(items, profile, {
         id: `worship-comment-${m.id}`,
         at: m.created_at as string,
         content: m.content as string,
         where: "worship",
-        href: "/dashboard/worship",
+        href: entry?.gallery_id
+          ? `/dashboard/worship/${entry.gallery_id}`
+          : "/dashboard/worship",
         kind: "worship_comment",
         context: entry?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -756,8 +782,10 @@ export async function fetchRecentActivity(
                     ? "Voice on a request"
                     : v.entity_type === "wishlist"
                       ? "Voice on wishlist"
-                      : v.entity_type === "worship"
-                        ? "Voice on worship"
+                    : v.entity_type === "worship"
+                      ? "Voice on worship"
+                      : v.entity_type === "worship_gallery"
+                        ? "Voice on worship gallery"
                       : "New voice message",
         href,
         kind: "voice_note",
@@ -793,6 +821,7 @@ export async function fetchRecentActivity(
       datePosts,
       wishlistItems,
       wishlistMessages,
+      worshipGalleries,
       worshipEntries,
       worshipMessages,
     ] = await Promise.all([
@@ -940,15 +969,21 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("worship_galleries")
+        .select("id, topic, viewed_at, created_at, created_by")
+        .eq("created_by", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("worship_entries")
-        .select("id, title, viewed_at, created_at, created_by")
+        .select("id, title, viewed_at, gallery_id, created_at, created_by")
         .eq("created_by", profile.id)
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
         .from("worship_messages")
         .select(
-          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title)"
+          "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title, gallery_id)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1120,27 +1155,43 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const w of worshipGalleries.data ?? []) {
+      if (w.viewed_at) {
+        pushItem(items, {
+          id: `worship-gallery-viewed-${w.id}`,
+          at: w.viewed_at as string,
+          title: "Queen viewed your gallery",
+          body: (w.topic as string) || "Your worship gallery",
+          href: `/dashboard/worship/${w.id as string}`,
+          kind: "worship_gallery_viewed",
+        });
+      }
+    }
+
     for (const w of worshipEntries.data ?? []) {
       if (w.viewed_at) {
+        const galleryId = w.gallery_id as string | undefined;
         pushItem(items, {
           id: `worship-viewed-${w.id}`,
           at: w.viewed_at as string,
-          title: "Queen viewed your worship",
+          title: "Queen viewed your photo",
           body: (w.title as string) || "Your offering",
-          href: "/dashboard/worship",
+          href: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
           kind: "worship_viewed",
         });
       }
     }
 
     for (const m of worshipMessages.data ?? []) {
-      const entry = m.entry as { title?: string } | null;
+      const entry = m.entry as { title?: string; gallery_id?: string } | null;
       pushOtherPartyComment(items, profile, {
         id: `worship-comment-${m.id}`,
         at: m.created_at as string,
         content: m.content as string,
         where: "worship",
-        href: "/dashboard/worship",
+        href: entry?.gallery_id
+          ? `/dashboard/worship/${entry.gallery_id}`
+          : "/dashboard/worship",
         kind: "worship_comment",
         context: entry?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
