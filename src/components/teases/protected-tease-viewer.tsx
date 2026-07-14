@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, ShieldAlert, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
 import type { TeaseMediaKind } from "@/lib/types";
 
 type ProtectedTeaseViewerProps = {
@@ -11,6 +12,7 @@ type ProtectedTeaseViewerProps = {
   mediaKind?: TeaseMediaKind;
   durationSeconds: number | null;
   title?: string | null;
+  cameraStream?: MediaStream | null;
   onSessionEnd: (reason: "expired" | "left" | "closed") => void;
   onSuspiciousCapture?: () => void;
   className?: string;
@@ -26,6 +28,7 @@ export function ProtectedTeaseViewer({
   mediaKind = "image",
   durationSeconds,
   title,
+  cameraStream,
   onSessionEnd,
   onSuspiciousCapture,
   className,
@@ -148,6 +151,12 @@ export function ProtectedTeaseViewer({
       </div>
 
       <div className="relative flex-1 overflow-hidden bg-black">
+        {cameraStream && (
+          <TeaseReactionCameraPip
+            stream={cameraStream}
+            className="absolute right-3 top-3 z-10 h-24 w-20 sm:h-28 sm:w-24"
+          />
+        )}
         {blanked ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
             <Eye className="size-8 text-muted-foreground" />

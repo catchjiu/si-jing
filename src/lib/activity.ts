@@ -156,6 +156,7 @@ export async function fetchRecentActivity(
       wishlistMessages,
       directMessages,
       datePosts,
+      teaseViewCaptures,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -293,6 +294,13 @@ export async function fetchRecentActivity(
         .from("date_posts")
         .select(
           "id, body, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("tease_view_captures")
+        .select(
+          "id, created_at, tease_id, viewer_id, duration_ms, tease:teases(title), viewer:users!viewer_id(id, role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -562,6 +570,20 @@ export async function fetchRecentActivity(
           kind: "tease_viewed",
         });
       }
+    }
+
+    for (const cap of teaseViewCaptures.data ?? []) {
+      const viewer = cap.viewer as { role?: string; id?: string } | null;
+      if (!isFromOtherParty(viewer, profile)) continue;
+      const tease = cap.tease as { title?: string } | null;
+      pushItem(items, {
+        id: `tease-react-vid-${cap.id}`,
+        at: cap.created_at as string,
+        title: "Reaction video on tease · D",
+        body: tease?.title ?? "D viewed a tease on camera",
+        href: "/dashboard/teases",
+        kind: "tease_reaction_video",
+      });
     }
 
     for (const r of rewards.data ?? []) {

@@ -17,6 +17,7 @@ import {
   Mic,
   Sparkles,
   Upload,
+  Video,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -53,6 +54,7 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   tease_revealed: Sparkles,
   tease_viewed: Sparkles,
   tease_capture: Sparkles,
+  tease_reaction_video: Video,
   tease_message: MessageSquare,
   tease_comment: MessageSquare,
   reward: Gift,

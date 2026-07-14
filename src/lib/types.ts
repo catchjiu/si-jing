@@ -426,9 +426,19 @@ export type TeaseUnlockTask = {
   created_at: string;
 };
 
+export type TeaseViewCapture = {
+  id: string;
+  tease_id: string;
+  viewer_id: string;
+  video_path: string;
+  duration_ms: number | null;
+  created_at: string;
+};
+
 export type TeaseWithSignedUrl = Tease & {
   signedUrl?: string;
   unlock_tasks?: TeaseUnlockTask[];
+  view_captures?: TeaseViewCapture[];
 };
 
 export type TaskWithRelations = Task & {

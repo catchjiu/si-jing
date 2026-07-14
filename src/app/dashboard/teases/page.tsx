@@ -1,19 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
-import type { Profile, TeaseMediaKind, TeaseWithSignedUrl } from "@/lib/types";
+import type { Profile, TeaseMediaKind, TeaseViewCapture, TeaseWithSignedUrl } from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
+import {
+  isTeaseReactionCaptureSupported,
+  pickVideoRecorderMimeType,
+  TeaseReactionRecorder,
+  uploadTeaseReactionCapture,
+} from "@/lib/tease-reaction-recorder";
 import { ProtectedTeaseViewer } from "@/components/teases/protected-tease-viewer";
+import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
+import {
+  TeaseViewCapturePlayer,
+} from "@/components/teases/tease-view-capture-player";
 import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
@@ -44,6 +54,7 @@ import {
   Sparkles,
   Timer,
   Trash2,
+  Video,
   X,
   Repeat2,
 } from "lucide-react";
@@ -161,6 +172,16 @@ export default function TeasesPage() {
   } | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const [revealFrozen, setRevealFrozen] = useState(false);
+  const [inlineViewId, setInlineViewId] = useState<string | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const reactionRecorderRef = useRef<TeaseReactionRecorder | null>(null);
+
+  useEffect(() => {
+    return () => {
+      reactionRecorderRef.current?.dispose();
+      reactionRecorderRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isQueen || !recipient) {
@@ -176,7 +197,9 @@ export default function TeasesPage() {
     const supabase = createClient();
     let query = supabase
       .from("teases")
-      .select("*, unlock_tasks:tease_unlock_tasks(*)")
+      .select(
+        "*, unlock_tasks:tease_unlock_tasks(*), view_captures:tease_view_captures(*)"
+      )
       .order("created_at", { ascending: false });
     if (isSlave) query = query.eq("sent_to", profile.id);
     const { data } = await query;
@@ -184,6 +207,10 @@ export default function TeasesPage() {
       ...t,
       unlock_tasks: [...(t.unlock_tasks ?? [])].sort(
         (a, b) => a.sort_order - b.sort_order
+      ),
+      view_captures: [...(t.view_captures ?? [])].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ),
     }));
     const signed = await withSignedUrls(rows, {
@@ -570,12 +597,110 @@ export default function TeasesPage() {
     }
   };
 
+  const uploadReactionAndCleanup = async (teaseId: string) => {
+    const recorder = reactionRecorderRef.current;
+    if (!recorder || !profile) return;
+    const blob = recorder.stopRecording();
+    const durationMs = recorder.getDurationMs();
+    const mime = pickVideoRecorderMimeType() || "video/webm";
+    recorder.dispose();
+    reactionRecorderRef.current = null;
+    setCameraStream(null);
+
+    if (!blob || blob.size === 0) return;
+
+    try {
+      const supabase = createClient();
+      await uploadTeaseReactionCapture(supabase, {
+        teaseId,
+        viewerId: profile.id,
+        blob,
+        durationMs,
+        mime,
+      });
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "Reaction video on tease",
+          body: "D viewed a tease — reaction cam sent",
+          url: "/dashboard/teases",
+          target: "queen",
+        })
+      );
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Could not send reaction video";
+      toast.error(msg);
+    }
+  };
+
+  const startCameraSession = async (): Promise<boolean> => {
+    if (!isTeaseReactionCaptureSupported()) {
+      toast.error(
+        "Camera recording is not supported — use Safari or Chrome on a device with a front camera"
+      );
+      return false;
+    }
+    try {
+      reactionRecorderRef.current?.dispose();
+      const recorder = new TeaseReactionRecorder();
+      const stream = await recorder.start();
+      reactionRecorderRef.current = recorder;
+      setCameraStream(stream);
+      return true;
+    } catch {
+      toast.error("Camera required — allow front camera to view teases");
+      return false;
+    }
+  };
+
+  const endInlineView = async () => {
+    if (!inlineViewId) return;
+    const id = inlineViewId;
+    setInlineViewId(null);
+    await uploadReactionAndCleanup(id);
+    void load();
+  };
+
+  const beginInlineView = async (tease: TeaseWithSignedUrl) => {
+    if (!isSlave || !profile || !tease.image_path) return;
+    if (inlineViewId === tease.id) return;
+    if (inlineViewId) await endInlineView();
+
+    setOpening(tease.id);
+    const ok = await startCameraSession();
+    if (!ok) {
+      setOpening(null);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const supabase = createClient();
+    await supabase
+      .from("teases")
+      .update({
+        viewed_at: tease.viewed_at ?? now,
+        view_started_at: now,
+      })
+      .eq("id", tease.id);
+
+    setInlineViewId(tease.id);
+    setOpening(null);
+  };
+
   const openProtectedView = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || !tease.image_path) return;
     if (tease.is_blurred || isExpired(tease) || !isTimeUnlocked(tease.unlocks_at))
       return;
 
     setOpening(tease.id);
+    if (inlineViewId) await endInlineView();
+
+    const ok = await startCameraSession();
+    if (!ok) {
+      setOpening(null);
+      return;
+    }
+
     const expiresIn = Math.max(tease.view_duration_seconds ?? 60, 60);
     const signedUrl = await signObjectUrl({
       bucket: "teases",
@@ -585,6 +710,9 @@ export default function TeasesPage() {
 
     if (!signedUrl) {
       setOpening(null);
+      reactionRecorderRef.current?.dispose();
+      reactionRecorderRef.current = null;
+      setCameraStream(null);
       toast.error("Could not open tease");
       return;
     }
@@ -609,6 +737,8 @@ export default function TeasesPage() {
     const current = activeView;
     setActiveView(null);
     if (!current || !isSlave) return;
+
+    await uploadReactionAndCleanup(current.tease.id);
 
     const supabase = createClient();
     if (current.tease.view_duration_seconds || current.tease.media_kind === "video") {
@@ -701,7 +831,7 @@ export default function TeasesPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
             ? "Blur, unlock tasks, timed burn"
-            : "Each unlock task eases the blur; finish all for the clear picture"}
+            : "Front camera required for every view — Queen receives a short reaction video"}
         </p>
       </div>
 
@@ -1009,7 +1139,33 @@ export default function TeasesPage() {
                         Available {formatDeadline(t.unlocks_at)}
                       </p>
                     </div>
-                  ) : t.signedUrl && (visuallyBlurred || isQueen) ? (
+                  ) : isSlave &&
+                    visuallyBlurred &&
+                    t.signedUrl &&
+                    inlineViewId !== t.id ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+                      <Video className="h-8 w-8 text-gold" />
+                      <p className="font-heading text-ivory">Camera required</p>
+                      <p className="text-xs text-muted-foreground">
+                        Queen receives a short reaction video while you view
+                      </p>
+                      <Button
+                        size="sm"
+                        disabled={opening === t.id}
+                        onClick={() => void beginInlineView(t)}
+                        className="bg-gold text-void hover:bg-gold-muted"
+                      >
+                        {opening === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Video className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        View tease
+                      </Button>
+                    </div>
+                  ) : t.signedUrl &&
+                    (isQueen ||
+                      (isSlave && visuallyBlurred && inlineViewId === t.id)) ? (
                     <>
                       {isVideo ? (
                         // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -1035,6 +1191,25 @@ export default function TeasesPage() {
                           }
                           sizes="50vw"
                         />
+                      )}
+                      {isSlave && inlineViewId === t.id && cameraStream && (
+                        <TeaseReactionCameraPip
+                          stream={cameraStream}
+                          className="absolute right-2 top-2 z-10 h-20 w-16 sm:h-24 sm:w-20"
+                        />
+                      )}
+                      {isSlave && inlineViewId === t.id && (
+                        <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-void via-void/90 to-transparent p-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-gold/40 text-gold hover:bg-gold/10"
+                            onClick={() => void endInlineView()}
+                          >
+                            End view
+                          </Button>
+                        </div>
                       )}
                       {visuallyBlurred && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/80 to-transparent p-3 text-center">
@@ -1063,6 +1238,9 @@ export default function TeasesPage() {
                       ) : isVideo ? (
                         <p className="text-xs text-gold">One-shot video view</p>
                       ) : null}
+                      <p className="text-[11px] text-muted-foreground">
+                        Front camera required · short reaction for Queen
+                      </p>
                       <Button
                         size="sm"
                         disabled={opening === t.id}
@@ -1147,6 +1325,10 @@ export default function TeasesPage() {
                     <p className="text-xs text-muted-foreground">
                       Waiting for D’s wrecked score
                     </p>
+                  )}
+
+                  {isQueen && t.view_captures?.[0] && (
+                    <TeaseViewCapturePlayer capture={t.view_captures[0]} />
                   )}
 
                   {isSlave && (
@@ -1345,6 +1527,7 @@ export default function TeasesPage() {
           mediaKind={activeView.tease.media_kind ?? "image"}
           durationSeconds={activeView.tease.view_duration_seconds}
           title={activeView.tease.title}
+          cameraStream={cameraStream}
           onSessionEnd={(reason) => void endProtectedView(reason)}
           onSuspiciousCapture={() => void flagScreenshot()}
         />

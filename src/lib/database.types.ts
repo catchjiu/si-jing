@@ -526,6 +526,48 @@ export type Database = {
           },
         ]
       }
+      tease_view_captures: {
+        Row: {
+          id: string
+          tease_id: string
+          viewer_id: string
+          video_path: string
+          duration_ms: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tease_id: string
+          viewer_id: string
+          video_path: string
+          duration_ms?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tease_id?: string
+          viewer_id?: string
+          video_path?: string
+          duration_ms?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tease_view_captures_tease_id_fkey"
+            columns: ["tease_id"]
+            isOneToOne: false
+            referencedRelation: "teases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tease_view_captures_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tease_unlock_tasks: {
         Row: {
           id: string

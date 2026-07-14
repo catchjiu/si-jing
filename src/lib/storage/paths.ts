@@ -1,6 +1,7 @@
 export const STORAGE_BUCKETS = [
   "rewards",
   "teases",
+  "tease_reactions",
   "submissions",
   "wishlist",
   "date_posts",
