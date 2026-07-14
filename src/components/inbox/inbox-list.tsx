@@ -9,6 +9,7 @@ import {
   CalendarHeart,
   ChevronRight,
   Gift,
+  Crown,
   HandHeart,
   Inbox,
   ListTodo,
@@ -48,6 +49,7 @@ const TOPIC_ICONS: Record<
   rewards: Gift,
   requests: HandHeart,
   journal: BookOpen,
+  worship: Crown,
 };
 
 function previewText(thread: TopicThreadSummary): string {

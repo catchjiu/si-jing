@@ -26,7 +26,7 @@ import { WorshipCommentThread } from "@/components/worship/worship-comment-threa
 
 interface WorshipGalleryProps {
   entries: WorshipEntryWithSignedUrl[];
-  galleryId?: string;
+  galleryId: string;
   onDeleted?: (id: string) => void;
   onEdit?: (entry: WorshipEntryWithSignedUrl) => void;
   onChanged?: () => void;

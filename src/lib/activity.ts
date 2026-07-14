@@ -326,7 +326,7 @@ export async function fetchRecentActivity(
       supabase
         .from("direct_messages")
         .select(
-          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, sender:users!sender_id(id, role, username)"
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, sender:users!sender_id(id, role, username)"
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
@@ -587,7 +587,9 @@ export async function fetchRecentActivity(
             : attachmentType === "wishlist"
               ? "/dashboard/wishlist"
               : attachmentType === "worship"
-                ? "/dashboard/worship"
+                ? dm.attachment_id
+                  ? `/dashboard/worship/${dm.attachment_id as string}`
+                  : "/dashboard/worship"
               : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {
@@ -937,7 +939,7 @@ export async function fetchRecentActivity(
       supabase
         .from("direct_messages")
         .select(
-          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, sender:users!sender_id(id, role, username)"
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, sender:users!sender_id(id, role, username)"
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
@@ -1216,7 +1218,9 @@ export async function fetchRecentActivity(
             : attachmentType === "wishlist"
               ? "/dashboard/wishlist"
               : attachmentType === "worship"
-                ? "/dashboard/worship"
+                ? dm.attachment_id
+                  ? `/dashboard/worship/${dm.attachment_id as string}`
+                  : "/dashboard/worship"
               : "/dashboard/inbox";
       if (dm.voice_path) {
         pushItem(items, {

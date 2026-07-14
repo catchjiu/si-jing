@@ -9,6 +9,7 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { postToTopicThread } from "@/lib/inbox";
 import { loveColor, loveLabel } from "@/lib/worship";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -218,6 +219,16 @@ export function WorshipForm({
         if (insertError) throw insertError;
 
         toast.success("Photo added to gallery");
+        void postToTopicThread(supabase, {
+          topic: "worship",
+          senderId: profile.id,
+          content:
+            title.trim() ||
+            description.trim().slice(0, 120) ||
+            `New photo in ${galleryTopic ?? "gallery"}`,
+          attachmentType: "worship",
+          attachmentId: galleryId,
+        });
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
             title: "New worship photo",
@@ -226,7 +237,7 @@ export function WorshipForm({
               description.trim().slice(0, 80) ||
               galleryTopic ||
               "D added a photo of you",
-            url: `/dashboard/worship/${galleryId}`,
+            url: "/dashboard/inbox",
             target: "queen",
           })
         );

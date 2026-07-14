@@ -11,7 +11,8 @@ export type InboxTopic =
   | "tasks"
   | "rewards"
   | "requests"
-  | "journal";
+  | "journal"
+  | "worship";
 
 export type MessageAttachmentType =
   | "tease"
@@ -71,6 +72,11 @@ export const INBOX_TOPICS: {
     topic: "journal",
     label: "Journal",
     description: "Shared entries and comments",
+  },
+  {
+    topic: "worship",
+    label: "Worship",
+    description: "Galleries, photos, and devotion",
   },
 ];
 
@@ -446,7 +452,7 @@ export function attachmentHref(
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
   if (type === "wishlist") return `/dashboard/wishlist`;
-  if (type === "worship") return `/dashboard/worship`;
+  if (type === "worship") return `/dashboard/worship/${id}`;
   return `/dashboard/inbox`;
 }
 

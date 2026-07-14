@@ -12,6 +12,9 @@ import { cn } from "@/lib/utils";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
+import type { MessageAttachmentType, InboxTopic } from "@/lib/inbox";
+import { postToTopicThread } from "@/lib/inbox";
+import { notifyPush } from "@/lib/push-client";
 import { Button } from "@/components/ui/button";
 
 type VoiceNoteWithAuthor = VoiceNote & {
@@ -28,6 +31,12 @@ interface VoiceNotesProps {
   /** Queen can pin notes into Evidence (date/tease voices) */
   allowEvidencePin?: boolean;
   evidenceTitle?: string;
+  /** Mirror new recordings into an inbox topic thread */
+  mirrorToInbox?: {
+    topic: InboxTopic;
+    attachmentType: MessageAttachmentType;
+    attachmentId: string;
+  };
 }
 
 export function VoiceNotes({
@@ -38,8 +47,9 @@ export function VoiceNotes({
   compact = false,
   allowEvidencePin = false,
   evidenceTitle,
+  mirrorToInbox,
 }: VoiceNotesProps) {
-  const { profile, isQueen } = useAuth();
+  const { profile, isQueen, isSlave } = useAuth();
   const [notes, setNotes] = useState<VoiceNoteWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -174,7 +184,25 @@ export function VoiceNotes({
       <VoiceRecorder
         entityType={entityType}
         entityId={entityId}
-        onUploaded={load}
+        onUploaded={() => {
+          void load();
+          if (mirrorToInbox && profile) {
+            const supabase = createClient();
+            void postToTopicThread(supabase, {
+              topic: mirrorToInbox.topic,
+              senderId: profile.id,
+              content: "Voice message",
+              attachmentType: mirrorToInbox.attachmentType,
+              attachmentId: mirrorToInbox.attachmentId,
+            });
+            void notifyPush({
+              title: isSlave ? "Voice on worship" : "Queen voice on worship",
+              body: "New voice in Worship",
+              url: "/dashboard/inbox",
+              target: isSlave ? "queen" : "slave",
+            });
+          }
+        }}
         compact={compact}
       />
     </section>

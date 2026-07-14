@@ -27,7 +27,7 @@ type WorshipMessage = {
 
 interface WorshipCommentThreadProps {
   worshipId: string;
-  galleryId?: string;
+  galleryId: string;
   worshipTitle?: string | null;
   className?: string;
 }
@@ -102,16 +102,16 @@ export function WorshipCommentThread({
     setDraft("");
     void load();
     void postToTopicThread(supabase, {
-      topic: "general",
+      topic: "worship",
       senderId: profile.id,
       content: text,
       attachmentType: "worship",
-      attachmentId: worshipId,
+      attachmentId: galleryId,
     });
     void notifyPush({
       title: isSlave ? "Comment on worship" : "Queen commented on worship",
       body: text.slice(0, 120),
-      url: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
+      url: "/dashboard/inbox",
       target: isSlave ? "queen" : "slave",
     });
   };
@@ -202,6 +202,11 @@ export function WorshipCommentThread({
         entityType="worship"
         entityId={worshipId}
         compact
+        mirrorToInbox={{
+          topic: "worship",
+          attachmentType: "worship",
+          attachmentId: galleryId,
+        }}
         title={
           isSlave
             ? "Voice comment"

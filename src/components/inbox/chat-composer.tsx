@@ -296,6 +296,7 @@ export function ChatComposer({
         date: "dates",
         journal: "journal",
         submission: "tasks",
+        worship: "worship",
       };
       const topic = topicByType[type] ?? "general";
       await postToTopicThread(supabase, {

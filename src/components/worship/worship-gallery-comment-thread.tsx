@@ -9,6 +9,7 @@ import type { Profile } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
+import { postToTopicThread } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -98,10 +99,17 @@ export function WorshipGalleryCommentThread({
     }
     setDraft("");
     void load();
+    void postToTopicThread(supabase, {
+      topic: "worship",
+      senderId: profile.id,
+      content: text,
+      attachmentType: "worship",
+      attachmentId: galleryId,
+    });
     void notifyPush({
       title: isSlave ? "Comment on worship gallery" : "Queen commented on gallery",
       body: text.slice(0, 120),
-      url: `/dashboard/worship/${galleryId}`,
+      url: "/dashboard/inbox",
       target: isSlave ? "queen" : "slave",
     });
   };
@@ -192,6 +200,11 @@ export function WorshipGalleryCommentThread({
         entityType="worship_gallery"
         entityId={galleryId}
         compact
+        mirrorToInbox={{
+          topic: "worship",
+          attachmentType: "worship",
+          attachmentId: galleryId,
+        }}
         title={
           isSlave
             ? "Voice on gallery"
