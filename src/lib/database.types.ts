@@ -1709,6 +1709,32 @@ export type Database = {
           },
         ]
       }
+      pair_counters: {
+        Row: {
+          key: string
+          reset_at: string
+          reset_by: string | null
+        }
+        Insert: {
+          key: string
+          reset_at?: string
+          reset_by?: string | null
+        }
+        Update: {
+          key?: string
+          reset_at?: string
+          reset_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pair_counters_reset_by_fkey"
+            columns: ["reset_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

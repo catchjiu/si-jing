@@ -19,6 +19,26 @@ export function formatRelative(value: string | Date): string {
   return formatDistanceToNow(toDate(value), { addSuffix: true })
 }
 
+export function getElapsedParts(since: string | Date) {
+  const start = toDate(since)
+  const now = new Date()
+  const totalMs = Math.max(0, differenceInMilliseconds(now, start))
+  const days = Math.floor(totalMs / (1000 * 60 * 60 * 24))
+  const hours = Math.floor(
+    (totalMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+  )
+  const minutes = Math.floor((totalMs % (1000 * 60 * 60)) / (1000 * 60))
+  return { days, hours, minutes, totalMs }
+}
+
+/** Elapsed time since a past moment — days and hours when possible. */
+export function formatElapsedSince(since: string | Date): string {
+  const { days, hours, minutes } = getElapsedParts(since)
+  if (days > 0) return `${days} day${days === 1 ? "" : "s"}, ${hours} hr`
+  if (hours > 0) return `${hours} hr, ${minutes} min`
+  return `${minutes} min`
+}
+
 export interface CountdownParts {
   days: number
   hours: number

@@ -32,6 +32,7 @@ import { MoodPicker } from "@/components/mood/mood-picker"
 import { QueenStatusDisplay } from "@/components/status/queen-status"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import type { ActivityItem } from "@/lib/activity"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -261,6 +262,8 @@ export function SlaveDashboard({
             )}
           </CardContent>
         </Card>
+
+        <LastCumCounter />
       </div>
 
       {queenVerdicts.length > 0 && (

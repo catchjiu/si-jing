@@ -34,6 +34,7 @@ import { QueenStatusPicker } from "@/components/status/queen-status"
 import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import type { ActivityItem } from "@/lib/activity"
 
 interface QueenDashboardProps {
@@ -223,6 +224,7 @@ export function QueenDashboard({
 
       {/* Compact metrics */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 sm:gap-3">
+        <LastCumCounter compact className="col-span-2 sm:col-span-1" />
         {metrics.map((m) => {
           const Icon = m.icon
           return (

@@ -25,9 +25,11 @@ import {
   ACTIVITY_COUNT_LIMIT,
   countUnseen,
   fetchRecentActivity,
+  filterUnseenActivity,
   getActivitySeenAt,
   isActivityUnseen,
   markActivitySeen,
+  markActivitySeenUpTo,
   type ActivityItem,
 } from "@/lib/activity";
 import type { UserRole } from "@/lib/types";
@@ -138,7 +140,7 @@ export function DashboardActivityPanel({
 
   const unseen = countUnseen(items, seenAt);
   const showBanner = unseen > 0 && !dismissed;
-  const visibleItems = items.slice(0, 10);
+  const visibleItems = filterUnseenActivity(items, seenAt).slice(0, 10);
 
   const dismiss = () => {
     const now = new Date().toISOString();
@@ -147,11 +149,19 @@ export function DashboardActivityPanel({
     setDismissed(true);
   };
 
-  const onItemClick = () => {
-    const now = new Date().toISOString();
-    markActivitySeen(now);
-    setSeenAt(now);
+  const onItemClick = (item: ActivityItem) => {
+    markActivitySeenUpTo(item.at);
+    setSeenAt((prev) => {
+      if (!prev || new Date(item.at).getTime() > new Date(prev).getTime()) {
+        return item.at;
+      }
+      return prev;
+    });
   };
+
+  if (visibleItems.length === 0 && !showBanner) {
+    return null;
+  }
 
   return (
     <section className={cn("space-y-3", className)}>
@@ -215,7 +225,7 @@ export function DashboardActivityPanel({
                 <li key={item.id}>
                   <Link
                     href={item.href}
-                    onClick={onItemClick}
+                    onClick={() => onItemClick(item)}
                     className={cn(
                       "flex items-start gap-3 px-4 py-3.5 transition-colors hover:bg-gold/5",
                       isNew && "border-l-4 border-l-gold bg-gold/[0.07]"

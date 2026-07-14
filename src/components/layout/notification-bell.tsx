@@ -10,8 +10,10 @@ import {
   ACTIVITY_COUNT_LIMIT,
   countUnseen,
   fetchRecentActivity,
+  filterUnseenActivity,
   getActivitySeenAt,
   markActivitySeen,
+  markActivitySeenUpTo,
   type ActivityItem,
 } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
@@ -28,6 +30,7 @@ import { cn } from "@/lib/utils";
 export function NotificationBell({ className }: { className?: string }) {
   const { profile, role } = useAuth();
   const [items, setItems] = useState<ActivityItem[]>([]);
+  const [seenAt, setSeenAt] = useState<string | null>(null);
   const [unseen, setUnseen] = useState(0);
   const [open, setOpen] = useState(false);
 
@@ -39,15 +42,21 @@ export function NotificationBell({ className }: { className?: string }) {
       { id: profile.id, role },
       ACTIVITY_COUNT_LIMIT
     );
-    setItems(feed.slice(0, 10));
-    setUnseen(countUnseen(feed, getActivitySeenAt()));
+    const seen = getActivitySeenAt();
+    setSeenAt(seen);
+    setItems(filterUnseenActivity(feed, seen).slice(0, 10));
+    setUnseen(countUnseen(feed, seen));
   }, [profile, role]);
 
   useEffect(() => {
     void load();
     const id = window.setInterval(() => void load(), 60_000);
-    const onSeen = () => {
+    const onSeen = (e: Event) => {
+      const iso =
+        (e as CustomEvent<string>).detail ?? getActivitySeenAt();
+      setSeenAt(iso);
       setUnseen(0);
+      setItems([]);
       void load();
     };
     window.addEventListener("activity-seen", onSeen);
@@ -63,7 +72,9 @@ export function NotificationBell({ className }: { className?: string }) {
 
   const markAllSeen = () => {
     markActivitySeen();
+    setSeenAt(new Date().toISOString());
     setUnseen(0);
+    setItems([]);
     setOpen(false);
   };
 
@@ -109,6 +120,7 @@ export function NotificationBell({ className }: { className?: string }) {
               <Link
                 href={item.href}
                 className="block w-full px-3 py-2.5 outline-none"
+                onClick={() => markActivitySeenUpTo(item.at)}
               >
                 <p className="text-sm text-ivory">{item.title}</p>
                 {item.body && (

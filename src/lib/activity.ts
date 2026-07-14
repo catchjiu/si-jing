@@ -1213,6 +1213,17 @@ export function markActivitySeen(iso = new Date().toISOString()) {
   window.dispatchEvent(new CustomEvent("activity-seen", { detail: iso }));
 }
 
+/** Mark activity at or before this timestamp as read (e.g. when opening one item). */
+export function markActivitySeenUpTo(iso: string) {
+  const current = getActivitySeenAt();
+  if (
+    !current ||
+    new Date(iso).getTime() > new Date(current).getTime()
+  ) {
+    markActivitySeen(iso);
+  }
+}
+
 /** Fetch enough items to compute an accurate unseen badge count. */
 export const ACTIVITY_COUNT_LIMIT = 40;
 
@@ -1228,4 +1239,11 @@ export function isActivityUnseen(
 ): boolean {
   if (!seenAt) return true;
   return new Date(item.at).getTime() > new Date(seenAt).getTime();
+}
+
+export function filterUnseenActivity(
+  items: ActivityItem[],
+  seenAt: string | null
+): ActivityItem[] {
+  return items.filter((item) => isActivityUnseen(item, seenAt));
 }
