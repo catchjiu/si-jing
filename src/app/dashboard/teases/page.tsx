@@ -26,9 +26,6 @@ import {
 } from "@/lib/tease-views";
 import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
-import {
-  TeaseViewCaptureGallery,
-} from "@/components/teases/tease-view-capture-gallery";
 import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
@@ -1249,7 +1246,7 @@ export default function TeasesPage() {
                             ? `Available ${formatRelative(t.unlocks_at)}`
                             : `Available ${formatDeadline(t.unlocks_at)}`}
                       {t.screenshot_flagged_at ? " · capture alert" : ""}
-                      {(t.view_count ?? 0) > 0
+                      {(isQueen || isSlave)
                         ? ` · ${formatTeaseViewCount(t.view_count ?? 0, t.media_kind ?? "image")}`
                         : isQueen && t.viewed_at
                           ? " · viewed"
@@ -1303,13 +1300,6 @@ export default function TeasesPage() {
                     <p className="text-xs text-muted-foreground">
                       Waiting for D’s wrecked score
                     </p>
-                  )}
-
-                  {isQueen && (t.view_captures?.length ?? 0) > 0 && (
-                    <TeaseViewCaptureGallery
-                      captures={t.view_captures ?? []}
-                      mediaKind={t.media_kind ?? "image"}
-                    />
                   )}
 
                   {isSlave && (
@@ -1494,6 +1484,7 @@ export default function TeasesPage() {
                   <LazyTeaseThread
                     teaseId={t.id}
                     teaseTitle={t.title}
+                    mediaKind={t.media_kind ?? "image"}
                   />
                 </div>
               </article>

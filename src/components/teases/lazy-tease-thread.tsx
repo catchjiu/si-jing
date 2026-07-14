@@ -4,14 +4,17 @@ import { useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { TeaseBegThread } from "@/components/teases/tease-beg-thread";
 import { Button } from "@/components/ui/button";
+import type { TeaseMediaKind } from "@/lib/types";
 
 /** Avoid mounting beg/voice realtime channels until Queen/D opens the thread. */
 export function LazyTeaseThread({
   teaseId,
   teaseTitle,
+  mediaKind = "image",
 }: {
   teaseId: string;
   teaseTitle?: string | null;
+  mediaKind?: TeaseMediaKind;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -30,5 +33,11 @@ export function LazyTeaseThread({
     );
   }
 
-  return <TeaseBegThread teaseId={teaseId} teaseTitle={teaseTitle} />;
+  return (
+    <TeaseBegThread
+      teaseId={teaseId}
+      teaseTitle={teaseTitle}
+      mediaKind={mediaKind}
+    />
+  );
 }

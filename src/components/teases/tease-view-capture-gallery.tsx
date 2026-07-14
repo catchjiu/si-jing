@@ -11,6 +11,8 @@ type Props = {
   captures: TeaseViewCapture[];
   mediaKind?: TeaseMediaKind;
   className?: string;
+  /** Who is reading the thread — adjusts section label. */
+  audience?: "queen" | "slave";
 };
 
 function CaptureVideo({
@@ -78,6 +80,7 @@ export function TeaseViewCaptureGallery({
   captures,
   mediaKind = "image",
   className,
+  audience = "queen",
 }: Props) {
   if (!captures.length) return null;
 
@@ -86,10 +89,15 @@ export function TeaseViewCaptureGallery({
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
+  const sectionLabel =
+    audience === "slave"
+      ? `Your ${sorted.length} reaction video${sorted.length === 1 ? "" : "s"}`
+      : `D's ${sorted.length} reaction video${sorted.length === 1 ? "" : "s"}`;
+
   return (
     <div className={cn("space-y-3", className)}>
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        {sorted.length} reaction video{sorted.length === 1 ? "" : "s"}
+        {sectionLabel}
       </p>
       {sorted.map((capture, index) => (
         <CaptureVideo

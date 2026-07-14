@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { Loader2, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import type { Profile } from "@/lib/types";
+import type { Profile, TeaseMediaKind, TeaseViewCapture } from "@/lib/types";
+import { TeaseViewCaptureGallery } from "@/components/teases/tease-view-capture-gallery";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
@@ -28,21 +29,24 @@ type TeaseMessage = {
 interface TeaseBegThreadProps {
   teaseId: string;
   teaseTitle?: string | null;
+  mediaKind?: TeaseMediaKind;
   className?: string;
 }
 
 export function TeaseBegThread({
   teaseId,
   teaseTitle,
+  mediaKind = "image",
   className,
 }: TeaseBegThreadProps) {
-  const { profile, isSlave } = useAuth();
+  const { profile, isSlave, isQueen } = useAuth();
   const [messages, setMessages] = useState<TeaseMessage[]>([]);
+  const [viewCaptures, setViewCaptures] = useState<TeaseViewCapture[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 
-  const load = useCallback(async () => {
+  const loadMessages = useCallback(async () => {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("tease_messages")
@@ -52,18 +56,34 @@ export function TeaseBegThread({
 
     if (error) {
       toast.error("Could not load messages");
-      setLoading(false);
       return;
     }
     setMessages((data as TeaseMessage[]) ?? []);
-    setLoading(false);
   }, [teaseId]);
+
+  const loadViewCaptures = useCallback(async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("tease_view_captures")
+      .select("*")
+      .eq("tease_id", teaseId)
+      .order("created_at", { ascending: false });
+
+    if (error) return;
+    setViewCaptures((data as TeaseViewCapture[]) ?? []);
+  }, [teaseId]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadMessages(), loadViewCaptures()]);
+    setLoading(false);
+  }, [loadMessages, loadViewCaptures]);
 
   useEffect(() => {
     void load();
     const supabase = createClient();
     const channel = supabase
-      .channel(`tease-messages:${teaseId}`)
+      .channel(`tease-thread:${teaseId}`)
       .on(
         "postgres_changes",
         {
@@ -73,14 +93,26 @@ export function TeaseBegThread({
           filter: `tease_id=eq.${teaseId}`,
         },
         () => {
-          void load();
+          void loadMessages();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tease_view_captures",
+          filter: `tease_id=eq.${teaseId}`,
+        },
+        () => {
+          void loadViewCaptures();
         }
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [teaseId, load]);
+  }, [teaseId, load, loadMessages, loadViewCaptures]);
 
   const send = async () => {
     if (!profile || !draft.trim()) return;
@@ -119,6 +151,14 @@ export function TeaseBegThread({
       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {isSlave ? "Beg Queen" : "Begging & replies"}
       </p>
+
+      {(isQueen || isSlave) && viewCaptures.length > 0 && (
+        <TeaseViewCaptureGallery
+          captures={viewCaptures}
+          mediaKind={mediaKind}
+          audience={isSlave ? "slave" : "queen"}
+        />
+      )}
 
       {loading ? (
         <p className="text-xs text-muted-foreground">Loading…</p>
