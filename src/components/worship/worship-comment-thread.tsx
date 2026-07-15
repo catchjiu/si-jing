@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ImagePlus, Loader2, Send, X } from "lucide-react";
+import { ImagePlus, Loader2, Send, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Profile } from "@/lib/types";
@@ -11,7 +11,7 @@ import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { notifyWorshipThread } from "@/lib/inbox";
-import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
+import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +46,7 @@ export function WorshipCommentThread({
   worshipTitle,
   className,
 }: WorshipCommentThreadProps) {
-  const { profile, isSlave } = useAuth();
+  const { profile, isSlave, isQueen } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [messages, setMessages] = useState<WorshipMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,7 @@ export function WorshipCommentThread({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const clearImage = useCallback(() => {
     if (preview) URL.revokeObjectURL(preview);
@@ -139,6 +140,36 @@ export function WorshipCommentThread({
 
   const canSend = Boolean(draft.trim() || file);
 
+  const removeComment = async (message: WorshipMessage) => {
+    if (!profile) return;
+    const canDelete = message.author_id === profile.id || isQueen;
+    if (!canDelete) return;
+    if (!window.confirm("Delete this comment?")) return;
+
+    setDeletingId(message.id);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase
+        .from("worship_messages")
+        .delete()
+        .eq("id", message.id);
+      if (error) throw error;
+      if (message.image_path) {
+        try {
+          await removeObject({ bucket: "worship", path: message.image_path });
+        } catch {
+          // Row is gone; storage cleanup is best-effort
+        }
+      }
+      setMessages((prev) => prev.filter((m) => m.id !== message.id));
+      toast.success("Comment deleted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const send = async () => {
     if (!profile || !canSend) return;
     setSending(true);
@@ -203,6 +234,7 @@ export function WorshipCommentThread({
           {messages.map((m) => {
             const mine = m.author_id === profile?.id;
             const isQueenAuthor = m.author?.role === "queen";
+            const canDelete = mine || isQueen;
             return (
               <li
                 key={m.id}
@@ -223,9 +255,28 @@ export function WorshipCommentThread({
                     {m.author?.username ?? "Someone"}
                     {isQueenAuthor ? " · Queen" : ""}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatRelative(m.created_at)}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatRelative(m.created_at)}
+                    </span>
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+                        disabled={deletingId === m.id}
+                        aria-label="Delete comment"
+                        onClick={() => void removeComment(m)}
+                      >
+                        {deletingId === m.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {m.content && (
                   <p className="whitespace-pre-wrap text-sm text-ivory/90">
