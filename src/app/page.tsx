@@ -6,6 +6,8 @@ import {
   MAINTENANCE_BYPASS_COOKIE,
 } from "@/lib/maintenance";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   const cookieStore = await cookies();
   const bypass =

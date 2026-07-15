@@ -4,7 +4,8 @@ import type { NextRequest } from "next/server";
 export const MAINTENANCE_BYPASS_COOKIE = "qs_maintenance_bypass";
 
 export function isMaintenanceMode(): boolean {
-  return process.env.MAINTENANCE_MODE === "true";
+  const value = process.env.MAINTENANCE_MODE?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
 }
 
 export function hasMaintenanceBypass(request: NextRequest): boolean {

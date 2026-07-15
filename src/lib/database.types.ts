@@ -2290,6 +2290,16 @@ export type Database = {
       }
       flag_missed_rituals: { Args: never; Returns: number }
       ritual_streak: { Args: { p_ritual_id: string }; Returns: number }
+      get_queen_status: {
+        Args: never
+        Returns: {
+          queen_id: string
+          username: string
+          availability: string | null
+          updated_at: string | null
+          last_active_at: string | null
+        }[]
+      }
       touch_last_active: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
       consume_attention: {

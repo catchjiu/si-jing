@@ -10,6 +10,7 @@ import { dayProgress } from "@/lib/day-groups";
 import { computeStreak } from "@/lib/streak";
 import { checkAndAwardStreakMilestones } from "@/lib/streak-milestones";
 import { fetchRecentActivity } from "@/lib/activity";
+import { fetchPrimaryQueenStatus } from "@/lib/queen";
 import type {
   DesireRequest,
   Profile,
@@ -225,7 +226,7 @@ export default async function DashboardPage() {
     { data: punishmentData },
     openCheckInsRes,
     { data: nextTease },
-    { data: queenRow },
+    primaryQueen,
   ] = await Promise.all([
     supabase
       .from("punishments")
@@ -246,12 +247,7 @@ export default async function DashboardPage() {
       .order("unlocks_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
-    supabase
-      .from("users")
-      .select("id, username, status:user_status(availability, updated_at, last_active_at)")
-      .eq("role", "queen")
-      .limit(1)
-      .maybeSingle(),
+    fetchPrimaryQueenStatus(supabase),
   ]);
 
   const now = new Date();
@@ -263,27 +259,7 @@ export default async function DashboardPage() {
     }
   );
 
-  const queenJoined = queenRow as
-    | {
-        id: string;
-        username: string;
-        status:
-          | {
-              availability: string | null;
-              updated_at: string;
-              last_active_at: string | null;
-            }
-          | {
-              availability: string | null;
-              updated_at: string;
-              last_active_at: string | null;
-            }[]
-          | null;
-      }
-    | null;
-  const queenStatusRow = Array.isArray(queenJoined?.status)
-    ? queenJoined?.status[0]
-    : queenJoined?.status;
+  const queenJoined = primaryQueen;
 
   const stats: SlaveDashboardStats = {
     completionRate:
@@ -311,13 +287,11 @@ export default async function DashboardPage() {
       tasks={myTasks}
       stats={stats}
       activePunishments={activePunishments}
-      queenAvailability={
-        (queenStatusRow?.availability as QueenAvailability | null) ??
-        "available"
-      }
-      queenStatusUpdatedAt={queenStatusRow?.updated_at ?? null}
-      queenLastActiveAt={queenStatusRow?.last_active_at ?? null}
+      queenAvailability={queenJoined?.availability ?? "available"}
+      queenStatusUpdatedAt={queenJoined?.updatedAt ?? null}
+      queenLastActiveAt={queenJoined?.lastActiveAt ?? null}
       queenUsername={queenJoined?.username ?? "Queen"}
+      queenId={queenJoined?.id ?? null}
       activity={activity}
     />
   );
