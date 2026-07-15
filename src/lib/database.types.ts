@@ -239,21 +239,24 @@ export type Database = {
           id: string
           gallery_id: string
           author_id: string
-          content: string
+          content: string | null
+          image_path: string | null
           created_at: string
         }
         Insert: {
           id?: string
           gallery_id: string
           author_id: string
-          content: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           gallery_id?: string
           author_id?: string
-          content?: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Relationships: [
@@ -278,21 +281,24 @@ export type Database = {
           id: string
           worship_id: string
           author_id: string
-          content: string
+          content: string | null
+          image_path: string | null
           created_at: string
         }
         Insert: {
           id?: string
           worship_id: string
           author_id: string
-          content: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           worship_id?: string
           author_id?: string
-          content?: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Relationships: [
