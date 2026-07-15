@@ -161,6 +161,7 @@ export function QueenStatusPicker({
 interface QueenStatusDisplayProps {
   availability: QueenAvailability | null | undefined;
   updatedAt?: string | null;
+  lastActiveAt?: string | null;
   username?: string;
   className?: string;
 }
@@ -169,11 +170,62 @@ interface QueenStatusDisplayProps {
 export function QueenStatusDisplay({
   availability,
   updatedAt,
+  lastActiveAt: initialLastActiveAt = null,
   username = "Queen",
   className,
 }: QueenStatusDisplayProps) {
   const meta = availabilityMeta(availability ?? "available");
   const Icon = meta.icon;
+  const [lastActiveAt, setLastActiveAt] = useState<string | null>(
+    initialLastActiveAt
+  );
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    setLastActiveAt(initialLastActiveAt);
+  }, [initialLastActiveAt]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let cancelled = false;
+
+    const load = async () => {
+      const { data: queen } = await supabase
+        .from("users")
+        .select("id")
+        .eq("role", "queen")
+        .limit(1)
+        .maybeSingle();
+      if (!queen?.id || cancelled) return;
+      const { data } = await supabase
+        .from("user_status")
+        .select("last_active_at")
+        .eq("user_id", queen.id)
+        .maybeSingle();
+      if (!cancelled) {
+        setLastActiveAt(
+          (data?.last_active_at as string | null | undefined) ?? null
+        );
+      }
+    };
+
+    void load();
+    const channel = supabase
+      .channel("queen-presence")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_status" },
+        () => void load()
+      )
+      .subscribe();
+    const tick = window.setInterval(() => setTick((t) => t + 1), 30_000);
+
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+      window.clearInterval(tick);
+    };
+  }, []);
 
   return (
     <div
@@ -192,11 +244,15 @@ export function QueenStatusDisplay({
         </p>
         <p className="font-heading text-xl">{meta.label}</p>
         <p className="text-xs opacity-80">{meta.hint}</p>
-        {updatedAt && (
+        {lastActiveAt ? (
+          <p className="mt-0.5 text-[10px] opacity-60">
+            Last active {formatRelative(lastActiveAt)}
+          </p>
+        ) : updatedAt ? (
           <p className="mt-0.5 text-[10px] opacity-60">
             Updated {formatRelative(updatedAt)}
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );

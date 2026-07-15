@@ -248,7 +248,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from("users")
-      .select("id, username, status:user_status(availability, updated_at)")
+      .select("id, username, status:user_status(availability, updated_at, last_active_at)")
       .eq("role", "queen")
       .limit(1)
       .maybeSingle(),
@@ -268,8 +268,16 @@ export default async function DashboardPage() {
         id: string;
         username: string;
         status:
-          | { availability: string | null; updated_at: string }
-          | { availability: string | null; updated_at: string }[]
+          | {
+              availability: string | null;
+              updated_at: string;
+              last_active_at: string | null;
+            }
+          | {
+              availability: string | null;
+              updated_at: string;
+              last_active_at: string | null;
+            }[]
           | null;
       }
     | null;
@@ -308,6 +316,7 @@ export default async function DashboardPage() {
         "available"
       }
       queenStatusUpdatedAt={queenStatusRow?.updated_at ?? null}
+      queenLastActiveAt={queenStatusRow?.last_active_at ?? null}
       queenUsername={queenJoined?.username ?? "Queen"}
       activity={activity}
     />

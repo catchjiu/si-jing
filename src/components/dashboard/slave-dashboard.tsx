@@ -45,6 +45,7 @@ interface SlaveDashboardProps {
   activePunishments?: Punishment[]
   queenAvailability?: QueenAvailability | null
   queenStatusUpdatedAt?: string | null
+  queenLastActiveAt?: string | null
   queenUsername?: string
   activity: ActivityItem[]
   /** @deprecated use activePunishments */
@@ -57,6 +58,7 @@ export function SlaveDashboard({
   activePunishments,
   queenAvailability = null,
   queenStatusUpdatedAt = null,
+  queenLastActiveAt = null,
   queenUsername = "Queen",
   activity,
   activeContactRestriction = null,
@@ -115,6 +117,7 @@ export function SlaveDashboard({
       <QueenStatusDisplay
         availability={queenAvailability}
         updatedAt={queenStatusUpdatedAt}
+        lastActiveAt={queenLastActiveAt}
         username={queenUsername}
       />
 
