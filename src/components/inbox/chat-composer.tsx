@@ -98,12 +98,29 @@ export function ChatComposer({
     });
   };
 
+  const gateSlaveMessage = async (
+    supabase: ReturnType<typeof createClient>
+  ): Promise<boolean> => {
+    if (isQueen) return true;
+    const { consumeAttention } = await import("@/lib/attention-budget");
+    const gate = await consumeAttention(supabase, "message");
+    if (!gate.ok) {
+      toast.error(gate.error ?? "Daily message limit reached");
+      return false;
+    }
+    if (gate.used_token) {
+      toast.message("Used a speak-freely token");
+    }
+    return true;
+  };
+
   const sendText = async () => {
     if (!profile || !draft.trim() || blocked) return;
     setSending(true);
     const supabase = createClient();
     try {
       const text = formatRoleSpeech(draft.trim(), profile.role);
+      if (!(await gateSlaveMessage(supabase))) return;
       await sendDirectMessage(supabase, {
         conversationId,
         senderId: profile.id,
@@ -137,6 +154,7 @@ export function ChatComposer({
     setSending(true);
     const supabase = createClient();
     try {
+      if (!(await gateSlaveMessage(supabase))) return;
       let upload = file;
       let mediaType: "image" | "video" = "image";
       if (isVideo) {
@@ -220,6 +238,7 @@ export function ChatComposer({
     setSending(true);
     const supabase = createClient();
     try {
+      if (!(await gateSlaveMessage(supabase))) return;
       const blob = await normalizeVoiceBlob(raw);
       const durationMs = Date.now() - recordStartRef.current;
       const ext = blob.type.includes("wav")

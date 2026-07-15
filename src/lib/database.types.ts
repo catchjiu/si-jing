@@ -1925,6 +1925,7 @@ export type Database = {
           mood_level: number
           mood_emoji: string
           availability: string | null
+          last_active_at: string | null
           updated_at: string
         }
         Insert: {
@@ -1932,6 +1933,7 @@ export type Database = {
           mood_level?: number
           mood_emoji?: string
           availability?: string | null
+          last_active_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -1939,6 +1941,7 @@ export type Database = {
           mood_level?: number
           mood_emoji?: string
           availability?: string | null
+          last_active_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1973,6 +1976,249 @@ export type Database = {
             columns: ["reset_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pair_settings: {
+        Row: {
+          key: string
+          value: Record<string, unknown>
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          key: string
+          value?: Record<string, unknown>
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          key?: string
+          value?: Record<string, unknown>
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pair_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attention_usage: {
+        Row: {
+          user_id: string
+          usage_date: string
+          messages_sent: number
+          requests_sent: number
+        }
+        Insert: {
+          user_id: string
+          usage_date?: string
+          messages_sent?: number
+          requests_sent?: number
+        }
+        Update: {
+          user_id?: string
+          usage_date?: string
+          messages_sent?: number
+          requests_sent?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attention_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      points_ledger: {
+        Row: {
+          id: string
+          user_id: string
+          delta: number
+          reason: string
+          entity_type: string | null
+          entity_id: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          delta: number
+          reason: string
+          entity_type?: string | null
+          entity_id?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          delta?: number
+          reason?: string
+          entity_type?: string | null
+          entity_id?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "points_ledger_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_items: {
+        Row: {
+          id: string
+          created_by: string
+          title: string
+          description: string | null
+          price: number
+          image_path: string | null
+          is_active: boolean
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          title: string
+          description?: string | null
+          price: number
+          image_path?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          title?: string
+          description?: string | null
+          price?: number
+          image_path?: string | null
+          is_active?: boolean
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shop_purchases: {
+        Row: {
+          id: string
+          item_id: string
+          purchased_by: string
+          price_paid: number
+          status: string
+          queen_note: string | null
+          ledger_id: string | null
+          created_at: string
+          fulfilled_at: string | null
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          purchased_by: string
+          price_paid: number
+          status?: string
+          queen_note?: string | null
+          ledger_id?: string | null
+          created_at?: string
+          fulfilled_at?: string | null
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          purchased_by?: string
+          price_paid?: number
+          status?: string
+          queen_note?: string | null
+          ledger_id?: string | null
+          created_at?: string
+          fulfilled_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shop_purchases_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "shop_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worship_assignments: {
+        Row: {
+          id: string
+          assigned_by: string
+          assigned_to: string
+          gallery_id: string | null
+          topic: string
+          description: string | null
+          min_entries: number
+          due_at: string
+          status: string
+          completed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          assigned_by: string
+          assigned_to: string
+          gallery_id?: string | null
+          topic: string
+          description?: string | null
+          min_entries?: number
+          due_at: string
+          status?: string
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          assigned_by?: string
+          assigned_to?: string
+          gallery_id?: string | null
+          topic?: string
+          description?: string | null
+          min_entries?: number
+          due_at?: string
+          status?: string
+          completed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worship_assignments_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "worship_galleries"
             referencedColumns: ["id"]
           },
         ]
@@ -2038,6 +2284,24 @@ export type Database = {
       }
       flag_missed_rituals: { Args: never; Returns: number }
       ritual_streak: { Args: { p_ritual_id: string }; Returns: number }
+      touch_last_active: { Args: never; Returns: undefined }
+      get_attention_budget: { Args: never; Returns: Record<string, unknown> }
+      consume_attention: {
+        Args: { p_kind: string }
+        Returns: Record<string, unknown>
+      }
+      grant_speak_freely_tokens: { Args: { p_count?: number }; Returns: number }
+      points_balance: { Args: { p_user?: string }; Returns: number }
+      purchase_shop_item: { Args: { p_item_id: string }; Returns: string }
+      create_worship_assignment: {
+        Args: {
+          p_topic: string
+          p_description: string | null
+          p_min_entries: number
+          p_due_at: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

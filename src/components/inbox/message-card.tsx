@@ -11,6 +11,8 @@ import {
   Heart,
   ListTodo,
   Sparkles,
+  Store,
+  Sparkle,
 } from "lucide-react";
 import type { MessageAttachmentType } from "@/lib/inbox";
 import { attachmentHref, attachmentLabel } from "@/lib/inbox";
@@ -23,7 +25,10 @@ interface MessageCardProps {
   className?: string;
 }
 
-const ICONS = {
+const ICONS: Record<
+  MessageAttachmentType,
+  React.ComponentType<{ className?: string }>
+> = {
   tease: Sparkles,
   task: ListTodo,
   submission: ListTodo,
@@ -34,7 +39,9 @@ const ICONS = {
   journal: BookOpen,
   wishlist: Heart,
   worship: Crown,
-} as const;
+  shop: Store,
+  worship_assignment: Sparkle,
+};
 
 export function MessageCard({
   type,

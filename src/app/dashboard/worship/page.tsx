@@ -6,13 +6,20 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { WorshipTopicForm } from "@/components/worship/worship-topic-form";
+import { WorshipAssignmentForm } from "@/components/worship/worship-assignment-form";
+import { WorshipAssignmentsList } from "@/components/worship/worship-assignments-list";
 import { WorshipGalleriesGrid } from "@/components/worship/worship-galleries-grid";
 import { loadWorshipGalleriesWithMeta } from "@/lib/worship-galleries";
-import type { WorshipGalleryTopicWithMeta } from "@/lib/types";
+import type {
+  WorshipAssignment,
+  WorshipGalleryTopicWithMeta,
+} from "@/lib/types";
 
 export default function WorshipPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const [galleries, setGalleries] = useState<WorshipGalleryTopicWithMeta[]>([]);
+  const [assignments, setAssignments] = useState<WorshipAssignment[]>([]);
+  const [entryCounts, setEntryCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -21,18 +28,32 @@ export default function WorshipPage() {
     const supabase = createClient();
 
     try {
-      const { data, error } = await supabase
-        .from("worship_galleries")
-        .select("*")
-        .order("updated_at", { ascending: false });
+      const [galleryRes, assignmentRes] = await Promise.all([
+        supabase
+          .from("worship_galleries")
+          .select("*")
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("worship_assignments")
+          .select("*")
+          .order("due_at", { ascending: true }),
+      ]);
 
-      if (error) throw error;
+      if (galleryRes.error) throw galleryRes.error;
+      if (assignmentRes.error) throw assignmentRes.error;
 
       const withMeta = await loadWorshipGalleriesWithMeta(
         supabase,
-        data ?? []
+        galleryRes.data ?? []
       );
       setGalleries(withMeta);
+      setAssignments((assignmentRes.data ?? []) as WorshipAssignment[]);
+
+      const counts: Record<string, number> = {};
+      for (const g of withMeta) {
+        counts[g.id] = g.entryCount;
+      }
+      setEntryCounts(counts);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Could not load worship galleries";
@@ -54,6 +75,10 @@ export default function WorshipPage() {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
+  const openAssignments = assignments.filter(
+    (a) => a.status === "open" || a.status === "overdue"
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -63,15 +88,23 @@ export default function WorshipPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Themed galleries of you he builds in devotion"
+            ? "Themed galleries of you he builds in devotion — assign topics with deadlines"
             : "Create topic galleries and fill each with photos of Queen"}
         </p>
       </div>
 
-      {isSlave && (
-        <WorshipTopicForm
-          onSuccess={() => void load()}
-        />
+      {isQueen && <WorshipAssignmentForm onSuccess={() => void load()} />}
+
+      {isSlave && <WorshipTopicForm onSuccess={() => void load()} />}
+
+      {(openAssignments.length > 0 || (isQueen && assignments.length > 0)) && (
+        <section className="space-y-4">
+          <h2 className="font-heading text-xl text-gold">Assignments</h2>
+          <WorshipAssignmentsList
+            assignments={isQueen ? assignments : openAssignments}
+            entryCounts={entryCounts}
+          />
+        </section>
       )}
 
       <section className="space-y-4">

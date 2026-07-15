@@ -4,6 +4,7 @@ export async function notifyPush(opts: {
   body: string;
   url?: string;
   target?: "queen" | "slave" | "both";
+  kind?: string;
 }) {
   try {
     await fetch("/api/push/notify", {

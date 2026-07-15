@@ -106,6 +106,16 @@ export function RequestForm({
     const supabase = createClient();
 
     try {
+      const { consumeAttention } = await import("@/lib/attention-budget");
+      const gate = await consumeAttention(supabase, "request");
+      if (!gate.ok) {
+        toast.error(gate.error ?? "Daily request limit reached");
+        return;
+      }
+      if (gate.used_token) {
+        toast.message("Used a speak-freely token");
+      }
+
       let imagePath: string | null = null;
       if (file) {
         const geo = await resolveImageLocation(file);

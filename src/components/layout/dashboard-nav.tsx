@@ -22,6 +22,7 @@ import {
   Crown,
   NotebookPen,
   Inbox,
+  Store,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -43,6 +44,7 @@ const navLinks = [
   { href: "/dashboard/dates", label: "Dates", icon: CalendarHeart },
   { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
+  { href: "/dashboard/shop", label: "Shop", icon: Store },
   { href: "/dashboard/wishlist", label: "Wishlist", icon: Heart },
   { href: "/dashboard/worship", label: "Worship", icon: Crown },
   { href: "/dashboard/journal", label: "Journal", icon: NotebookPen },

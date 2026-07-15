@@ -24,7 +24,9 @@ export type MessageAttachmentType =
   | "journal"
   | "submission"
   | "wishlist"
-  | "worship";
+  | "worship"
+  | "shop"
+  | "worship_assignment";
 
 export type MessageMediaType = "image" | "video";
 
@@ -496,6 +498,8 @@ export function attachmentHref(
   if (type === "journal") return `/dashboard/journal`;
   if (type === "wishlist") return `/dashboard/wishlist`;
   if (type === "worship") return `/dashboard/worship/${id}`;
+  if (type === "shop") return `/dashboard/shop`;
+  if (type === "worship_assignment") return `/dashboard/worship`;
   return `/dashboard/inbox`;
 }
 
@@ -511,6 +515,8 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     submission: "Submission",
     wishlist: "Wishlist",
     worship: "Worship",
+    shop: "Shop",
+    worship_assignment: "Worship assignment",
   };
   return labels[type];
 }

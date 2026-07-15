@@ -28,6 +28,8 @@ import {
   teaseWatchMetric,
 } from "@/lib/tease-views";
 import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
+import { TeaseCaptureWatermark } from "@/components/teases/tease-capture-watermark";
+import { useTeaseCaptureGuard } from "@/hooks/use-tease-capture-guard";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
 import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
 import { TeaseUnlockChecklist } from "@/components/teases/tease-unlock-checklist";
@@ -882,15 +884,53 @@ export default function TeasesPage() {
     void load();
   };
 
-  const flagScreenshot = async () => {
-    if (!activeView) return;
+  const flagScreenshot = async (teaseId?: string) => {
+    const id = teaseId ?? activeView?.tease.id;
+    if (!id) return;
+
+    const tease =
+      items.find((t) => t.id === id) ??
+      (activeView?.tease.id === id ? activeView.tease : null);
+    if (tease?.screenshot_flagged_at) return;
+
     const supabase = createClient();
-    await supabase
+    const flaggedAt = new Date().toISOString();
+    const { error } = await supabase
       .from("teases")
-      .update({ screenshot_flagged_at: new Date().toISOString() })
-      .eq("id", activeView.tease.id)
+      .update({ screenshot_flagged_at: flaggedAt })
+      .eq("id", id)
       .is("screenshot_flagged_at", null);
+
+    if (error) return;
+
+    setItems((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, screenshot_flagged_at: flaggedAt } : t
+      )
+    );
+
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Tease capture alert",
+        body: `${tease?.title || "Tease"} · D may have tried to capture`,
+        url: "/dashboard/teases",
+        target: "queen",
+        kind: "tease_capture",
+      })
+    );
   };
+
+  const handleInlineCapture = useCallback(() => {
+    if (!inlineViewId) return;
+    void flagScreenshot(inlineViewId);
+    void endInlineViewRef.current();
+    toast.message("View ended — Queen notified");
+  }, [inlineViewId]);
+
+  useTeaseCaptureGuard({
+    active: !!inlineViewId && isSlave,
+    onCapture: handleInlineCapture,
+  });
 
   if (authLoading || loading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -1286,6 +1326,7 @@ export default function TeasesPage() {
                               : "Veiled tease"}
                         </p>
                       </div>
+                      <TeaseCaptureWatermark />
                     </>
                   ) : t.signedUrl && slaveShowsBlurredPreview ? (
                     <>
@@ -1644,7 +1685,9 @@ export default function TeasesPage() {
           title={activeView.tease.title}
           cameraStream={cameraStream}
           onSessionEnd={handleSessionEnd}
-          onSuspiciousCapture={() => void flagScreenshot()}
+          onSuspiciousCapture={() =>
+            void flagScreenshot(activeView.tease.id)
+          }
         />
       )}
 

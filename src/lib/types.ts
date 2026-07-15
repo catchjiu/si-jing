@@ -198,7 +198,19 @@ export type RequestMessage = {
   created_at: string;
 };
 
-export type MessageAttachmentType = "tease" | "task" | "punishment";
+export type MessageAttachmentType =
+  | "tease"
+  | "task"
+  | "punishment"
+  | "reward"
+  | "request"
+  | "date"
+  | "journal"
+  | "submission"
+  | "wishlist"
+  | "worship"
+  | "shop"
+  | "worship_assignment";
 export type MessageMediaType = "image" | "video";
 
 export type DirectMessage = {
@@ -289,6 +301,28 @@ export type UserStatus = {
   mood_level: number;
   mood_emoji: string;
   availability?: QueenAvailability | null;
+  last_active_at?: string | null;
+  updated_at: string;
+};
+
+export type WorshipAssignmentStatus =
+  | "open"
+  | "completed"
+  | "cancelled"
+  | "overdue";
+
+export type WorshipAssignment = {
+  id: string;
+  assigned_by: string;
+  assigned_to: string;
+  gallery_id: string | null;
+  topic: string;
+  description: string | null;
+  min_entries: number;
+  due_at: string;
+  status: WorshipAssignmentStatus;
+  completed_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 

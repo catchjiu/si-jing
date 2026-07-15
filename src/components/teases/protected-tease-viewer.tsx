@@ -10,6 +10,8 @@ import {
   teaseAutoEndWatchMetric,
 } from "@/lib/tease-views";
 import type { TeaseMediaKind } from "@/lib/types";
+import { useTeaseCaptureGuard } from "@/hooks/use-tease-capture-guard";
+import { TeaseCaptureWatermark } from "@/components/teases/tease-capture-watermark";
 
 type TeaseSessionViewerProps = {
   mediaUrl: string;
@@ -89,6 +91,19 @@ export function TeaseSessionViewer({
     }
   }, []);
 
+  const handleSuspiciousCapture = useCallback(() => {
+    if (endedRef.current) return;
+    tallyVisible();
+    flagAndBlank();
+    end("left");
+  }, [end, flagAndBlank, tallyVisible]);
+
+  useTeaseCaptureGuard({
+    active: !blanked,
+    onCapture: handleSuspiciousCapture,
+    shouldIgnoreBlur: () => endingViaButtonRef.current,
+  });
+
   useEffect(() => {
     endedRef.current = false;
     flaggedRef.current = false;
@@ -121,38 +136,6 @@ export function TeaseSessionViewer({
   }, [end, mediaUrl, mediaKind]);
 
   useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "hidden") {
-        tallyVisible();
-        flagAndBlank();
-        end("left");
-      } else if (visibleSinceRef.current == null && !endedRef.current) {
-        visibleSinceRef.current = Date.now();
-      }
-    };
-    const onBlur = () => {
-      if (endingViaButtonRef.current) return;
-      tallyVisible();
-      flagAndBlank();
-      end("left");
-    };
-    const onPageHide = () => {
-      tallyVisible();
-      flagAndBlank();
-      end("left");
-    };
-
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("pagehide", onPageHide);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("pagehide", onPageHide);
-    };
-  }, [end, flagAndBlank, mediaUrl, tallyVisible]);
-
-  useEffect(() => {
     const block = (e: Event) => e.preventDefault();
     document.addEventListener("contextmenu", block);
     document.addEventListener("dragstart", block);
@@ -183,8 +166,8 @@ export function TeaseSessionViewer({
             {blanked
               ? "Sending reaction to Queen…"
               : mediaKind === "video"
-                ? "Reaction sends when video ends · reaction cam recording"
-                : `Auto-sending in ${secondsLeft}s · reaction cam recording`}
+                ? "Protected view · reaction sends when video ends"
+                : `Protected view · auto-sending in ${secondsLeft}s`}
           </p>
         </div>
         {!blanked && (
@@ -235,7 +218,7 @@ export function TeaseSessionViewer({
             onEnded={() => end("auto")}
           />
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
+          // eslint-disable-next-line jsx-a11y/no-img-element
           <img
             src={mediaUrl}
             alt={title || "Tease"}
@@ -244,6 +227,7 @@ export function TeaseSessionViewer({
             onContextMenu={(e) => e.preventDefault()}
           />
         )}
+        {!blanked && <TeaseCaptureWatermark />}
       </div>
     </div>
   );

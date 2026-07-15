@@ -30,6 +30,7 @@ import { DayAgenda } from "@/components/tasks/day-agenda"
 import { groupTasksByDay } from "@/lib/day-groups"
 import { MoodPicker } from "@/components/mood/mood-picker"
 import { QueenStatusDisplay } from "@/components/status/queen-status"
+import { AttentionBudgetPanel } from "@/components/attention/attention-budget-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
@@ -116,6 +117,8 @@ export function SlaveDashboard({
         updatedAt={queenStatusUpdatedAt}
         username={queenUsername}
       />
+
+      <AttentionBudgetPanel />
 
       <MoodPicker />
 

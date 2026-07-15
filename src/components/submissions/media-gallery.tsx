@@ -7,6 +7,7 @@ import type { SubmissionMedia } from "@/lib/types"
 import { signObjectUrl } from "@/lib/storage/client"
 import { cn } from "@/lib/utils"
 import { GeoMapLinks } from "@/components/location/geo-map-links"
+import { ProofWatermark } from "@/components/submissions/proof-watermark"
 
 interface MediaGalleryProps {
   media: SubmissionMedia[]
@@ -110,6 +111,7 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
                   sizes="(max-width: 640px) 100vw, 33vw"
                   unoptimized
                 />
+                <ProofWatermark />
               </div>
               <GeoMapLinks
                 latitude={item.latitude}
