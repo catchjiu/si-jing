@@ -1,9 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  hasMaintenanceBypass,
+  isMaintenanceAllowedPath,
+  isMaintenanceMode,
+} from "@/lib/maintenance";
 import { supabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+
+  const path = request.nextUrl.pathname;
+  const maintenanceActive =
+    isMaintenanceMode() && !hasMaintenanceBypass(request);
+
+  if (maintenanceActive && !isMaintenanceAllowedPath(path)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,10 +51,13 @@ export async function updateSession(request: NextRequest) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = claimsData?.claims?.sub ?? null;
 
-  const path = request.nextUrl.pathname;
   const isAuthPage = path === "/" || path.startsWith("/forgot-password");
   const isProtected = path.startsWith("/dashboard");
   const isAuthCallback = path.startsWith("/auth/callback");
+
+  if (maintenanceActive) {
+    return supabaseResponse;
+  }
 
   if (!userId && isProtected) {
     const url = request.nextUrl.clone();
