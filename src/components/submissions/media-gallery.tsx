@@ -7,7 +7,7 @@ import type { SubmissionMedia } from "@/lib/types"
 import { signObjectUrl } from "@/lib/storage/client"
 import { cn } from "@/lib/utils"
 import { GeoMapLinks } from "@/components/location/geo-map-links"
-import { ProofWatermark } from "@/components/submissions/proof-watermark"
+import { WatermarkedFrame } from "@/components/media/watermarked-frame"
 
 interface MediaGalleryProps {
   media: SubmissionMedia[]
@@ -102,7 +102,7 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
               key={item.id}
               className="space-y-2"
             >
-              <div className="group relative aspect-square overflow-hidden rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
+              <WatermarkedFrame className="group aspect-square rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
                 <Image
                   src={item.signedUrl}
                   alt="Submission image"
@@ -111,8 +111,7 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
                   sizes="(max-width: 640px) 100vw, 33vw"
                   unoptimized
                 />
-                <ProofWatermark />
-              </div>
+              </WatermarkedFrame>
               <GeoMapLinks
                 latitude={item.latitude}
                 longitude={item.longitude}

@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/client";
 import { isR2Path, type StorageBucket } from "@/lib/storage/paths";
+import {
+  shouldWatermarkUploadClient,
+  watermarkImageBlob,
+} from "@/lib/storage/watermark-client";
 
 function friendlyStorageError(err: unknown, fallback: string): Error {
   const raw =
@@ -32,7 +36,8 @@ async function storageFetchJson<T>(url: string, body: unknown): Promise<T> {
 
 /**
  * Upload a file to R2 via the app server (avoids browser→R2 CORS).
- * Falls back to a presigned PUT if the reverse proxy rejects a large body.
+ * Image uploads (except avatars / GIFs) are stamped with the proof watermark
+ * on the server. The presign fallback stamps client-side instead.
  * Returns the DB path (`r2/{bucket}/...`).
  */
 export async function presignAndUpload(opts: {
@@ -43,22 +48,24 @@ export async function presignAndUpload(opts: {
   /** Optional relative path under the bucket (without r2/ or bucket). */
   relativePath?: string;
 }): Promise<string> {
-  const contentType =
+  let contentType =
     opts.contentType || opts.file.type || "application/octet-stream";
-  const ext =
+  let ext =
     opts.ext ||
     contentType.split("/")[1]?.replace("jpeg", "jpg") ||
     "bin";
+  let file = opts.file;
+  let relativePath = opts.relativePath;
 
   const form = new FormData();
   form.append("bucket", opts.bucket);
   form.append("contentType", contentType);
   form.append("ext", ext);
-  if (opts.relativePath) form.append("relativePath", opts.relativePath);
+  if (relativePath) form.append("relativePath", relativePath);
   form.append(
     "file",
-    opts.file,
-    opts.file instanceof File ? opts.file.name : `upload.${ext}`
+    file,
+    file instanceof File ? file.name : `upload.${ext}`
   );
 
   try {
@@ -90,7 +97,27 @@ export async function presignAndUpload(opts: {
   }
 
   // Fallback: browser PUT to R2 (requires bucket CORS for the app origin)
+  // Stamp here because the server route was skipped.
   try {
+    if (
+      shouldWatermarkUploadClient({
+        contentType,
+        relativePath,
+      })
+    ) {
+      try {
+        const stamped = await watermarkImageBlob({ file, contentType });
+        file = stamped.file;
+        contentType = stamped.contentType;
+        ext = stamped.ext;
+        if (relativePath) {
+          relativePath = relativePath.replace(/\.[^.]+$/, `.${ext}`);
+        }
+      } catch (wmErr) {
+        console.error("client watermark failed, uploading original", wmErr);
+      }
+    }
+
     const { uploadUrl, path } = await storageFetchJson<{
       uploadUrl: string;
       path: string;
@@ -98,13 +125,13 @@ export async function presignAndUpload(opts: {
       bucket: opts.bucket,
       contentType,
       ext,
-      relativePath: opts.relativePath,
+      relativePath,
     });
 
     const put = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": contentType },
-      body: opts.file,
+      body: file,
     });
     if (!put.ok) {
       throw new Error(`Upload to R2 failed (${put.status})`);

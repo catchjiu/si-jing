@@ -9,6 +9,7 @@ import { formatDeadline } from "@/lib/format";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { Tease } from "@/lib/types";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { cn } from "@/lib/utils";
 
 function blurStyle(amount: number): CSSProperties {
@@ -176,13 +177,15 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
                 controlsList="nodownload"
               />
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={signedUrl}
-                alt={tease.title || "Tease"}
-                className="absolute inset-0 h-full w-full object-cover transition duration-500"
-                style={visuallyBlurred ? blurStyle(amount) : undefined}
-              />
+              <WatermarkedFrame className="absolute inset-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signedUrl}
+                  alt={tease.title || "Tease"}
+                  className="absolute inset-0 h-full w-full object-cover transition duration-500"
+                  style={visuallyBlurred ? blurStyle(amount) : undefined}
+                />
+              </WatermarkedFrame>
             )}
             {visuallyBlurred && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/85 to-transparent p-3 text-center">

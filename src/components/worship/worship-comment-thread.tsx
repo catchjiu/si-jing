@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -232,21 +233,23 @@ export function WorshipCommentThread({
                   </p>
                 )}
                 {m.signedUrl && (
-                  <a
-                    href={m.signedUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 block overflow-hidden rounded-lg border border-gold/15"
-                  >
-                    <Image
-                      src={m.signedUrl}
-                      alt="Comment photo"
-                      width={640}
-                      height={640}
-                      className="h-auto max-h-72 w-full object-contain bg-void"
-                      unoptimized
-                    />
-                  </a>
+                  <WatermarkedFrame className="mt-2 rounded-lg border border-gold/15">
+                    <a
+                      href={m.signedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block"
+                    >
+                      <Image
+                        src={m.signedUrl}
+                        alt="Comment photo"
+                        width={640}
+                        height={640}
+                        className="h-auto max-h-72 w-full object-contain bg-void"
+                        unoptimized
+                      />
+                    </a>
+                  </WatermarkedFrame>
                 )}
               </li>
             );

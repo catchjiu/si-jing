@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { RewardCommentThread } from "@/components/rewards/reward-comment-thread";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
@@ -91,14 +92,16 @@ export function RewardGallery({
           >
             <div className="relative aspect-[4/5] bg-void">
               {reward.signedUrl ? (
-                <Image
-                  src={reward.signedUrl}
-                  alt={reward.title || "Reward"}
-                  fill
-                  unoptimized
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  sizes="(max-width: 640px) 100vw, 33vw"
-                />
+                <WatermarkedFrame className="absolute inset-0">
+                  <Image
+                    src={reward.signedUrl}
+                    alt={reward.title || "Reward"}
+                    fill
+                    unoptimized
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                  />
+                </WatermarkedFrame>
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <Gift className="h-8 w-8" />
@@ -128,14 +131,16 @@ export function RewardGallery({
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl && (
-                  <Image
-                    src={active.signedUrl}
-                    alt={active.title || "Reward"}
-                    fill
-                    unoptimized
-                    className="object-contain"
-                    sizes="100vw"
-                  />
+                  <WatermarkedFrame className="absolute inset-0" sizeClassName="w-[22%] max-w-[160px] min-w-[80px]">
+                    <Image
+                      src={active.signedUrl}
+                      alt={active.title || "Reward"}
+                      fill
+                      unoptimized
+                      className="object-contain"
+                      sizes="100vw"
+                    />
+                  </WatermarkedFrame>
                 )}
               </div>
               <div className="space-y-4 p-5">

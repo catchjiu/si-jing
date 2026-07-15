@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -190,14 +191,16 @@ export function WishlistGallery({
           >
             <div className="relative aspect-[4/5] bg-void">
               {item.signedUrl ? (
-                <Image
-                  src={item.signedUrl}
-                  alt={item.title || "Wishlist item"}
-                  fill
-                  unoptimized
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  sizes="(max-width: 640px) 100vw, 33vw"
-                />
+                <WatermarkedFrame className="absolute inset-0">
+                  <Image
+                    src={item.signedUrl}
+                    alt={item.title || "Wishlist item"}
+                    fill
+                    unoptimized
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                  />
+                </WatermarkedFrame>
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <Heart className="h-8 w-8" />
@@ -238,14 +241,16 @@ export function WishlistGallery({
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl ? (
-                  <Image
-                    src={active.signedUrl}
-                    alt={active.title || "Wishlist item"}
-                    fill
-                    unoptimized
-                    className="object-contain"
-                    sizes="100vw"
-                  />
+                  <WatermarkedFrame className="absolute inset-0" sizeClassName="w-[22%] max-w-[160px] min-w-[80px]">
+                    <Image
+                      src={active.signedUrl}
+                      alt={active.title || "Wishlist item"}
+                      fill
+                      unoptimized
+                      className="object-contain"
+                      sizes="100vw"
+                    />
+                  </WatermarkedFrame>
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
                     <Heart className="h-10 w-10" />

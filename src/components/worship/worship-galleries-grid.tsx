@@ -14,6 +14,7 @@ import type { WorshipGalleryTopicWithMeta } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 
 interface WorshipGalleriesGridProps {
   galleries: WorshipGalleryTopicWithMeta[];
@@ -108,14 +109,16 @@ export function WorshipGalleriesGrid({
             >
               <div className="relative aspect-[4/3] bg-void">
                 {gallery.coverSignedUrl ? (
-                  <Image
-                    src={gallery.coverSignedUrl}
-                    alt={gallery.topic}
-                    fill
-                    unoptimized
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, 33vw"
-                  />
+                  <WatermarkedFrame className="absolute inset-0">
+                    <Image
+                      src={gallery.coverSignedUrl}
+                      alt={gallery.topic}
+                      fill
+                      unoptimized
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      sizes="(max-width: 640px) 100vw, 33vw"
+                    />
+                  </WatermarkedFrame>
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Crown className="h-8 w-8" />
@@ -123,11 +126,11 @@ export function WorshipGalleriesGrid({
                   </div>
                 )}
                 {hasNew && (
-                  <span className="absolute left-2 top-2 rounded-full bg-gold px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-void">
+                  <span className="absolute left-2 top-2 z-20 rounded-full bg-gold px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-void">
                     New
                   </span>
                 )}
-                <span className="absolute bottom-2 right-2 rounded-full bg-void/80 px-2 py-0.5 text-[10px] font-medium text-ivory">
+                <span className="absolute bottom-2 left-2 z-20 rounded-full bg-void/80 px-2 py-0.5 text-[10px] font-medium text-ivory">
                   {gallery.entryCount} photo{gallery.entryCount === 1 ? "" : "s"}
                 </span>
               </div>

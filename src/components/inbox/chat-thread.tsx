@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { InboxTeaseEmbed } from "@/components/inbox/inbox-tease-embed";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import type { EvidencePinMediaKind } from "@/lib/types";
 
 function SignedMedia({
@@ -73,12 +74,14 @@ function SignedMedia({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt=""
-      className="mt-2 max-h-72 w-full rounded-lg object-contain"
-    />
+    <WatermarkedFrame className="mt-2 max-h-72 overflow-hidden rounded-lg">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        className="max-h-72 w-full object-contain"
+      />
+    </WatermarkedFrame>
   );
 }
 

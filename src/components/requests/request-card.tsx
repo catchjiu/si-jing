@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RequestThread } from "@/components/requests/request-thread";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 
 interface RequestCardProps {
   request: DesireRequest;
@@ -240,14 +241,14 @@ export function RequestCard({
             </p>
           )}
           {imageUrl && (
-            <div className="mt-3 overflow-hidden rounded-lg border border-gold/15">
+            <WatermarkedFrame className="mt-3 rounded-lg border border-gold/15">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imageUrl}
                 alt="Request attachment"
                 className="max-h-72 w-full object-contain bg-void"
               />
-            </div>
+            </WatermarkedFrame>
           )}
           <p className="text-xs text-muted-foreground">
             {formatRelative(request.created_at)}

@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 
 type ShopItemView = ShopItem & { signedUrl?: string };
 
@@ -402,19 +403,21 @@ export default function ShopPage() {
               >
                 <div className="relative aspect-[4/3] bg-void">
                   {item.signedUrl ? (
-                    <Image
-                      src={item.signedUrl}
-                      alt={item.title}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
+                    <WatermarkedFrame className="absolute inset-0">
+                      <Image
+                        src={item.signedUrl}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </WatermarkedFrame>
                   ) : (
                     <div className="flex h-full items-center justify-center text-muted-foreground">
                       <ShoppingBag className="h-8 w-8 opacity-40" />
                     </div>
                   )}
-                  <Badge className="absolute right-2 top-2 bg-gold text-void">
+                  <Badge className="absolute right-2 top-2 z-20 bg-gold text-void">
                     {item.price} pts
                   </Badge>
                 </div>

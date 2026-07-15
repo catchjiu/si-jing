@@ -6,6 +6,10 @@ import {
   type StorageBucket,
 } from "@/lib/storage/paths";
 import { putR2Object } from "@/lib/storage/r2";
+import {
+  shouldWatermarkUpload,
+  watermarkImageBuffer,
+} from "@/lib/storage/watermark-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -58,12 +62,32 @@ export async function POST(request: Request) {
   }
 
   const bucket = bucketRaw as StorageBucket;
-  const ext =
+  let contentType = contentTypeRaw;
+  let ext =
     (typeof extRaw === "string" ? extRaw : "bin").replace(/[^a-zA-Z0-9]/g, "") ||
     "bin";
-  const relativePath =
+  let relativePath =
     (typeof relativePathRaw === "string" ? relativePathRaw : "")
       .replace(/^\/+/, "") || `${user.id}/${Date.now()}.${ext}`;
+
+  let body: Buffer = Buffer.from(await file.arrayBuffer());
+
+  if (
+    shouldWatermarkUpload({
+      contentType,
+      relativePath,
+    })
+  ) {
+    try {
+      const stamped = await watermarkImageBuffer(body, contentType);
+      body = Buffer.from(stamped.buffer);
+      contentType = stamped.contentType;
+      ext = stamped.ext;
+      relativePath = relativePath.replace(/\.[^.]+$/, `.${ext}`);
+    } catch (err) {
+      console.error("watermark failed, uploading original", err);
+    }
+  }
 
   const safeRelative = relativePath.startsWith(`${user.id}/`)
     ? relativePath
@@ -73,11 +97,10 @@ export async function POST(request: Request) {
   const key = `${bucket}/${safeRelative}`;
 
   try {
-    const body = Buffer.from(await file.arrayBuffer());
     await putR2Object({
       key,
       body,
-      contentType: contentTypeRaw,
+      contentType,
     });
     return NextResponse.json({ path });
   } catch (err) {

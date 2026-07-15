@@ -30,6 +30,7 @@ import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -466,7 +467,7 @@ export function DateTimeline({
                   )}
 
                   {post.media_kind === "image" && post.signedUrl && (
-                    <div className="relative aspect-[4/5] max-h-80 overflow-hidden rounded-md border border-gold/15">
+                    <WatermarkedFrame className="aspect-[4/5] max-h-80 rounded-md border border-gold/15">
                       <Image
                         src={post.signedUrl}
                         alt="Timeline photo"
@@ -475,7 +476,7 @@ export function DateTimeline({
                         className="object-cover"
                         sizes="400px"
                       />
-                    </div>
+                    </WatermarkedFrame>
                   )}
 
                   {post.latitude != null &&
