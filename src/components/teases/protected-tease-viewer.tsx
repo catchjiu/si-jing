@@ -22,8 +22,8 @@ type TeaseSessionViewerProps = {
 };
 
 /**
- * Fullscreen tease session — auto-ends after 5s, uploads reaction cam,
- * but the tease stays available until Queen blurs it again.
+ * Fullscreen tease session — images auto-end after 5s; videos run to the end,
+ * then upload reaction cam. The tease stays available until Queen blurs it again.
  */
 export function TeaseSessionViewer({
   mediaUrl,
@@ -36,7 +36,7 @@ export function TeaseSessionViewer({
 }: TeaseSessionViewerProps) {
   const [blanked, setBlanked] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(
-    Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000)
+    mediaKind === "video" ? 0 : Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000)
   );
   const endedRef = useRef(false);
   const flaggedRef = useRef(false);
@@ -96,10 +96,16 @@ export function TeaseSessionViewer({
     visibleSinceRef.current =
       document.visibilityState === "visible" ? Date.now() : null;
     setBlanked(false);
-    setSecondsLeft(Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000));
-  }, [mediaUrl]);
+    setSecondsLeft(
+      mediaKindRef.current === "video"
+        ? 0
+        : Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000)
+    );
+  }, [mediaUrl, mediaKind]);
 
   useEffect(() => {
+    if (mediaKind === "video") return;
+
     const countdown = window.setInterval(() => {
       setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
@@ -112,7 +118,7 @@ export function TeaseSessionViewer({
       window.clearInterval(countdown);
       window.clearTimeout(autoEnd);
     };
-  }, [end, mediaUrl]);
+  }, [end, mediaUrl, mediaKind]);
 
   useEffect(() => {
     const onVis = () => {
@@ -176,7 +182,9 @@ export function TeaseSessionViewer({
             <ShieldAlert className="size-3" />
             {blanked
               ? "Sending reaction to Queen…"
-              : `Auto-sending in ${secondsLeft}s · reaction cam recording`}
+              : mediaKind === "video"
+                ? "Reaction sends when video ends · reaction cam recording"
+                : `Auto-sending in ${secondsLeft}s · reaction cam recording`}
           </p>
         </div>
         {!blanked && (
@@ -224,6 +232,7 @@ export function TeaseSessionViewer({
             controlsList="nodownload noremoteplayback"
             disablePictureInPicture
             onContextMenu={(e) => e.preventDefault()}
+            onEnded={() => end("auto")}
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
