@@ -724,6 +724,12 @@ export default function TeasesPage() {
       return;
     }
 
+    const tease = items.find((t) => t.id === inlineViewId);
+    if (tease?.media_kind === "video") {
+      setViewSecondsLeft(null);
+      return;
+    }
+
     const totalSeconds = Math.ceil(TEASE_VIEW_AUTO_END_MS / 1000);
     setViewSecondsLeft(totalSeconds);
 
@@ -742,7 +748,7 @@ export default function TeasesPage() {
       window.clearInterval(countdown);
       window.clearTimeout(autoEnd);
     };
-  }, [inlineViewId, isSlave]);
+  }, [inlineViewId, isSlave, items]);
 
   const beginInlineView = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || !tease.image_path) return;
@@ -908,7 +914,7 @@ export default function TeasesPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
             ? "Blur or reveal — D can watch again until you hide it; each watch sends a reaction cam"
-            : "Front camera required — 5 second view auto-sends reaction to Queen"}
+            : "Front camera required — images auto-send after 5s; videos send when playback ends"}
         </p>
       </div>
 
@@ -1191,7 +1197,9 @@ export default function TeasesPage() {
                       <Video className="h-8 w-8 text-gold" />
                       <p className="font-heading text-ivory">Camera required</p>
                       <p className="text-xs text-muted-foreground">
-                        Queen receives a short reaction video — view lasts 5 seconds
+                        {isVideo
+                          ? "Queen receives your reaction when the video ends"
+                          : "Queen receives a short reaction video — view lasts 5 seconds"}
                       </p>
                       <Button
                         size="sm"
@@ -1217,11 +1225,13 @@ export default function TeasesPage() {
                           src={t.signedUrl}
                           controls
                           playsInline
+                          autoPlay
                           className="absolute inset-0 h-full w-full object-cover transition duration-500"
                           style={
                             visuallyBlurred ? blurStyle(amount) : undefined
                           }
                           controlsList="nodownload"
+                          onEnded={() => void endInlineViewRef.current({ auto: true })}
                         />
                       ) : (
                         <Image
@@ -1247,7 +1257,9 @@ export default function TeasesPage() {
                           <p className="mb-2 text-center text-[11px] text-gold">
                             {viewSecondsLeft != null
                               ? `Sending in ${viewSecondsLeft}s…`
-                              : "Sending reaction…"}
+                              : isVideo
+                                ? "Reaction sends when video ends…"
+                                : "Sending reaction…"}
                           </p>
                           <Button
                             type="button"
@@ -1281,7 +1293,9 @@ export default function TeasesPage() {
                         {t.title || "Ready to view"}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Front camera required · 5s view auto-sends reaction
+                        {isVideo
+                          ? "Front camera required · reaction sends when video ends"
+                          : "Front camera required · 5s view auto-sends reaction"}
                       </p>
                       <Button
                         size="sm"
