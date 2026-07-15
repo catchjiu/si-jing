@@ -59,6 +59,8 @@ import {
 
 const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ACCEPTED_MEDIA = [...ACCEPTED_IMAGE, ...VIDEO_TYPES];
+/** Blur applied on slave card previews for Queen-revealed teases. */
+const SLAVE_CARD_PREVIEW_BLUR = 20;
 
 function isVideoFile(file: File) {
   return VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number]);
@@ -96,22 +98,13 @@ function isTimeUnlocked(unlocksAt: string) {
 
 async function withSignedUrls(
   teases: TeaseWithSignedUrl[],
-  {
-    isQueen,
-    inlineViewId,
-  }: { isQueen: boolean; inlineViewId: string | null }
+  { isQueen }: { isQueen: boolean }
 ): Promise<TeaseWithSignedUrl[]> {
   return Promise.all(
     teases.map(async (t) => {
       if (!t.image_path) return t;
       const unlocked = isTimeUnlocked(t.unlocks_at);
       if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
-      // Revealed teases open in a camera-gated session viewer
-      if (!isQueen && !t.is_blurred) return { ...t, signedUrl: undefined };
-      // Blurred teases: sign only while D is actively viewing inline
-      if (!isQueen && t.is_blurred && inlineViewId !== t.id) {
-        return { ...t, signedUrl: undefined };
-      }
       const signedUrl =
         (await signObjectUrl({
           bucket: "teases",
@@ -205,11 +198,10 @@ export default function TeasesPage() {
     }));
     const signed = await withSignedUrls(rows, {
       isQueen: !!isQueen,
-      inlineViewId,
     });
     setItems(signed);
     setLoading(false);
-  }, [profile, isSlave, isQueen, inlineViewId]);
+  }, [profile, isSlave, isQueen]);
 
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -1163,10 +1155,19 @@ export default function TeasesPage() {
             const showImage = isQueen || timeReady;
             const visuallyBlurred = !!t.image_path && t.is_blurred;
             const amount = t.blur_amount ?? 20;
-            const fullyRevealed = showImage && !visuallyBlurred;
+            const queenRevealed = showImage && !visuallyBlurred;
+            const fullyRevealed = queenRevealed;
             const isVideo = t.media_kind === "video";
-            const slaveNeedsSessionView =
-              isSlave && fullyRevealed && !!t.image_path;
+            const slaveCardPreviewBlur = visuallyBlurred
+              ? amount
+              : SLAVE_CARD_PREVIEW_BLUR;
+            const slaveInInlineView = isSlave && inlineViewId === t.id;
+            const slaveInSessionView = isSlave && activeView?.tease.id === t.id;
+            const slaveShowsBlurredPreview =
+              isSlave &&
+              !!t.signedUrl &&
+              !slaveInInlineView &&
+              !slaveInSessionView;
             const unlockTasks = t.unlock_tasks ?? [];
             const hasUnlockTasks = unlockTasks.length > 0;
             const tasksDone = unlockTasks.filter((x) => x.completed_at).length;
@@ -1192,32 +1193,7 @@ export default function TeasesPage() {
                         Available {formatDeadline(t.unlocks_at)}
                       </p>
                     </div>
-                  ) : isSlave && visuallyBlurred && inlineViewId !== t.id ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-                      <Video className="h-8 w-8 text-gold" />
-                      <p className="font-heading text-ivory">Camera required</p>
-                      <p className="text-xs text-muted-foreground">
-                        {isVideo
-                          ? "Queen receives your reaction when the video ends"
-                          : "Queen receives a short reaction video — view lasts 5 seconds"}
-                      </p>
-                      <Button
-                        size="sm"
-                        disabled={opening === t.id}
-                        onClick={() => void beginInlineView(t)}
-                        className="bg-gold text-void hover:bg-gold-muted"
-                      >
-                        {opening === t.id ? (
-                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Video className="mr-2 h-3.5 w-3.5" />
-                        )}
-                        View tease
-                      </Button>
-                    </div>
-                  ) : t.signedUrl &&
-                    (isQueen ||
-                      (isSlave && visuallyBlurred && inlineViewId === t.id)) ? (
+                  ) : t.signedUrl && isQueen ? (
                     <>
                       {isVideo ? (
                         // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -1225,13 +1201,11 @@ export default function TeasesPage() {
                           src={t.signedUrl}
                           controls
                           playsInline
-                          autoPlay
                           className="absolute inset-0 h-full w-full object-cover transition duration-500"
                           style={
                             visuallyBlurred ? blurStyle(amount) : undefined
                           }
                           controlsList="nodownload"
-                          onEnded={() => void endInlineViewRef.current({ auto: true })}
                         />
                       ) : (
                         <Image
@@ -1246,71 +1220,142 @@ export default function TeasesPage() {
                           sizes="50vw"
                         />
                       )}
-                      {isSlave && inlineViewId === t.id && cameraStream && (
+                      {visuallyBlurred && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/80 to-transparent p-3 text-center">
+                          <p className="text-xs text-ivory/90">
+                            {`${amount}% blur for D · ${blurLabel(amount)}${isVideo ? " · video" : ""}`}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  ) : t.signedUrl && slaveInInlineView ? (
+                    <>
+                      {isVideo ? (
+                        // eslint-disable-next-line jsx-a11y/media-has-caption
+                        <video
+                          src={t.signedUrl}
+                          controls
+                          playsInline
+                          autoPlay
+                          className="absolute inset-0 h-full w-full object-cover transition duration-500"
+                          style={blurStyle(amount)}
+                          controlsList="nodownload"
+                          onEnded={() => void endInlineViewRef.current({ auto: true })}
+                        />
+                      ) : (
+                        <Image
+                          src={t.signedUrl}
+                          alt={t.title || "Tease"}
+                          fill
+                          unoptimized
+                          className="object-cover transition duration-500"
+                          style={blurStyle(amount)}
+                          sizes="50vw"
+                        />
+                      )}
+                      {cameraStream && (
                         <TeaseReactionCameraPip
                           stream={cameraStream}
                           className="absolute right-2 top-2 z-10 h-20 w-16 sm:h-24 sm:w-20"
                         />
                       )}
-                      {isSlave && inlineViewId === t.id && (
-                        <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-void via-void/90 to-transparent p-3">
-                          <p className="mb-2 text-center text-[11px] text-gold">
-                            {viewSecondsLeft != null
-                              ? `Sending in ${viewSecondsLeft}s…`
-                              : isVideo
-                                ? "Reaction sends when video ends…"
-                                : "Sending reaction…"}
-                          </p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="w-full border-gold/40 text-gold hover:bg-gold/10"
-                            onClick={() => void endInlineView()}
-                          >
-                            Send now
-                          </Button>
-                        </div>
-                      )}
-                      {visuallyBlurred && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/80 to-transparent p-3 text-center">
-                          <p className="text-xs text-ivory/90">
-                            {isQueen
-                              ? `${amount}% blur for D · ${blurLabel(amount)}${isVideo ? " · video" : ""}`
-                              : hasUnlockTasks && !tasksAllDone
-                                ? `${tasksDone}/${unlockTasks.length} · ${amount}% blur`
-                                : isVideo
-                                  ? "Veiled video · waiting for Queen to reveal"
-                                  : "Waiting for Queen to reveal"}
-                          </p>
-                        </div>
-                      )}
+                      <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-void via-void/90 to-transparent p-3">
+                        <p className="mb-2 text-center text-[11px] text-gold">
+                          {viewSecondsLeft != null
+                            ? `Sending in ${viewSecondsLeft}s…`
+                            : isVideo
+                              ? "Reaction sends when video ends…"
+                              : "Sending reaction…"}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="w-full border-gold/40 text-gold hover:bg-gold/10"
+                          onClick={() => void endInlineView()}
+                        >
+                          Send now
+                        </Button>
+                      </div>
+                      <div className="pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-void/80 to-transparent p-3 text-center">
+                        <p className="text-xs text-ivory/90">
+                          {hasUnlockTasks && !tasksAllDone
+                            ? `${tasksDone}/${unlockTasks.length} · ${amount}% blur`
+                            : isVideo
+                              ? "Veiled video"
+                              : "Veiled tease"}
+                        </p>
+                      </div>
                     </>
-                  ) : slaveNeedsSessionView ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-                      <Eye className="h-8 w-8 text-gold" />
-                      <p className="font-heading text-ivory">
-                        {t.title || "Ready to view"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {isVideo
-                          ? "Front camera required · reaction sends when video ends"
-                          : "Front camera required · 5s view auto-sends reaction"}
-                      </p>
-                      <Button
-                        size="sm"
-                        disabled={opening === t.id}
-                        onClick={() => void openSessionView(t)}
-                        className="bg-gold text-void hover:bg-gold-muted"
-                      >
-                        {opening === t.id ? (
-                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : t.signedUrl && slaveShowsBlurredPreview ? (
+                    <>
+                      {isVideo ? (
+                        // eslint-disable-next-line jsx-a11y/media-has-caption
+                        <video
+                          src={t.signedUrl}
+                          playsInline
+                          muted
+                          loop
+                          autoPlay
+                          preload="auto"
+                          className="absolute inset-0 h-full w-full object-cover transition duration-500"
+                          style={blurStyle(slaveCardPreviewBlur)}
+                          controlsList="nodownload"
+                        />
+                      ) : (
+                        <Image
+                          src={t.signedUrl}
+                          alt={t.title || "Tease"}
+                          fill
+                          unoptimized
+                          className="object-cover transition duration-500"
+                          style={blurStyle(slaveCardPreviewBlur)}
+                          sizes="50vw"
+                        />
+                      )}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-void/45 p-4 text-center">
+                        {queenRevealed ? (
+                          <Eye className="h-8 w-8 text-gold" />
                         ) : (
-                          <Eye className="mr-2 h-3.5 w-3.5" />
+                          <Video className="h-8 w-8 text-gold" />
                         )}
-                        {isVideo ? "Watch tease" : "View tease"}
-                      </Button>
-                    </div>
+                        <p className="font-heading text-ivory">
+                          {t.title || (queenRevealed ? "Ready to view" : "Camera required")}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {queenRevealed
+                            ? isVideo
+                              ? "Tap to watch unblurred · reaction sends when video ends"
+                              : "Tap to view unblurred · 5s auto-sends reaction"
+                            : isVideo
+                              ? "Queen receives your reaction when the video ends"
+                              : "Queen receives a short reaction video — view lasts 5 seconds"}
+                        </p>
+                        <Button
+                          size="sm"
+                          disabled={opening === t.id}
+                          onClick={() =>
+                            void (queenRevealed
+                              ? openSessionView(t)
+                              : beginInlineView(t))
+                          }
+                          className="bg-gold text-void hover:bg-gold-muted"
+                        >
+                          {opening === t.id ? (
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          ) : queenRevealed ? (
+                            <Eye className="mr-2 h-3.5 w-3.5" />
+                          ) : (
+                            <Video className="mr-2 h-3.5 w-3.5" />
+                          )}
+                          {queenRevealed
+                            ? isVideo
+                              ? "Watch tease"
+                              : "View tease"
+                            : "View tease"}
+                        </Button>
+                      </div>
+                    </>
                   ) : (
                     <div className="flex h-full items-center justify-center p-4">
                       <Sparkles className="h-8 w-8 text-gold/40" />
