@@ -13,7 +13,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { QueenAvailability } from "@/lib/types";
 import { fetchQueenWorkingUntil } from "@/lib/queen-work-schedule";
+import type { WorkingUntilInfo } from "@/lib/queen-work-schedule";
 import { QueenWorkScheduleDialog } from "@/components/status/queen-work-schedule";
+import { WorkEndCountdown } from "@/components/status/work-end-countdown";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
 
@@ -189,7 +191,7 @@ export function QueenStatusDisplay({
   const [lastActiveAt, setLastActiveAt] = useState<string | null>(
     initialLastActiveAt
   );
-  const [workingUntilLabel, setWorkingUntilLabel] = useState<string | null>(
+  const [workingUntil, setWorkingUntil] = useState<WorkingUntilInfo | null>(
     null
   );
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -291,17 +293,17 @@ export function QueenStatusDisplay({
 
   useEffect(() => {
     if (availability !== "working" || !queenId) {
-      setWorkingUntilLabel(null);
+      setWorkingUntil(null);
       return;
     }
     let cancelled = false;
     const supabase = createClient();
     void fetchQueenWorkingUntil(supabase, queenId)
       .then((info) => {
-        if (!cancelled) setWorkingUntilLabel(info?.label ?? null);
+        if (!cancelled) setWorkingUntil(info);
       })
       .catch(() => {
-        if (!cancelled) setWorkingUntilLabel(null);
+        if (!cancelled) setWorkingUntil(null);
       });
     return () => {
       cancelled = true;
@@ -329,11 +331,19 @@ export function QueenStatusDisplay({
           {username}&apos;s status
         </p>
         <p className="font-heading text-xl">{displayMeta.label}</p>
-        <p className="text-xs opacity-80">
-          {isWorking && workingUntilLabel
-            ? `${username} is working until ${workingUntilLabel}`
-            : displayMeta.hint}
-        </p>
+        {isWorking && workingUntil ? (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-[10px] uppercase tracking-wider opacity-70">
+              Shift ends in
+            </p>
+            <WorkEndCountdown endAtMs={workingUntil.endAtMs} compact />
+            <p className="text-xs opacity-80">
+              {username} is working until {workingUntil.label}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs opacity-80">{displayMeta.hint}</p>
+        )}
         {isWorking ? (
           <p className="mt-0.5 text-[10px] opacity-60">Tap for work schedule</p>
         ) : null}

@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   WORK_DAY_LABELS,
   QUEEN_WORK_TIMEZONE,
+  activeWorkWindowEndMs,
   applyQueenWorkSchedules,
   emptyWeekDraft,
   fetchWeekSchedule,
@@ -21,6 +22,7 @@ import {
   shiftWeek,
   type QueenWorkDayDraft,
 } from "@/lib/queen-work-schedule";
+import { WorkEndCountdown } from "@/components/status/work-end-countdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -338,6 +340,8 @@ export function QueenWorkScheduleDialog({
 
   const enabledDays = days.filter((d) => d.enabled);
   const isThisWeek = weekStart === thisMonday;
+  const activeEndMs = isThisWeek ? activeWorkWindowEndMs(days, weekStart) : null;
+  const activeDay = days.find((d) => isCurrentlyInWorkWindow(d, weekStart));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -350,6 +354,29 @@ export function QueenWorkScheduleDialog({
             Hours in Pacific (Santa Cruz). Your local times shown in Taipei.
           </DialogDescription>
         </DialogHeader>
+
+        {activeEndMs && activeDay ? (
+          <div className="rounded-lg border border-gold/40 bg-gold/10 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-wider text-gold">
+              Shift ends in
+            </p>
+            <WorkEndCountdown endAtMs={activeEndMs} className="mt-2" />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Until{" "}
+              {formatWorkDayInQueenZone(
+                weekStart,
+                activeDay.dayOfWeek,
+                activeDay.endTime
+              )}{" "}
+              · You:{" "}
+              {formatWorkDayInSlaveZone(
+                weekStart,
+                activeDay.dayOfWeek,
+                activeDay.endTime
+              )}
+            </p>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
