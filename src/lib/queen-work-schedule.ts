@@ -83,6 +83,84 @@ export function mondayOfWeek(
   return asUtc.toISOString().slice(0, 10);
 }
 
+export function shiftWeek(weekStart: string, deltaWeeks: number): string {
+  const d = new Date(`${weekStart}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaWeeks * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+export function dateYmdForWeekDay(
+  weekStart: string,
+  dayOfWeek: number
+): string {
+  const d = new Date(`${weekStart}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dayOfWeek);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Format a work-day wall time in the slave's timezone (Taipei). */
+export function formatWorkDayInSlaveZone(
+  weekStart: string,
+  dayOfWeek: number,
+  hm: string
+): string {
+  const ymd = dateYmdForWeekDay(weekStart, dayOfWeek);
+  try {
+    return formatWallTimeAcrossZones(
+      ymd,
+      hm,
+      QUEEN_WORK_TIMEZONE,
+      SLAVE_PLACE.timeZone,
+      { includeZone: true, zoneLabel: SLAVE_PLACE.zoneShort }
+    );
+  } catch {
+    return "";
+  }
+}
+
+/** Format a work-day wall time in the queen's timezone (Pacific). */
+export function formatWorkDayInQueenZone(
+  weekStart: string,
+  dayOfWeek: number,
+  hm: string
+): string {
+  const ymd = dateYmdForWeekDay(weekStart, dayOfWeek);
+  try {
+    return formatWallTimeAcrossZones(
+      ymd,
+      hm,
+      QUEEN_WORK_TIMEZONE,
+      QUEEN_PLACE.timeZone,
+      { includeZone: true, zoneLabel: QUEEN_PLACE.zoneShort }
+    );
+  } catch {
+    return hm;
+  }
+}
+
+export function isCurrentlyInWorkWindow(
+  day: QueenWorkDayDraft,
+  weekStart: string
+): boolean {
+  if (!day.enabled) return false;
+  const now = new Date();
+  const thisMonday = mondayOfWeek(now, QUEEN_WORK_TIMEZONE);
+  if (weekStart !== thisMonday) return false;
+  const weekday = weekdayShortInZone(now, QUEEN_WORK_TIMEZONE);
+  const map: Record<string, number> = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+  };
+  if (map[weekday] !== day.dayOfWeek) return false;
+  const nowHm = hmInZone(now, QUEEN_WORK_TIMEZONE);
+  return nowHm >= day.startTime && nowHm < day.endTime;
+}
+
 export function formatWeekRange(weekStart: string): string {
   const start = new Date(`${weekStart}T12:00:00Z`);
   const end = new Date(start);

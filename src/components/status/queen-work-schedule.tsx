@@ -12,40 +12,26 @@ import {
   emptyWeekDraft,
   fetchWeekSchedule,
   formatWeekRange,
+  formatWorkDayInQueenZone,
+  formatWorkDayInSlaveZone,
+  isCurrentlyInWorkWindow,
   mondayOfWeek,
   rowsToDraft,
   saveWeekSchedule,
+  shiftWeek,
   type QueenWorkDayDraft,
 } from "@/lib/queen-work-schedule";
-import { formatWallTimeAcrossZones } from "@/lib/timezone";
-import { SLAVE_PLACE } from "@/lib/partner-locations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-
-function shiftWeek(weekStart: string, deltaWeeks: number): string {
-  const d = new Date(`${weekStart}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + deltaWeeks * 7);
-  return d.toISOString().slice(0, 10);
-}
-
-function taiwanHint(weekStart: string, dayOfWeek: number, hm: string): string {
-  const d = new Date(`${weekStart}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + dayOfWeek);
-  const ymd = d.toISOString().slice(0, 10);
-  try {
-    return formatWallTimeAcrossZones(
-      ymd,
-      hm,
-      QUEEN_WORK_TIMEZONE,
-      SLAVE_PLACE.timeZone,
-      { includeZone: true, zoneLabel: SLAVE_PLACE.zoneShort }
-    );
-  } catch {
-    return "";
-  }
-}
 
 /** Queen-only: set working hours for a calendar week; auto-applies Working status. */
 export function QueenWorkScheduleCard({ className }: { className?: string }) {
@@ -272,8 +258,9 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
                   </div>
                   {day.enabled ? (
                     <p className="w-full text-[10px] text-muted-foreground sm:ml-2 sm:w-auto sm:self-end sm:pb-2">
-                      D: {taiwanHint(weekStart, index, day.startTime)} –{" "}
-                      {taiwanHint(weekStart, index, day.endTime)}
+                      D: {formatWorkDayInSlaveZone(weekStart, index, day.startTime)}{" "}
+                      –{" "}
+                      {formatWorkDayInSlaveZone(weekStart, index, day.endTime)}
                     </p>
                   ) : null}
                 </div>
@@ -299,5 +286,159 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
         )}
       </Button>
     </div>
+  );
+}
+
+/** Read-only work schedule dialog for slaves (and anyone viewing Queen's hours). */
+export function QueenWorkScheduleDialog({
+  open,
+  onOpenChange,
+  queenId,
+  username = "Queen",
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  queenId: string | null;
+  username?: string;
+}) {
+  const timezone = QUEEN_WORK_TIMEZONE;
+  const thisMonday = useMemo(() => mondayOfWeek(new Date(), timezone), [timezone]);
+  const [weekStart, setWeekStart] = useState(thisMonday);
+  const [days, setDays] = useState<QueenWorkDayDraft[]>(emptyWeekDraft);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setWeekStart(thisMonday);
+  }, [open, thisMonday]);
+
+  useEffect(() => {
+    if (!open || !queenId) {
+      setDays(emptyWeekDraft());
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const supabase = createClient();
+    void fetchWeekSchedule(supabase, queenId, weekStart)
+      .then((rows) => {
+        if (cancelled) return;
+        setDays(rows.length > 0 ? rowsToDraft(rows) : emptyWeekDraft());
+      })
+      .catch(() => {
+        if (!cancelled) setDays(emptyWeekDraft());
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, queenId, weekStart]);
+
+  const enabledDays = days.filter((d) => d.enabled);
+  const isThisWeek = weekStart === thisMonday;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-gold/20 bg-charcoal sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="font-heading text-gold">
+            {username}&apos;s work schedule
+          </DialogTitle>
+          <DialogDescription>
+            Hours in Pacific (Santa Cruz). Your local times shown in Taipei.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-gold/25"
+            onClick={() => setWeekStart((w) => shiftWeek(w, -1))}
+          >
+            Prev
+          </Button>
+          <p className="min-w-[10rem] flex-1 text-center text-sm text-ivory">
+            {formatWeekRange(weekStart)}
+            {isThisWeek ? (
+              <span className="ml-2 text-[10px] uppercase tracking-wider text-gold">
+                This week
+              </span>
+            ) : null}
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-gold/25"
+            onClick={() => setWeekStart((w) => shiftWeek(w, 1))}
+          >
+            Next
+          </Button>
+          {weekStart !== thisMonday ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => setWeekStart(thisMonday)}
+            >
+              Today
+            </Button>
+          ) : null}
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : enabledDays.length === 0 ? (
+          <p className="rounded-lg border border-gold/10 bg-void/40 px-4 py-6 text-center text-sm text-muted-foreground">
+            No work hours set for this week.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {WORK_DAY_LABELS.map(({ index, label, short }) => {
+              const day = days.find((d) => d.dayOfWeek === index);
+              if (!day?.enabled) return null;
+              const active = isCurrentlyInWorkWindow(day, weekStart);
+              return (
+                <li
+                  key={index}
+                  className={cn(
+                    "rounded-lg border px-3 py-2.5",
+                    active
+                      ? "border-gold/50 bg-gold/15"
+                      : "border-gold/25 bg-gold/5"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-ivory">
+                      <span className="hidden sm:inline">{label}</span>
+                      <span className="sm:hidden">{short}</span>
+                    </span>
+                    {active ? (
+                      <span className="text-[10px] uppercase tracking-wider text-gold">
+                        Now
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm text-ivory/90">
+                    {formatWorkDayInQueenZone(weekStart, index, day.startTime)}{" "}
+                    – {formatWorkDayInQueenZone(weekStart, index, day.endTime)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    You:{" "}
+                    {formatWorkDayInSlaveZone(weekStart, index, day.startTime)}{" "}
+                    – {formatWorkDayInSlaveZone(weekStart, index, day.endTime)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
