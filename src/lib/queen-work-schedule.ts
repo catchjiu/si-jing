@@ -9,6 +9,7 @@ import {
   hmInZone,
   weekdayShortInZone,
   ymdInZone,
+  zonedWallTimeToUtc,
 } from "@/lib/timezone";
 
 type Supabase = ReturnType<typeof createClient>;
@@ -271,8 +272,29 @@ export async function applyQueenWorkSchedules(
   return Number(data ?? 0);
 }
 
+export function workWindowEndMs(
+  weekStart: string,
+  dayOfWeek: number,
+  endHm: string,
+  timeZone: string = QUEEN_WORK_TIMEZONE
+): number {
+  const ymd = dateYmdForWeekDay(weekStart, dayOfWeek);
+  return zonedWallTimeToUtc(ymd, endHm, timeZone).getTime();
+}
+
+export function activeWorkWindowEndMs(
+  days: QueenWorkDayDraft[],
+  weekStart: string
+): number | null {
+  const active = days.find((d) => isCurrentlyInWorkWindow(d, weekStart));
+  if (!active) return null;
+  return workWindowEndMs(weekStart, active.dayOfWeek, active.endTime);
+}
+
 export type WorkingUntilInfo = {
   until: string;
+  /** UTC ms when today's work window ends (for countdown). */
+  endAtMs: number;
   /** Queen / Pacific label, e.g. "5:00 PM PT" */
   labelPacific: string;
   /** Slave / Taipei label, e.g. "Sat 8:00 AM Taipei" */
@@ -341,6 +363,7 @@ export async function fetchQueenWorkingUntil(
 
   return {
     until: end,
+    endAtMs: zonedWallTimeToUtc(todayInRow, end, rowTz).getTime(),
     labelPacific,
     labelTaipei,
     label: `${labelTaipei} (${labelPacific})`,
