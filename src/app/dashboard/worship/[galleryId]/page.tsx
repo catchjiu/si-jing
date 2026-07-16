@@ -223,7 +223,7 @@ function WorshipGalleryPageInner() {
       )}
 
       <section className="space-y-4">
-        <h2 className="font-heading text-xl text-gold">Photos</h2>
+        <h2 className="font-heading text-xl text-gold">Gallery</h2>
         <WorshipGallery
           entries={entries}
           galleryId={gallery.id}
