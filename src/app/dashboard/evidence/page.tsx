@@ -1,13 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Bookmark, Flame, HeartCrack, Images, Mic } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  Flame,
+  HeartCrack,
+  Images,
+  Mic,
+  Trash2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
-import { unpinEvidence } from "@/lib/evidence-pins";
+import { unpinEvidence, unpinEvidenceMany } from "@/lib/evidence-pins";
 import type { EvidencePin } from "@/lib/types";
 import { isStorageBucket } from "@/lib/storage/paths";
 import { signObjectUrl } from "@/lib/storage/client";
@@ -21,6 +36,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const LONG_PRESS_MS = 480;
+const MOVE_CANCEL_PX = 10;
 
 type EvidenceItem = {
   id: string;
@@ -61,6 +79,26 @@ function youtubeId(url: string) {
   }
 }
 
+function pinSubtitle(sourceType: EvidencePin["source_type"]): string {
+  switch (sourceType) {
+    case "date":
+      return "Pinned from Date";
+    case "date_post":
+      return "Pinned from Date timeline";
+    case "tease":
+      return "Pinned from Tease";
+    case "direct_message":
+      return "Pinned from Inbox";
+    case "worship_message":
+    case "worship_gallery_message":
+      return "Pinned from Worship";
+    case "voice_note":
+      return "Pinned voice";
+    default:
+      return "Kept";
+  }
+}
+
 function EvidenceThumb({
   item,
   onSigned,
@@ -74,13 +112,23 @@ function EvidenceThumb({
   const isVoice = item.media_type === "voice";
   const isVideo = item.media_type === "video";
   const isText = item.media_type === "text";
+  const caption = item.pin?.caption?.trim() || null;
+  const showCaptionOnImage =
+    !!caption &&
+    !!item.file_path &&
+    (item.pin?.source_type === "worship_message" ||
+      item.pin?.source_type === "worship_gallery_message" ||
+      item.pin?.source_type === "date_post" ||
+      item.pin?.source_type === "direct_message" ||
+      item.pin?.source_type === "tease");
 
   useEffect(() => {
     setUrl(item.signedUrl);
   }, [item.signedUrl]);
 
   useEffect(() => {
-    if (url || !item.file_path || isVoice || isReaction || isText) return;
+    // Sign whenever we have a file path (including text pins that also carry a photo)
+    if (url || !item.file_path || isVoice || isReaction) return;
     let cancelled = false;
     void onSigned(item).then((signed) => {
       if (!cancelled && signed.signedUrl) setUrl(signed.signedUrl);
@@ -88,18 +136,27 @@ function EvidenceThumb({
     return () => {
       cancelled = true;
     };
-  }, [item, onSigned, url, isVoice, isReaction, isText]);
+  }, [item, onSigned, url, isVoice, isReaction]);
 
   if (url && !isVoice && !isVideo) {
     return (
-      <Image
-        src={url}
-        alt={item.title}
-        fill
-        unoptimized
-        className="object-cover transition group-hover:scale-105"
-        sizes="25vw"
-      />
+      <>
+        <Image
+          src={url}
+          alt={item.title}
+          fill
+          unoptimized
+          className="object-cover transition group-hover:scale-105"
+          sizes="25vw"
+        />
+        {showCaptionOnImage && (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-void/95 via-void/70 to-transparent px-2 pb-2 pt-8">
+            <p className="line-clamp-2 text-[10px] leading-snug text-ivory/90">
+              {caption}
+            </p>
+          </div>
+        )}
+      </>
     );
   }
   if (isVideo && url) {
@@ -133,7 +190,7 @@ function EvidenceThumb({
       </div>
     );
   }
-  if (isReaction || isText) {
+  if (isReaction || (isText && !item.file_path)) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center">
         <Bookmark className="h-6 w-6 text-gold" />
@@ -156,6 +213,29 @@ export default function EvidencePage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("this_week");
   const [active, setActive] = useState<EvidenceItem | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const longPressRef = useRef<{
+    timer: number | null;
+    startX: number;
+    startY: number;
+    itemId: string | null;
+    fired: boolean;
+  }>({ timer: null, startX: 0, startY: 0, itemId: null, fired: false });
+
+  const clearLongPress = useCallback(() => {
+    const ref = longPressRef.current;
+    if (ref.timer != null) {
+      window.clearTimeout(ref.timer);
+      ref.timer = null;
+    }
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelecting(false);
+    setSelectedIds(new Set());
+  }, []);
 
   const ensureSigned = useCallback(async (item: EvidenceItem) => {
     if (item.signedUrl || !item.file_path) return item;
@@ -182,6 +262,26 @@ export default function EvidencePage() {
     },
     [ensureSigned]
   );
+
+  const toggleSelect = useCallback((item: EvidenceItem) => {
+    if (item.kind !== "pin" || !item.pin) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(item.pin!.id)) next.delete(item.pin!.id);
+      else next.add(item.pin!.id);
+      return next;
+    });
+  }, []);
+
+  const beginSelect = useCallback((item: EvidenceItem) => {
+    if (item.kind !== "pin" || !item.pin) {
+      toast.message("Long-press a Kept item to select");
+      return;
+    }
+    setSelecting(true);
+    setSelectedIds(new Set([item.pin.id]));
+    setActive(null);
+  }, []);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -263,29 +363,84 @@ export default function EvidencePage() {
       }
 
       const pinRows = (pins ?? []) as EvidencePin[];
+
+      // Text-only worship photo comments: attach the parent entry image for preview
+      const worshipIdsNeedingPhoto = pinRows
+        .filter(
+          (p) =>
+            p.source_type === "worship_message" &&
+            !p.file_path &&
+            p.source_id
+        )
+        .map((p) => p.source_id);
+
+      const entryImageByMessageId = new Map<string, string>();
+      if (worshipIdsNeedingPhoto.length > 0) {
+        const { data: msgs } = await supabase
+          .from("worship_messages")
+          .select("id, worship_id, image_path")
+          .in("id", worshipIdsNeedingPhoto);
+        const msgRows = (msgs ?? []) as {
+          id: string;
+          worship_id: string;
+          image_path: string | null;
+        }[];
+        const entryIds = [
+          ...new Set(
+            msgRows.filter((m) => !m.image_path).map((m) => m.worship_id)
+          ),
+        ];
+        for (const m of msgRows) {
+          if (m.image_path) entryImageByMessageId.set(m.id, m.image_path);
+        }
+        if (entryIds.length > 0) {
+          const { data: entries } = await supabase
+            .from("worship_entries")
+            .select("id, image_path")
+            .in("id", entryIds);
+          const byEntry = new Map(
+            ((entries ?? []) as { id: string; image_path: string }[]).map(
+              (e) => [e.id, e.image_path]
+            )
+          );
+          for (const m of msgRows) {
+            if (!entryImageByMessageId.has(m.id)) {
+              const path = byEntry.get(m.worship_id);
+              if (path) entryImageByMessageId.set(m.id, path);
+            }
+          }
+        }
+      }
+
       const signedPins = pinRows.map((p) => {
+        const enrichedPath =
+          p.file_path ||
+          (p.source_type === "worship_message"
+            ? entryImageByMessageId.get(p.source_id) ?? null
+            : null);
         return {
           id: `pin-${p.id}`,
           kind: "pin" as const,
-          media_type: p.media_kind,
-          file_path: p.file_path,
+          media_type: enrichedPath && p.media_kind === "text" ? "image" : p.media_kind,
+          file_path: enrichedPath,
           youtube_url: p.youtube_url,
           uploaded_at: p.pinned_at,
           title: p.title,
-          subtitle:
-            p.source_type === "date"
-              ? "Pinned from Date"
-              : p.source_type === "date_post"
-                ? "Pinned from Date timeline"
-                : p.source_type === "tease"
-                  ? "Pinned from Tease"
-                  : p.source_type === "direct_message"
-                    ? "Pinned from Inbox"
-                    : "Pinned voice",
+          subtitle: pinSubtitle(p.source_type),
           signedUrl: undefined,
-          storage_bucket: p.storage_bucket,
+          storage_bucket: enrichedPath
+            ? p.storage_bucket ?? "worship"
+            : p.storage_bucket,
           meta: p.meta,
-          pin: p,
+          pin: {
+            ...p,
+            file_path: enrichedPath,
+            storage_bucket: enrichedPath
+              ? p.storage_bucket ?? "worship"
+              : p.storage_bucket,
+            media_kind:
+              enrichedPath && p.media_kind === "text" ? "image" : p.media_kind,
+          },
         } satisfies EvidenceItem;
       });
       mapped.push(...signedPins);
@@ -310,6 +465,10 @@ export default function EvidencePage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    return () => clearLongPress();
+  }, [clearLongPress]);
 
   const taskOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -345,7 +504,78 @@ export default function EvidencePage() {
     }
     toast.success("Removed from Evidence");
     setActive(null);
-    void load();
+    setItems((prev) => prev.filter((x) => x.pin?.id !== item.pin!.id));
+    setSelectedIds((prev) => {
+      if (!prev.has(item.pin!.id)) return prev;
+      const next = new Set(prev);
+      next.delete(item.pin!.id);
+      return next;
+    });
+  };
+
+  const deleteSelected = async () => {
+    if (!isQueen || selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (
+      !window.confirm(
+        count === 1
+          ? "Delete this kept item from Evidence?"
+          : `Delete ${count} kept items from Evidence?`
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await unpinEvidenceMany(ids);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      count === 1 ? "Removed from Evidence" : `Removed ${count} items`
+    );
+    setItems((prev) =>
+      prev.filter((x) => !x.pin || !selectedIds.has(x.pin.id))
+    );
+    exitSelectMode();
+  };
+
+  const onCardPointerDown = (
+    e: ReactPointerEvent,
+    item: EvidenceItem
+  ) => {
+    if (!isQueen || e.button !== 0) return;
+    clearLongPress();
+    const ref = longPressRef.current;
+    ref.startX = e.clientX;
+    ref.startY = e.clientY;
+    ref.itemId = item.id;
+    ref.fired = false;
+    ref.timer = window.setTimeout(() => {
+      ref.fired = true;
+      beginSelect(item);
+    }, LONG_PRESS_MS);
+  };
+
+  const onCardPointerMove = (e: ReactPointerEvent) => {
+    const ref = longPressRef.current;
+    if (ref.timer == null) return;
+    const dx = Math.abs(e.clientX - ref.startX);
+    const dy = Math.abs(e.clientY - ref.startY);
+    if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) clearLongPress();
+  };
+
+  const onCardPointerUp = (item: EvidenceItem) => {
+    const fired = longPressRef.current.fired;
+    clearLongPress();
+    if (fired) return;
+    if (selecting) {
+      if (item.kind === "pin") toggleSelect(item);
+      return;
+    }
+    void openItem(item);
   };
 
   if (authLoading || loading) {
@@ -365,10 +595,42 @@ export default function EvidencePage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Task submissions plus moments you keep from Dates and Teases"
+            ? "Task submissions plus moments you keep — long-press Kept items to select and delete"
             : "Your submitted evidence and moments Queen kept"}
         </p>
       </div>
+
+      {isQueen && selecting && (
+        <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-void/95 px-4 py-3 backdrop-blur">
+          <p className="text-sm text-ivory">
+            <span className="font-medium text-gold">{selectedIds.size}</span>{" "}
+            selected
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={exitSelectMode}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={deleting || selectedIds.size === 0}
+              onClick={() => void deleteSelected()}
+              className="bg-red-600 text-white hover:bg-red-500"
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {(
@@ -388,7 +650,10 @@ export default function EvidencePage() {
                 ? "bg-gold text-void hover:bg-gold-muted"
                 : "border-muted"
             }
-            onClick={() => setFilter(id)}
+            onClick={() => {
+              exitSelectMode();
+              setFilter(id);
+            }}
           >
             {label}
           </Button>
@@ -403,7 +668,10 @@ export default function EvidencePage() {
                 ? "bg-gold text-void hover:bg-gold-muted"
                 : "border-muted"
             }
-            onClick={() => setFilter(id)}
+            onClick={() => {
+              exitSelectMode();
+              setFilter(id);
+            }}
           >
             {title}
           </Button>
@@ -415,13 +683,29 @@ export default function EvidencePage() {
       ) : (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
           {filtered.map((item) => {
+            const pinId = item.pin?.id;
+            const isSelected = !!(pinId && selectedIds.has(pinId));
+            const canSelect = isQueen && item.kind === "pin";
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => void openItem(item)}
+                onPointerDown={(e) => onCardPointerDown(e, item)}
+                onPointerMove={onCardPointerMove}
+                onPointerUp={() => onCardPointerUp(item)}
+                onPointerCancel={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onContextMenu={(e) => {
+                  if (isQueen && item.kind === "pin") e.preventDefault();
+                }}
                 className={cn(
-                  "group overflow-hidden rounded-xl border border-gold/15 bg-charcoal text-left transition hover:border-gold/40"
+                  "group overflow-hidden rounded-xl border bg-charcoal text-left transition select-none",
+                  isSelected
+                    ? "border-gold ring-2 ring-gold/40"
+                    : selecting && canSelect
+                      ? "border-gold/25 hover:border-gold/50"
+                      : "border-gold/15 hover:border-gold/40",
+                  selecting && !canSelect && "opacity-50"
                 )}
               >
                 <div className="relative aspect-square bg-void">
@@ -429,6 +713,18 @@ export default function EvidencePage() {
                   {item.kind === "pin" && (
                     <span className="absolute left-2 top-2 rounded-full bg-void/80 px-2 py-0.5 text-[10px] text-gold">
                       Kept
+                    </span>
+                  )}
+                  {selecting && canSelect && (
+                    <span
+                      className={cn(
+                        "absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border",
+                        isSelected
+                          ? "border-gold bg-gold text-void"
+                          : "border-gold/40 bg-void/70 text-transparent"
+                      )}
+                    >
+                      <Check className="h-3.5 w-3.5" />
                     </span>
                   )}
                 </div>
@@ -445,7 +741,10 @@ export default function EvidencePage() {
         </div>
       )}
 
-      <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
+      <Dialog
+        open={!!active && !selecting}
+        onOpenChange={(o) => !o && setActive(null)}
+      >
         <DialogContent className="max-w-2xl border-gold/20 bg-charcoal">
           {active && (
             <>
@@ -484,7 +783,7 @@ export default function EvidencePage() {
                     </p>
                   )}
                 </div>
-              ) : active.media_type === "text" ? (
+              ) : active.media_type === "text" && !active.file_path ? (
                 <div className="rounded-lg border border-gold/15 bg-void/50 p-4">
                   <p className="whitespace-pre-wrap text-sm text-ivory/90">
                     {active.pin?.caption || "Kept text"}
@@ -493,31 +792,46 @@ export default function EvidencePage() {
               ) : active.media_type === "voice" && active.file_path ? (
                 <VoicePlayer filePath={active.file_path} />
               ) : active.media_type === "video" && active.signedUrl ? (
-                <video
-                  src={active.signedUrl}
-                  controls
-                  playsInline
-                  className="w-full rounded-lg border border-gold/15 bg-black"
-                />
+                <div className="space-y-3">
+                  <video
+                    src={active.signedUrl}
+                    controls
+                    playsInline
+                    className="w-full rounded-lg border border-gold/15 bg-black"
+                  />
+                  {active.pin?.caption && (
+                    <p className="whitespace-pre-wrap rounded-lg border border-gold/15 bg-void/50 px-4 py-3 text-sm text-ivory/90">
+                      {active.pin.caption}
+                    </p>
+                  )}
+                </div>
               ) : (
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-void">
-                  {active.signedUrl ? (
-                    <Image
-                      src={active.signedUrl}
-                      alt={active.title}
-                      fill
-                      unoptimized
-                      className="object-contain"
-                      sizes="100vw"
-                    />
-                  ) : active.youtube_url ? (
-                    <iframe
-                      title={active.title}
-                      src={`https://www.youtube.com/embed/${youtubeId(active.youtube_url) ?? ""}`}
-                      className="h-full w-full"
-                      allowFullScreen
-                    />
-                  ) : null}
+                <div className="space-y-3">
+                  <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-void">
+                    {active.signedUrl ? (
+                      <Image
+                        src={active.signedUrl}
+                        alt={active.title}
+                        fill
+                        unoptimized
+                        className="object-contain"
+                        sizes="100vw"
+                      />
+                    ) : active.youtube_url ? (
+                      <iframe
+                        title={active.title}
+                        src={`https://www.youtube.com/embed/${youtubeId(active.youtube_url) ?? ""}`}
+                        className="h-full w-full"
+                        allowFullScreen
+                      />
+                    ) : null}
+                  </div>
+                  {active.pin?.caption &&
+                    (active.signedUrl || active.youtube_url) && (
+                    <p className="whitespace-pre-wrap rounded-lg border border-gold/15 bg-void/50 px-4 py-3 text-sm text-ivory/90">
+                      {active.pin.caption}
+                    </p>
+                  )}
                 </div>
               )}
 

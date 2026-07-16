@@ -39,6 +39,8 @@ interface WorshipCommentThreadProps {
   worshipId: string;
   galleryId: string;
   worshipTitle?: string | null;
+  /** Parent worship entry photo — kept with text-only comments for Evidence preview. */
+  entryImagePath?: string | null;
   highlightCommentId?: string | null;
   className?: string;
 }
@@ -47,6 +49,7 @@ export function WorshipCommentThread({
   worshipId,
   galleryId,
   worshipTitle,
+  entryImagePath = null,
   highlightCommentId = null,
   className,
 }: WorshipCommentThreadProps) {
@@ -279,19 +282,27 @@ export function WorshipCommentThread({
                     <span className="text-[10px] text-muted-foreground">
                       {formatRelative(m.created_at)}
                     </span>
-                    {isQueen && (m.image_path || m.content) && (
+                    {isQueen && (m.image_path || m.content || entryImagePath) && (
                       <KeepInEvidenceButton
                         sourceType="worship_message"
                         sourceId={m.id}
-                        mediaKind={m.image_path ? "image" : "text"}
+                        mediaKind={
+                          m.image_path || entryImagePath ? "image" : "text"
+                        }
                         title={
                           worshipTitle
                             ? `Worship · ${worshipTitle}`
                             : "Worship comment"
                         }
                         caption={m.content}
-                        filePath={m.image_path}
-                        storageBucket={m.image_path ? "worship" : null}
+                        filePath={m.image_path || entryImagePath}
+                        storageBucket={
+                          m.image_path || entryImagePath ? "worship" : null
+                        }
+                        meta={{
+                          comment_image_path: m.image_path,
+                          entry_image_path: entryImagePath,
+                        }}
                         label="Keep"
                         className="h-7 px-2 text-[11px]"
                       />

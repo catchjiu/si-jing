@@ -7,7 +7,7 @@ import { zonedWallTimeToUtc } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 /** Queen returns — start of day in Santa Cruz time. */
-const RETURN_YMD = "2026-09-23";
+const RETURN_YMD = "2026-09-25";
 const RETURN_HM = "00:00";
 
 function remainingParts(targetMs: number, nowMs: number) {
@@ -71,7 +71,7 @@ export function QueenReturnsCountdown({
             Queen returns
           </p>
           <p className="font-heading text-lg text-ivory sm:text-xl">
-            {parts.done ? "She is back" : "Until September 23"}
+            {parts.done ? "She is back" : "Until September 25"}
           </p>
         </div>
         {!parts.done && (

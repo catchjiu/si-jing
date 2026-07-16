@@ -295,6 +295,7 @@ export function WorshipGallery({
                   worshipId={active.id}
                   galleryId={galleryId}
                   worshipTitle={active.title}
+                  entryImagePath={active.image_path}
                   highlightCommentId={highlightPhotoCommentId}
                 />
 

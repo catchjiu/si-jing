@@ -63,6 +63,14 @@ export async function unpinEvidence(pinId: string) {
   return supabase.from("evidence_pins").delete().eq("id", pinId);
 }
 
+export async function unpinEvidenceMany(pinIds: string[]) {
+  if (pinIds.length === 0) {
+    return { error: null as null };
+  }
+  const supabase = createClient();
+  return supabase.from("evidence_pins").delete().in("id", pinIds);
+}
+
 export async function isPinned(
   sourceType: EvidencePinSourceType,
   sourceId: string,
