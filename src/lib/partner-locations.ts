@@ -48,6 +48,10 @@ export const PARTNER_PLACES: Record<PartnerPlaceId, PartnerPlace> = {
 /** Queen always edits work hours in California time. */
 export const QUEEN_WORK_TIMEZONE = QUEEN_PLACE.timeZone;
 
+/** Ship gifts here (shown on Wishlist). */
+export const QUEEN_SHIPPING_ADDRESS =
+  "701 Beach St., Santa Cruz, CA 95060 APT. 102";
+
 export function partnerPlaceForViewer(role: "queen" | "slave"): PartnerPlace {
   return role === "queen" ? SLAVE_PLACE : QUEEN_PLACE;
 }

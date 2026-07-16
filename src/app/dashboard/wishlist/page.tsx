@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { WishlistForm } from "@/components/wishlist/wishlist-form";
 import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
+import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping-address";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
@@ -108,6 +109,8 @@ export default function WishlistPage() {
             : "Her taste to study, plus gifts you want to buy her"}
         </p>
       </div>
+
+      <WishlistShippingAddress />
 
       {isQueen && (
         <WishlistForm
