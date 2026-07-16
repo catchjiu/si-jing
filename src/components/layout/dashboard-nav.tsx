@@ -31,7 +31,6 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image"
 import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrandLogo } from "@/components/brand-logo"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import {
@@ -131,95 +130,108 @@ export function DashboardNav() {
     .slice(0, 2)
     .toUpperCase() ?? "?"
 
-  const navContent = (
-    <>
-      <div className="flex items-center gap-3 px-4 py-5">
-        <BrandLogo size="md" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-heading text-lg text-ivory">Queen Sisi</p>
-          <p className="text-xs text-muted-foreground">Private Chamber</p>
-        </div>
-        <NotificationBell className="hidden shrink-0 lg:inline-flex" />
+  const brandBlock = (
+    <div className="flex items-center gap-3 px-4 py-5">
+      <BrandLogo size="md" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-heading text-lg text-ivory">Queen Sisi</p>
+        <p className="text-xs text-muted-foreground">Private Chamber</p>
       </div>
+      <NotificationBell className="hidden shrink-0 lg:inline-flex" />
+    </div>
+  )
 
-      <Separator className="bg-gold/10" />
-
-      {profile && (
-        <div className="flex items-center gap-3 px-4 py-4">
-          <Avatar size="sm">
-            <SignedAvatarImage
-              avatarUrl={profile.avatar_url}
-              alt={profile.username}
-            />
-            <AvatarFallback className="bg-royal text-gold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-ivory">
-              {profile.username}
-            </p>
-            <Badge
-              variant="outline"
-              className={cn(
-                "mt-0.5 border text-[10px] uppercase tracking-wider",
-                role === "queen"
-                  ? "border-gold/50 bg-gold/10 text-gold"
-                  : "border-royal/60 bg-royal/30 text-ivory/80"
-              )}
-            >
-              {role}
-            </Badge>
-          </div>
-        </div>
-      )}
-
-      <Separator className="bg-gold/10" />
-
-      <nav className="flex flex-col gap-1 px-3 py-4">
-        {navLinks.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            pathname === href ||
-            (href !== "/dashboard" && pathname.startsWith(href))
-          const isInbox = href === "/dashboard/inbox"
-          const topic = NAV_TOPIC_BY_HREF[href]
-          const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
-          const linkHref = featureNavHref(href, unread.threads)
-
-          return (
-            <Link
-              key={href}
-              href={linkHref}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
-                isActive
-                  ? "border border-gold/30 bg-gold/10 text-gold"
-                  : "text-ivory/60 hover:bg-charcoal hover:text-ivory"
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-              {isInbox && <InboxBadge count={unreadTotal} />}
-              {!isInbox && <TopicBadge count={topicUnread} />}
-            </Link>
-          )
-        })}
-      </nav>
-
-      <div className="mt-auto px-3 pb-4">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-ivory/60 hover:bg-red-500/10 hover:text-red-400"
-          onClick={() => {
-            setMobileOpen(false)
-            void signOut()
-          }}
+  const profileBlock = profile ? (
+    <div className="flex items-center gap-3 px-4 py-4">
+      <Avatar size="sm">
+        <SignedAvatarImage
+          avatarUrl={profile.avatar_url}
+          alt={profile.username}
+        />
+        <AvatarFallback className="bg-royal text-gold">
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-ivory">
+          {profile.username}
+        </p>
+        <Badge
+          variant="outline"
+          className={cn(
+            "mt-0.5 border text-[10px] uppercase tracking-wider",
+            role === "queen"
+              ? "border-gold/50 bg-gold/10 text-gold"
+              : "border-royal/60 bg-royal/30 text-ivory/80"
+          )}
         >
-          <LogOut className="size-4" />
-          Sign out
-        </Button>
+          {role}
+        </Badge>
       </div>
-    </>
+    </div>
+  ) : null
+
+  const navLinksBlock = (
+    <nav className="flex flex-col gap-1 px-3 py-4">
+      {navLinks.map(({ href, label, icon: Icon }) => {
+        const isActive =
+          pathname === href ||
+          (href !== "/dashboard" && pathname.startsWith(href))
+        const isInbox = href === "/dashboard/inbox"
+        const topic = NAV_TOPIC_BY_HREF[href]
+        const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
+        const linkHref = featureNavHref(href, unread.threads)
+
+        return (
+          <Link
+            key={href}
+            href={linkHref}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
+              isActive
+                ? "border border-gold/30 bg-gold/10 text-gold"
+                : "text-ivory/60 hover:bg-charcoal hover:text-ivory"
+            )}
+          >
+            <Icon className="size-4 shrink-0" />
+            {label}
+            {isInbox && <InboxBadge count={unreadTotal} />}
+            {!isInbox && <TopicBadge count={topicUnread} />}
+          </Link>
+        )
+      })}
+    </nav>
+  )
+
+  const signOutBlock = (
+    <div className="px-3 pb-4 pt-2">
+      <Button
+        variant="ghost"
+        className="w-full justify-start gap-3 text-ivory/60 hover:bg-red-500/10 hover:text-red-400"
+        onClick={() => {
+          setMobileOpen(false)
+          void signOut()
+        }}
+      >
+        <LogOut className="size-4" />
+        Sign out
+      </Button>
+    </div>
+  )
+
+  const sidebarBody = (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0">
+        {brandBlock}
+        <Separator className="bg-gold/10" />
+        {profileBlock}
+        <Separator className="bg-gold/10" />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {navLinksBlock}
+      </div>
+      <div className="shrink-0 border-t border-gold/10">{signOutBlock}</div>
+    </div>
   )
 
   return (
@@ -268,8 +280,8 @@ export function DashboardNav() {
             aria-label="Close menu"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col border-r border-gold/10 bg-charcoal shadow-2xl animate-fade-in">
-            <div className="flex h-14 items-center justify-between border-b border-gold/10 px-4">
+          <aside className="absolute inset-y-0 left-0 flex h-dvh w-[min(18rem,85vw)] flex-col border-r border-gold/10 bg-charcoal shadow-2xl animate-fade-in">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-gold/10 px-4">
               <span className="font-heading text-gold">Menu</span>
               <Button
                 variant="ghost"
@@ -280,17 +292,13 @@ export function DashboardNav() {
                 <X className="size-5" />
               </Button>
             </div>
-            <ScrollArea className="flex-1">
-              <div className="flex min-h-full flex-col">{navContent}</div>
-            </ScrollArea>
+            <div className="min-h-0 flex-1">{sidebarBody}</div>
           </aside>
         </div>
       )}
 
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-gold/10 bg-charcoal lg:flex">
-        <ScrollArea className="h-screen">
-          <div className="flex min-h-screen flex-col">{navContent}</div>
-        </ScrollArea>
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-gold/10 bg-charcoal lg:flex">
+        {sidebarBody}
       </aside>
     </>
   )
