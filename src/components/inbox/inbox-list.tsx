@@ -33,6 +33,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/notifications";
+import { buildAlertDigests } from "@/lib/alert-digests";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
@@ -287,6 +288,11 @@ export function InboxList({ className }: { className?: string }) {
     [notifications, alertFilter]
   );
 
+  const alertDigests = useMemo(
+    () => buildAlertDigests(filteredAlerts),
+    [filteredAlerts]
+  );
+
   const unreadSummary = useMemo(() => {
     const parts: string[] = [];
     for (const t of threads) {
@@ -516,7 +522,7 @@ export function InboxList({ className }: { className?: string }) {
           ))}
         </div>
 
-        {filteredAlerts.length === 0 ? (
+        {alertDigests.length === 0 ? (
           <p className="rounded-xl border border-gold/10 bg-charcoal/60 px-4 py-8 text-center text-sm text-muted-foreground">
             {notifications.length === 0
               ? "No alerts yet."
@@ -524,46 +530,110 @@ export function InboxList({ className }: { className?: string }) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {filteredAlerts.map((n) => (
-              <li key={n.id}>
-                <Link
-                  href={n.href}
-                  onClick={() => {
-                    if (!n.read_at) {
+            {alertDigests.map((d) => {
+              if (d.kind === "single") {
+                const n = d.item;
+                return (
+                  <li key={d.id}>
+                    <Link
+                      href={n.href}
+                      onClick={() => {
+                        if (!n.read_at) {
+                          const supabase = createClient();
+                          void markNotificationRead(supabase, n.id);
+                          setNotifications((prev) =>
+                            prev.map((x) =>
+                              x.id === n.id
+                                ? { ...x, read_at: new Date().toISOString() }
+                                : x
+                            )
+                          );
+                        }
+                      }}
+                      className={cn(
+                        "block rounded-lg border px-4 py-3 transition-colors hover:border-gold/30",
+                        n.read_at
+                          ? "border-gold/10 bg-charcoal/40"
+                          : "border-gold/25 bg-gold/5"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm text-ivory">{n.title}</p>
+                          {n.body && (
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {n.body}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">
+                          {formatRelative(n.created_at)}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              }
+
+              return (
+                <li key={d.id} className="relative pb-1.5">
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-3 bottom-0 h-[calc(100%-6px)] rounded-lg border border-gold/10 bg-charcoal/30"
+                  />
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-1.5 bottom-0.5 h-[calc(100%-3px)] rounded-lg border border-gold/15 bg-charcoal/50"
+                  />
+                  <Link
+                    href={d.href}
+                    onClick={() => {
+                      const unreadIds = d.items
+                        .filter((i) => !i.read_at)
+                        .map((i) => i.id);
+                      if (unreadIds.length === 0) return;
                       const supabase = createClient();
-                      void markNotificationRead(supabase, n.id);
+                      const now = new Date().toISOString();
+                      for (const id of unreadIds) {
+                        void markNotificationRead(supabase, id);
+                      }
                       setNotifications((prev) =>
                         prev.map((x) =>
-                          x.id === n.id
-                            ? { ...x, read_at: new Date().toISOString() }
+                          unreadIds.includes(x.id)
+                            ? { ...x, read_at: x.read_at ?? now }
                             : x
                         )
                       );
-                    }
-                  }}
-                  className={cn(
-                    "block rounded-lg border px-4 py-3 transition-colors hover:border-gold/30",
-                    n.read_at
-                      ? "border-gold/10 bg-charcoal/40"
-                      : "border-gold/25 bg-gold/5"
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ivory">{n.title}</p>
-                      {n.body && (
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {n.body}
-                        </p>
-                      )}
+                    }}
+                    className={cn(
+                      "relative block rounded-lg border px-4 py-3 transition-colors hover:border-gold/30",
+                      d.allRead
+                        ? "border-gold/10 bg-charcoal/40"
+                        : "border-gold/25 bg-gold/5"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm text-ivory">{d.title}</p>
+                          <span className="rounded-full bg-gold/20 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                            {d.count}
+                          </span>
+                        </div>
+                        {d.body && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {d.body}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {formatRelative(d.newestAt)}
+                      </span>
                     </div>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {formatRelative(n.created_at)}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

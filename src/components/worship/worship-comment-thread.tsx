@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -278,6 +279,23 @@ export function WorshipCommentThread({
                     <span className="text-[10px] text-muted-foreground">
                       {formatRelative(m.created_at)}
                     </span>
+                    {isQueen && (m.image_path || m.content) && (
+                      <KeepInEvidenceButton
+                        sourceType="worship_message"
+                        sourceId={m.id}
+                        mediaKind={m.image_path ? "image" : "text"}
+                        title={
+                          worshipTitle
+                            ? `Worship · ${worshipTitle}`
+                            : "Worship comment"
+                        }
+                        caption={m.content}
+                        filePath={m.image_path}
+                        storageBucket={m.image_path ? "worship" : null}
+                        label="Keep"
+                        className="h-7 px-2 text-[11px]"
+                      />
+                    )}
                     {canDelete && (
                       <Button
                         type="button"

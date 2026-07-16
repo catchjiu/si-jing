@@ -28,6 +28,7 @@ type Props = {
     | "submissions"
     | "date_posts"
     | "messages"
+    | "worship"
     | null;
   meta?: Record<string, unknown> | null;
   label?: string;

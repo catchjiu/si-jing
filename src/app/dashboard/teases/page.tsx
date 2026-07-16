@@ -125,6 +125,8 @@ function TeasesPageInner() {
   const focusCommentId = searchParams.get("comment");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<TeaseWithSignedUrl[]>([]);
+  const hasItemsRef = useRef(false);
+  hasItemsRef.current = items.length > 0;
   const [recipient, setRecipient] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
@@ -182,7 +184,7 @@ function TeasesPageInner() {
 
   const load = useCallback(async () => {
     if (!profile) return;
-    setLoading(true);
+    if (!hasItemsRef.current) setLoading(true);
     const supabase = createClient();
     let query = supabase
       .from("teases")
@@ -191,7 +193,12 @@ function TeasesPageInner() {
       )
       .order("created_at", { ascending: false });
     if (isSlave) query = query.eq("sent_to", profile.id);
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) {
+      toast.error(error.message);
+      setLoading(false);
+      return;
+    }
     const rows = ((data ?? []) as TeaseWithSignedUrl[]).map((t) => ({
       ...t,
       unlock_tasks: [...(t.unlock_tasks ?? [])].sort(

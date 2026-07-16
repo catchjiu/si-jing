@@ -28,7 +28,8 @@ import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { SignedAvatarImage } from "@/components/ui/signed-avatar-image"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrandLogo } from "@/components/brand-logo"
@@ -36,7 +37,35 @@ import { NotificationBell } from "@/components/layout/notification-bell"
 import {
   useInboxUnread,
 } from "@/components/inbox/use-inbox-unread"
-import { NAV_TOPIC_BY_HREF } from "@/lib/inbox"
+import {
+  attachmentHref,
+  NAV_TOPIC_BY_HREF,
+  type MessageAttachmentType,
+  type TopicThreadSummary,
+} from "@/lib/inbox"
+
+function featureNavHref(
+  href: string,
+  threads: TopicThreadSummary[]
+): string {
+  const topic = NAV_TOPIC_BY_HREF[href]
+  if (!topic) return href
+  const thread = threads.find((t) => t.topic === topic)
+  if (!thread || thread.unread <= 0) return href
+  const m = thread.lastMessage
+  if (
+    m?.attachment_type &&
+    m.attachment_id &&
+    (m.attachment_type === "tease" || m.attachment_type === "worship")
+  ) {
+    return attachmentHref(
+      m.attachment_type as MessageAttachmentType,
+      m.attachment_id,
+      m.attachment_anchor
+    )
+  }
+  return `/dashboard/inbox/${thread.conversationId}`
+}
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -118,9 +147,10 @@ export function DashboardNav() {
       {profile && (
         <div className="flex items-center gap-3 px-4 py-4">
           <Avatar size="sm">
-            {profile.avatar_url && (
-              <AvatarImage src={profile.avatar_url} alt={profile.username} />
-            )}
+            <SignedAvatarImage
+              avatarUrl={profile.avatar_url}
+              alt={profile.username}
+            />
             <AvatarFallback className="bg-royal text-gold">
               {initials}
             </AvatarFallback>
@@ -154,11 +184,12 @@ export function DashboardNav() {
           const isInbox = href === "/dashboard/inbox"
           const topic = NAV_TOPIC_BY_HREF[href]
           const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
+          const linkHref = featureNavHref(href, unread.threads)
 
           return (
             <Link
               key={href}
-              href={href}
+              href={linkHref}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
                 isActive

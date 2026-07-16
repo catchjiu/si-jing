@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
   WORK_DAY_LABELS,
+  QUEEN_WORK_TIMEZONE,
   applyQueenWorkSchedules,
   emptyWeekDraft,
   fetchWeekSchedule,
@@ -16,6 +17,8 @@ import {
   saveWeekSchedule,
   type QueenWorkDayDraft,
 } from "@/lib/queen-work-schedule";
+import { formatWallTimeAcrossZones } from "@/lib/timezone";
+import { SLAVE_PLACE } from "@/lib/partner-locations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,13 +30,27 @@ function shiftWeek(weekStart: string, deltaWeeks: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function taiwanHint(weekStart: string, dayOfWeek: number, hm: string): string {
+  const d = new Date(`${weekStart}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dayOfWeek);
+  const ymd = d.toISOString().slice(0, 10);
+  try {
+    return formatWallTimeAcrossZones(
+      ymd,
+      hm,
+      QUEEN_WORK_TIMEZONE,
+      SLAVE_PLACE.timeZone,
+      { includeZone: true, zoneLabel: SLAVE_PLACE.zoneShort }
+    );
+  } catch {
+    return "";
+  }
+}
+
 /** Queen-only: set working hours for a calendar week; auto-applies Working status. */
 export function QueenWorkScheduleCard({ className }: { className?: string }) {
   const { profile, isQueen } = useAuth();
-  const timezone = useMemo(
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    []
-  );
+  const timezone = QUEEN_WORK_TIMEZONE;
   const thisMonday = useMemo(() => mondayOfWeek(new Date(), timezone), [timezone]);
   const [weekStart, setWeekStart] = useState(thisMonday);
   const [days, setDays] = useState<QueenWorkDayDraft[]>(emptyWeekDraft);
@@ -136,11 +153,12 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
           <div>
             <h2 className="font-heading text-xl text-ivory">Work schedule</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Set hours for this week. During them, your status becomes{" "}
-              <span className="text-gold">Working</span> automatically.
+              Set hours for this week in California time. During them, your
+              status becomes <span className="text-gold">Working</span>{" "}
+              automatically — D sees the equivalent Taipei time.
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Times in {timezone}
+              Times in Pacific (Santa Cruz) · shown to D in Taipei
             </p>
           </div>
         </div>
@@ -225,7 +243,7 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
                 <div className="flex flex-1 flex-wrap items-center gap-2">
                   <div className="space-y-0.5">
                     <Label className="text-[10px] text-muted-foreground">
-                      Start
+                      Start (PT)
                     </Label>
                     <Input
                       type="time"
@@ -240,7 +258,7 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
                   <span className="mt-4 text-muted-foreground">–</span>
                   <div className="space-y-0.5">
                     <Label className="text-[10px] text-muted-foreground">
-                      End
+                      End (PT)
                     </Label>
                     <Input
                       type="time"
@@ -252,6 +270,12 @@ export function QueenWorkScheduleCard({ className }: { className?: string }) {
                       className="h-9 w-[7.5rem] border-gold/20 bg-void/60"
                     />
                   </div>
+                  {day.enabled ? (
+                    <p className="w-full text-[10px] text-muted-foreground sm:ml-2 sm:w-auto sm:self-end sm:pb-2">
+                      D: {taiwanHint(weekStart, index, day.startTime)} –{" "}
+                      {taiwanHint(weekStart, index, day.endTime)}
+                    </p>
+                  ) : null}
                 </div>
               </li>
             );

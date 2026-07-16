@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/types";
 import { PushEnableCard } from "@/components/push/push-enable";
 import { QueenWorkScheduleCard } from "@/components/status/queen-work-schedule";
+import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { presignAndUpload } from "@/lib/storage/client";
 
 export default function ProfilePage() {
@@ -167,9 +168,10 @@ export default function ProfilePage() {
       <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-6 space-y-6">
         <div className="flex items-center gap-4">
           <Avatar className="h-16 w-16">
-            {profile.avatar_url && (
-              <AvatarImage src={profile.avatar_url} alt={profile.username} />
-            )}
+            <SignedAvatarImage
+              avatarUrl={profile.avatar_url}
+              alt={profile.username}
+            />
             <AvatarFallback className="bg-royal text-gold text-lg">
               {initials}
             </AvatarFallback>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Crown } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -21,10 +21,12 @@ export default function WorshipPage() {
   const [assignments, setAssignments] = useState<WorshipAssignment[]>([]);
   const [entryCounts, setEntryCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const hasGalleriesRef = useRef(false);
+  hasGalleriesRef.current = galleries.length > 0;
 
   const load = useCallback(async () => {
     if (!profile) return;
-    setLoading(true);
+    if (!hasGalleriesRef.current) setLoading(true);
     const supabase = createClient();
 
     try {

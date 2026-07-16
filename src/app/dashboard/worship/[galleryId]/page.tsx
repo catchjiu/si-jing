@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, Crown } from "lucide-react";
@@ -56,12 +56,14 @@ function WorshipGalleryPageInner() {
   const [gallery, setGallery] = useState<WorshipGalleryTopic | null>(null);
   const [entries, setEntries] = useState<WorshipEntryWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasEntriesRef = useRef(false);
+  hasEntriesRef.current = entries.length > 0 || !!gallery;
   const [editingGallery, setEditingGallery] = useState(false);
   const [editingEntry, setEditingEntry] = useState<WorshipEntryWithSignedUrl | null>(null);
 
   const load = useCallback(async () => {
     if (!profile || !galleryId) return;
-    setLoading(true);
+    if (!hasEntriesRef.current) setLoading(true);
     const supabase = createClient();
 
     try {

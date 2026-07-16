@@ -1,6 +1,19 @@
 import type { createClient } from "@/lib/supabase/client";
+import {
+  QUEEN_PLACE,
+  QUEEN_WORK_TIMEZONE,
+  SLAVE_PLACE,
+} from "@/lib/partner-locations";
+import {
+  formatWallTimeAcrossZones,
+  hmInZone,
+  weekdayShortInZone,
+  ymdInZone,
+} from "@/lib/timezone";
 
 type Supabase = ReturnType<typeof createClient>;
+
+export { QUEEN_WORK_TIMEZONE };
 
 /** 0 = Monday … 6 = Sunday (ISO). */
 export type WorkDayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -178,4 +191,80 @@ export async function applyQueenWorkSchedules(
   const { data, error } = await supabase.rpc("apply_queen_work_schedules");
   if (error) throw error;
   return Number(data ?? 0);
+}
+
+export type WorkingUntilInfo = {
+  until: string;
+  /** Queen / Pacific label, e.g. "5:00 PM PT" */
+  labelPacific: string;
+  /** Slave / Taipei label, e.g. "Sat 8:00 AM Taipei" */
+  labelTaipei: string;
+  /** Default for slave dashboard: Taipei primary. */
+  label: string;
+};
+
+/**
+ * End time of today's work window for Queen, if currently inside it.
+ * Window is evaluated in California time; labels include Taipei for D.
+ */
+export async function fetchQueenWorkingUntil(
+  supabase: Supabase,
+  queenId: string
+): Promise<WorkingUntilInfo | null> {
+  const scheduleTz = QUEEN_WORK_TIMEZONE;
+  const now = new Date();
+  const weekStart = mondayOfWeek(now, scheduleTz);
+  const weekday = weekdayShortInZone(now, scheduleTz);
+  const map: Record<string, number> = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+  };
+  const dow = map[weekday] ?? 0;
+
+  const { data, error } = await supabase
+    .from("queen_work_schedule")
+    .select("start_time, end_time, enabled, timezone")
+    .eq("user_id", queenId)
+    .eq("week_start", weekStart)
+    .eq("day_of_week", dow)
+    .eq("enabled", true)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const rowTz = (data.timezone as string | null) || scheduleTz;
+  const start = String(data.start_time).slice(0, 5);
+  const end = String(data.end_time).slice(0, 5);
+
+  // Evaluate "now" in the row's timezone (should be Pacific)
+  const nowInRow = hmInZone(now, rowTz);
+  if (nowInRow < start || nowInRow >= end) return null;
+
+  const todayInRow = ymdInZone(now, rowTz);
+  const labelPacific = formatWallTimeAcrossZones(
+    todayInRow,
+    end,
+    rowTz,
+    QUEEN_PLACE.timeZone,
+    { includeZone: true, zoneLabel: QUEEN_PLACE.zoneShort }
+  );
+  const labelTaipei = formatWallTimeAcrossZones(
+    todayInRow,
+    end,
+    rowTz,
+    SLAVE_PLACE.timeZone,
+    { includeZone: true, zoneLabel: SLAVE_PLACE.zoneShort }
+  );
+
+  return {
+    until: end,
+    labelPacific,
+    labelTaipei,
+    label: `${labelTaipei} (${labelPacific})`,
+  };
 }

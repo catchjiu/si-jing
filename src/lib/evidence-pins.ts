@@ -19,6 +19,7 @@ export type PinEvidenceInput = {
     | "submissions"
     | "date_posts"
     | "messages"
+    | "worship"
     | null;
   meta?: Record<string, unknown> | null;
 };

@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { QueenAvailability } from "@/lib/types";
+import { fetchQueenWorkingUntil } from "@/lib/queen-work-schedule";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
 
@@ -187,6 +188,9 @@ export function QueenStatusDisplay({
   const [lastActiveAt, setLastActiveAt] = useState<string | null>(
     initialLastActiveAt
   );
+  const [workingUntilLabel, setWorkingUntilLabel] = useState<string | null>(
+    null
+  );
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -283,6 +287,25 @@ export function QueenStatusDisplay({
     };
   }, [initialQueenId, queenId]);
 
+  useEffect(() => {
+    if (availability !== "working" || !queenId) {
+      setWorkingUntilLabel(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    void fetchQueenWorkingUntil(supabase, queenId)
+      .then((info) => {
+        if (!cancelled) setWorkingUntilLabel(info?.label ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkingUntilLabel(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [availability, queenId]);
+
   const displayMeta = availabilityMeta(availability ?? "available");
   const DisplayIcon = displayMeta.icon;
 
@@ -302,7 +325,11 @@ export function QueenStatusDisplay({
           {username}&apos;s status
         </p>
         <p className="font-heading text-xl">{displayMeta.label}</p>
-        <p className="text-xs opacity-80">{displayMeta.hint}</p>
+        <p className="text-xs opacity-80">
+          {availability === "working" && workingUntilLabel
+            ? `${username} is working until ${workingUntilLabel}`
+            : displayMeta.hint}
+        </p>
         {lastActiveAt ? (
           <p className="mt-0.5 text-[10px] opacity-60">
             Last active {formatRelative(lastActiveAt)}

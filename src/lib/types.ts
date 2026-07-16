@@ -397,7 +397,9 @@ export type EvidencePinSourceType =
   | "tease"
   | "voice_note"
   | "date_post"
-  | "direct_message";
+  | "direct_message"
+  | "worship_message"
+  | "worship_gallery_message";
 export type EvidencePinMediaKind =
   | "youtube"
   | "image"
@@ -422,6 +424,7 @@ export type EvidencePin = {
     | "submissions"
     | "date_posts"
     | "messages"
+    | "worship"
     | null;
   meta: Record<string, unknown> | null;
   pinned_at: string;

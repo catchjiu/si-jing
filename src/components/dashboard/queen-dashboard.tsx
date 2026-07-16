@@ -31,6 +31,8 @@ import { StatusBadge } from "@/components/tasks/status-badge"
 import { PunishmentCountdown } from "@/components/punishments/punishment-countdown"
 import { MoodDisplay } from "@/components/mood/mood-picker"
 import { QueenStatusPicker } from "@/components/status/queen-status"
+import { PartnerLocalCard } from "@/components/dashboard/partner-local-card"
+import { QueenReturnsCountdown } from "@/components/dashboard/queen-returns-countdown"
 import { SlavePresence } from "@/components/presence/slave-presence"
 import { AttentionBudgetPanel } from "@/components/attention/attention-budget-panel"
 import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
@@ -213,6 +215,10 @@ export function QueenDashboard({
       <DashboardActivityPanel role="queen" initialItems={activity} />
 
       <QueenStatusPicker />
+
+      <PartnerLocalCard placeId="slave" />
+
+      <QueenReturnsCountdown />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SlavePresence slaveId={slaveId} />
