@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { QueenAvailability } from "@/lib/types";
 import { fetchQueenWorkingUntil } from "@/lib/queen-work-schedule";
+import { QueenWorkScheduleDialog } from "@/components/status/queen-work-schedule";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
 
@@ -191,6 +192,7 @@ export function QueenStatusDisplay({
   const [workingUntilLabel, setWorkingUntilLabel] = useState<string | null>(
     null
   );
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -308,15 +310,17 @@ export function QueenStatusDisplay({
 
   const displayMeta = availabilityMeta(availability ?? "available");
   const DisplayIcon = displayMeta.icon;
+  const isWorking = availability === "working";
 
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-4 rounded-xl border px-4 py-3",
-        displayMeta.className,
-        className
-      )}
-    >
+  const cardClassName = cn(
+    "flex w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-opacity",
+    displayMeta.className,
+    isWorking && "cursor-pointer hover:opacity-90 active:opacity-80",
+    className
+  );
+
+  const cardBody = (
+    <>
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-current/30 bg-void/30">
         <DisplayIcon className="h-5 w-5" />
       </div>
@@ -326,10 +330,13 @@ export function QueenStatusDisplay({
         </p>
         <p className="font-heading text-xl">{displayMeta.label}</p>
         <p className="text-xs opacity-80">
-          {availability === "working" && workingUntilLabel
+          {isWorking && workingUntilLabel
             ? `${username} is working until ${workingUntilLabel}`
             : displayMeta.hint}
         </p>
+        {isWorking ? (
+          <p className="mt-0.5 text-[10px] opacity-60">Tap for work schedule</p>
+        ) : null}
         {lastActiveAt ? (
           <p className="mt-0.5 text-[10px] opacity-60">
             Last active {formatRelative(lastActiveAt)}
@@ -340,6 +347,30 @@ export function QueenStatusDisplay({
           </p>
         ) : null}
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {isWorking ? (
+        <button
+          type="button"
+          className={cardClassName}
+          onClick={() => setScheduleOpen(true)}
+          aria-label={`View ${username}'s work schedule`}
+        >
+          {cardBody}
+        </button>
+      ) : (
+        <div className={cardClassName}>{cardBody}</div>
+      )}
+
+      <QueenWorkScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        queenId={queenId}
+        username={username}
+      />
+    </>
   );
 }
