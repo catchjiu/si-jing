@@ -467,7 +467,10 @@ export function DateTimeline({
                   )}
 
                   {post.media_kind === "image" && post.signedUrl && (
-                    <WatermarkedFrame className="aspect-[4/5] max-h-80 rounded-md border border-gold/15">
+                    <WatermarkedFrame
+                      className="aspect-[4/5] max-h-80 rounded-md border border-gold/15"
+                      mediaPath={post.file_path}
+                    >
                       <Image
                         src={post.signedUrl}
                         alt="Timeline photo"

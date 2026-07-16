@@ -11,12 +11,16 @@ export function LazyTeaseThread({
   teaseId,
   teaseTitle,
   mediaKind = "image",
+  defaultOpen = false,
+  highlightCommentId = null,
 }: {
   teaseId: string;
   teaseTitle?: string | null;
   mediaKind?: TeaseMediaKind;
+  defaultOpen?: boolean;
+  highlightCommentId?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   if (!open) {
     return (
@@ -38,6 +42,7 @@ export function LazyTeaseThread({
       teaseId={teaseId}
       teaseTitle={teaseTitle}
       mediaKind={mediaKind}
+      highlightCommentId={highlightCommentId}
     />
   );
 }

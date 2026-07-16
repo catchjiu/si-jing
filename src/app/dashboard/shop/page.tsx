@@ -403,7 +403,10 @@ export default function ShopPage() {
               >
                 <div className="relative aspect-[4/3] bg-void">
                   {item.signedUrl ? (
-                    <WatermarkedFrame className="absolute inset-0">
+                    <WatermarkedFrame
+                      className="absolute inset-0"
+                      mediaPath={item.image_path}
+                    >
                       <Image
                         src={item.signedUrl}
                         alt={item.title}

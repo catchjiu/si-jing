@@ -11,6 +11,7 @@ import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
+import { inboxAnchors, highlightMessageElement } from "@/lib/inbox-deep-links";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,7 @@ interface TeaseBegThreadProps {
   teaseId: string;
   teaseTitle?: string | null;
   mediaKind?: TeaseMediaKind;
+  highlightCommentId?: string | null;
   className?: string;
 }
 
@@ -37,6 +39,7 @@ export function TeaseBegThread({
   teaseId,
   teaseTitle,
   mediaKind = "image",
+  highlightCommentId = null,
   className,
 }: TeaseBegThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -114,16 +117,28 @@ export function TeaseBegThread({
     };
   }, [teaseId, load, loadMessages, loadViewCaptures]);
 
+  useEffect(() => {
+    if (!highlightCommentId || loading) return;
+    const timer = window.setTimeout(() => {
+      highlightMessageElement(highlightCommentId);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [highlightCommentId, loading, messages.length]);
+
   const send = async () => {
     if (!profile || !draft.trim()) return;
     setSending(true);
     const supabase = createClient();
     const text = formatRoleSpeech(draft.trim(), profile.role);
-    const { error } = await supabase.from("tease_messages").insert({
-      tease_id: teaseId,
-      author_id: profile.id,
-      content: text,
-    });
+    const { data: inserted, error } = await supabase
+      .from("tease_messages")
+      .insert({
+        tease_id: teaseId,
+        author_id: profile.id,
+        content: text,
+      })
+      .select("id")
+      .single();
     setSending(false);
     if (error) {
       toast.error(error.message);
@@ -137,6 +152,9 @@ export function TeaseBegThread({
       content: text,
       attachmentType: "tease",
       attachmentId: teaseId,
+      attachmentAnchor: inserted?.id
+        ? inboxAnchors.teaseComment(inserted.id)
+        : null,
     });
     void notifyPush({
       title: isSlave ? "D is begging" : "Queen replied on a tease",
@@ -176,6 +194,7 @@ export function TeaseBegThread({
             return (
               <li
                 key={m.id}
+                id={`inbox-focus-${m.id}`}
                 className={cn(
                   "rounded-lg border px-3 py-2",
                   mine

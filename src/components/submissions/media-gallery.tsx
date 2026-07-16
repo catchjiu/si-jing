@@ -102,7 +102,10 @@ export function MediaGallery({ media, className }: MediaGalleryProps) {
               key={item.id}
               className="space-y-2"
             >
-              <WatermarkedFrame className="group aspect-square rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]">
+              <WatermarkedFrame
+                className="group aspect-square rounded-xl border border-[color:var(--gold,#d4af37)]/15 bg-[color:var(--black,#0a0a0a)]"
+                mediaPath={item.file_path}
+              >
                 <Image
                   src={item.signedUrl}
                   alt="Submission image"

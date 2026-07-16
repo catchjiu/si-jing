@@ -241,7 +241,10 @@ export function RequestCard({
             </p>
           )}
           {imageUrl && (
-            <WatermarkedFrame className="mt-3 rounded-lg border border-gold/15">
+            <WatermarkedFrame
+              className="mt-3 rounded-lg border border-gold/15"
+              mediaPath={request.image_path}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imageUrl}

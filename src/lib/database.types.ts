@@ -1227,6 +1227,7 @@ export type Database = {
           voice_duration_ms: number | null
           attachment_type: string | null
           attachment_id: string | null
+          attachment_anchor: string | null
           reply_to_id: string | null
           deleted_at: string | null
           created_at: string
@@ -1242,6 +1243,7 @@ export type Database = {
           voice_duration_ms?: number | null
           attachment_type?: string | null
           attachment_id?: string | null
+          attachment_anchor?: string | null
           reply_to_id?: string | null
           deleted_at?: string | null
           created_at?: string
@@ -1257,6 +1259,7 @@ export type Database = {
           voice_duration_ms?: number | null
           attachment_type?: string | null
           attachment_id?: string | null
+          attachment_anchor?: string | null
           reply_to_id?: string | null
           deleted_at?: string | null
           created_at?: string

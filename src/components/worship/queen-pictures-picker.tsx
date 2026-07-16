@@ -110,7 +110,10 @@ export function QueenPicturesPicker({
             >
               <div className="relative aspect-square bg-void">
                 {item.signedUrl ? (
-                  <WatermarkedFrame className="absolute inset-0">
+                  <WatermarkedFrame
+                    className="absolute inset-0"
+                    mediaPath={item.imagePath}
+                  >
                     <Image
                       src={item.signedUrl}
                       alt={item.label}

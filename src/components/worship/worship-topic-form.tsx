@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyWorshipThread } from "@/lib/inbox";
+import { inboxAnchors } from "@/lib/inbox-deep-links";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,7 @@ export function WorshipTopicForm({
           senderId: profile.id,
           content: `New gallery: ${topic.trim()}`,
           galleryId: gallery.id,
+          attachmentAnchor: inboxAnchors.worshipGallery(),
           pushTitle: "New worship gallery",
           pushBody: topic.trim(),
           notifyTarget: "queen",

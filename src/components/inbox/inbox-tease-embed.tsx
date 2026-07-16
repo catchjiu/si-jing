@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
+import { attachmentHref } from "@/lib/inbox";
 import { Eye, Loader2, Lock, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -27,11 +28,12 @@ function isTimeUnlocked(unlocksAt: string) {
 
 type Props = {
   teaseId: string;
+  anchor?: string | null;
   className?: string;
 };
 
 /** Inline tease card for inbox — shows veiled image/video in chat. */
-export function InboxTeaseEmbed({ teaseId, className }: Props) {
+export function InboxTeaseEmbed({ teaseId, anchor, className }: Props) {
   const { isQueen, isSlave } = useAuth();
   const [tease, setTease] = useState<Tease | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -109,7 +111,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
   if (failed || !tease) {
     return (
       <Link
-        href="/dashboard/teases"
+        href={attachmentHref("tease", teaseId, anchor)}
         className={cn(
           "mt-2 flex items-center gap-2 rounded-lg border border-gold/30 bg-void/50 px-3 py-2.5 text-sm text-ivory hover:border-gold/50",
           className
@@ -153,7 +155,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
           </div>
         ) : needsSessionOpen ? (
           <Link
-            href="/dashboard/teases"
+            href={attachmentHref("tease", tease.id, anchor)}
             className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center transition-colors hover:bg-gold/5"
           >
             <Eye className="h-7 w-7 text-gold" />
@@ -177,7 +179,10 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
                 controlsList="nodownload"
               />
             ) : (
-              <WatermarkedFrame className="absolute inset-0">
+              <WatermarkedFrame
+                className="absolute inset-0"
+                mediaPath={tease.image_path}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={signedUrl}
@@ -228,7 +233,7 @@ export function InboxTeaseEmbed({ teaseId, className }: Props) {
           </p>
         )}
         <Link
-          href="/dashboard/teases"
+          href={attachmentHref("tease", tease.id, anchor)}
           className="inline-flex items-center gap-1 text-[11px] text-gold hover:underline"
         >
           <Sparkles className="h-3 w-3" />

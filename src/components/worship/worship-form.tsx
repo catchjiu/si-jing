@@ -10,6 +10,7 @@ import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyWorshipThread } from "@/lib/inbox";
+import { inboxAnchors } from "@/lib/inbox-deep-links";
 import type { QueenPictureSource } from "@/lib/queen-picture-sources";
 import {
   isOwnedWorshipUpload,
@@ -259,13 +260,15 @@ export function WorshipForm({
         });
         onCancelEdit?.();
       } else {
-        const { error: insertError } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from("worship_entries")
           .insert({
             created_by: profile.id,
             gallery_id: galleryId,
             ...payload,
-          });
+          })
+          .select("id")
+          .single();
 
         if (insertError) {
           if (insertError.code === "23505") {
@@ -283,6 +286,9 @@ export function WorshipForm({
             description.trim().slice(0, 120) ||
             `New photo in ${galleryTopic ?? "gallery"}`,
           galleryId,
+          attachmentAnchor: inserted?.id
+            ? inboxAnchors.worshipEntry(inserted.id)
+            : null,
           pushTitle: "New worship photo",
           pushBody:
             title.trim() ||

@@ -11,6 +11,7 @@ import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { notifyWorshipThread } from "@/lib/inbox";
+import { inboxAnchors, highlightMessageElement } from "@/lib/inbox-deep-links";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ interface WorshipCommentThreadProps {
   worshipId: string;
   galleryId: string;
   worshipTitle?: string | null;
+  highlightCommentId?: string | null;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export function WorshipCommentThread({
   worshipId,
   galleryId,
   worshipTitle,
+  highlightCommentId = null,
   className,
 }: WorshipCommentThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -133,6 +136,14 @@ export function WorshipCommentThread({
   }, [worshipId, load]);
 
   useEffect(() => {
+    if (!highlightCommentId || loading) return;
+    const timer = window.setTimeout(() => {
+      highlightMessageElement(highlightCommentId);
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [highlightCommentId, loading, messages.length]);
+
+  useEffect(() => {
     return () => {
       if (preview) URL.revokeObjectURL(preview);
     };
@@ -192,12 +203,16 @@ export function WorshipCommentThread({
         ? formatRoleSpeech(draft.trim(), profile.role)
         : null;
 
-      const { error } = await supabase.from("worship_messages").insert({
-        worship_id: worshipId,
-        author_id: profile.id,
-        content: text,
-        image_path: imagePath,
-      });
+      const { data: inserted, error } = await supabase
+        .from("worship_messages")
+        .insert({
+          worship_id: worshipId,
+          author_id: profile.id,
+          content: text,
+          image_path: imagePath,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
       const notifyBody = text || (imagePath ? "Sent a photo" : "");
@@ -208,6 +223,9 @@ export function WorshipCommentThread({
         senderId: profile.id,
         content: notifyBody,
         galleryId,
+        attachmentAnchor: inserted?.id
+          ? inboxAnchors.worshipPhotoComment(worshipId, inserted.id)
+          : null,
         pushTitle: isSlave ? "Comment on worship" : "Queen commented on worship",
         pushBody: notifyBody.slice(0, 120),
         notifyTarget: isSlave ? "queen" : "slave",
@@ -238,6 +256,7 @@ export function WorshipCommentThread({
             return (
               <li
                 key={m.id}
+                id={`inbox-focus-${m.id}`}
                 className={cn(
                   "rounded-lg border px-3 py-2",
                   mine
@@ -284,7 +303,10 @@ export function WorshipCommentThread({
                   </p>
                 )}
                 {m.signedUrl && (
-                  <WatermarkedFrame className="mt-2 rounded-lg border border-gold/15">
+                  <WatermarkedFrame
+                    className="mt-2 rounded-lg border border-gold/15"
+                    mediaPath={m.image_path}
+                  >
                     <a
                       href={m.signedUrl}
                       target="_blank"

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 interface MessageCardProps {
   type: MessageAttachmentType;
   id: string;
+  anchor?: string | null;
   summary?: string | null;
   className?: string;
 }
@@ -46,13 +47,14 @@ const ICONS: Record<
 export function MessageCard({
   type,
   id,
+  anchor = null,
   summary,
   className,
 }: MessageCardProps) {
   const Icon = ICONS[type] ?? ListTodo;
   return (
     <Link
-      href={attachmentHref(type, id)}
+      href={attachmentHref(type, id, anchor)}
       className={cn(
         "mt-2 flex items-start gap-3 rounded-lg border border-gold/30 bg-void/50 px-3 py-2.5 transition-colors hover:border-gold/50 hover:bg-gold/5",
         className

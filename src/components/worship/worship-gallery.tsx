@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { Crown, Loader2, Pencil, Trash2 } from "lucide-react";
@@ -32,6 +32,8 @@ import { WorshipCommentThread } from "@/components/worship/worship-comment-threa
 interface WorshipGalleryProps {
   entries: WorshipEntryWithSignedUrl[];
   galleryId: string;
+  initialEntryId?: string | null;
+  highlightPhotoCommentId?: string | null;
   onDeleted?: (id: string) => void;
   onEdit?: (entry: WorshipEntryWithSignedUrl) => void;
   onChanged?: () => void;
@@ -42,6 +44,8 @@ interface WorshipGalleryProps {
 export function WorshipGallery({
   entries,
   galleryId,
+  initialEntryId = null,
+  highlightPhotoCommentId = null,
   onDeleted,
   onEdit,
   onChanged,
@@ -51,6 +55,7 @@ export function WorshipGallery({
   const { isQueen, isSlave, profile } = useAuth();
   const [active, setActive] = useState<WorshipEntryWithSignedUrl | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const initialEntryHandled = useRef<string | null>(null);
 
   const markViewed = useCallback(
     async (entry: WorshipEntryWithSignedUrl) => {
@@ -72,6 +77,26 @@ export function WorshipGallery({
     setActive(entry);
     void markViewed(entry);
   };
+
+  useEffect(() => {
+    if (!initialEntryId) return;
+    if (initialEntryHandled.current === initialEntryId) return;
+    const entry = entries.find((row) => row.id === initialEntryId);
+    if (!entry) return;
+    initialEntryHandled.current = initialEntryId;
+    setActive(entry);
+    void markViewed(entry);
+  }, [initialEntryId, entries, markViewed]);
+
+  useEffect(() => {
+    if (!initialEntryId) return;
+    const el = document.getElementById(`worship-entry-${initialEntryId}`);
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [initialEntryId, entries.length]);
 
   const canDelete =
     (isQueen && active) ||
@@ -138,6 +163,7 @@ export function WorshipGallery({
         {entries.map((entry) => (
           <button
             key={entry.id}
+            id={`worship-entry-${entry.id}`}
             type="button"
             onClick={() => openEntry(entry)}
             className={cn(
@@ -149,7 +175,10 @@ export function WorshipGallery({
           >
             <div className="relative aspect-[4/5] bg-void">
               {entry.signedUrl ? (
-                <WatermarkedFrame className="absolute inset-0">
+                <WatermarkedFrame
+                  className="absolute inset-0"
+                  mediaPath={entry.image_path}
+                >
                   <Image
                     src={entry.signedUrl}
                     alt={entry.title || "Worship"}
@@ -199,7 +228,11 @@ export function WorshipGallery({
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl ? (
-                  <WatermarkedFrame className="absolute inset-0" sizeClassName="w-[22%] max-w-[160px] min-w-[80px]">
+                  <WatermarkedFrame
+                    className="absolute inset-0"
+                    sizeClassName="w-[22%] max-w-[160px] min-w-[80px]"
+                    mediaPath={active.image_path}
+                  >
                     <Image
                       src={active.signedUrl}
                       alt={active.title || "Worship"}
@@ -262,6 +295,7 @@ export function WorshipGallery({
                   worshipId={active.id}
                   galleryId={galleryId}
                   worshipTitle={active.title}
+                  highlightCommentId={highlightPhotoCommentId}
                 />
 
                 {(onEdit || canDelete) && (

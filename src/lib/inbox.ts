@@ -1,4 +1,5 @@
 import type { createClient } from "@/lib/supabase/client";
+import { messageAttachmentHref, inboxAnchors } from "@/lib/inbox-deep-links";
 import type { Profile, UserRole } from "@/lib/types";
 
 type Supabase = ReturnType<typeof createClient>;
@@ -93,6 +94,7 @@ export type DirectMessage = {
   voice_duration_ms: number | null;
   attachment_type: MessageAttachmentType | null;
   attachment_id: string | null;
+  attachment_anchor: string | null;
   reply_to_id: string | null;
   deleted_at: string | null;
   created_at: string;
@@ -222,6 +224,7 @@ export async function postToTopicThread(
     voiceDurationMs?: number | null;
     attachmentType?: MessageAttachmentType | null;
     attachmentId?: string | null;
+    attachmentAnchor?: string | null;
   }
 ): Promise<DirectMessage | null> {
   try {
@@ -236,6 +239,7 @@ export async function postToTopicThread(
       voiceDurationMs: opts.voiceDurationMs,
       attachmentType: opts.attachmentType,
       attachmentId: opts.attachmentId,
+      attachmentAnchor: opts.attachmentAnchor,
     });
   } catch (err) {
     console.error("postToTopicThread failed", err);
@@ -254,6 +258,7 @@ export async function notifyWorshipThread(
     senderId: string;
     content: string;
     galleryId: string;
+    attachmentAnchor?: string | null;
     pushTitle: string;
     pushBody: string;
     notifyTarget: "queen" | "slave";
@@ -265,13 +270,20 @@ export async function notifyWorshipThread(
     content: opts.content,
     attachmentType: "worship",
     attachmentId: opts.galleryId,
+    attachmentAnchor: opts.attachmentAnchor ?? null,
+  });
+
+  const deepLink = messageAttachmentHref({
+    type: "worship",
+    id: opts.galleryId,
+    anchor: opts.attachmentAnchor,
   });
 
   const { notifyPush } = await import("@/lib/push-client");
   void notifyPush({
     title: opts.pushTitle,
     body: opts.pushBody,
-    url: dm ? inboxConversationHref(dm.conversation_id) : "/dashboard/inbox",
+    url: dm ? deepLink : deepLink,
     target: opts.notifyTarget,
   });
 }
@@ -283,6 +295,7 @@ export async function postTeaseToInboxes(
     senderId: string;
     teaseId: string;
     content: string;
+    attachmentAnchor?: string | null;
   }
 ): Promise<void> {
   await Promise.all([
@@ -292,6 +305,7 @@ export async function postTeaseToInboxes(
       content: opts.content,
       attachmentType: "tease",
       attachmentId: opts.teaseId,
+      attachmentAnchor: opts.attachmentAnchor ?? inboxAnchors.tease(opts.teaseId),
     }),
     postToTopicThread(supabase, {
       topic: "general",
@@ -299,6 +313,7 @@ export async function postTeaseToInboxes(
       content: opts.content,
       attachmentType: "tease",
       attachmentId: opts.teaseId,
+      attachmentAnchor: opts.attachmentAnchor ?? inboxAnchors.tease(opts.teaseId),
     }),
   ]);
 }
@@ -450,6 +465,7 @@ export async function sendDirectMessage(
     voiceDurationMs?: number | null;
     attachmentType?: MessageAttachmentType | null;
     attachmentId?: string | null;
+    attachmentAnchor?: string | null;
     replyToId?: string | null;
   }
 ): Promise<DirectMessage> {
@@ -465,6 +481,7 @@ export async function sendDirectMessage(
       voice_duration_ms: opts.voiceDurationMs ?? null,
       attachment_type: opts.attachmentType ?? null,
       attachment_id: opts.attachmentId ?? null,
+      attachment_anchor: opts.attachmentAnchor ?? null,
       reply_to_id: opts.replyToId ?? null,
     })
     .select("*")
@@ -487,21 +504,10 @@ export async function softDeleteMessage(
 
 export function attachmentHref(
   type: MessageAttachmentType,
-  id: string
+  id: string,
+  anchor?: string | null
 ): string {
-  if (type === "task") return `/dashboard/task/${id}`;
-  if (type === "submission") return `/dashboard/submissions/${id}`;
-  if (type === "tease") return `/dashboard/teases`;
-  if (type === "punishment") return `/dashboard/punishments`;
-  if (type === "reward") return `/dashboard/rewards`;
-  if (type === "request") return `/dashboard/requests`;
-  if (type === "date") return `/dashboard/dates`;
-  if (type === "journal") return `/dashboard/journal`;
-  if (type === "wishlist") return `/dashboard/wishlist`;
-  if (type === "worship") return `/dashboard/worship/${id}`;
-  if (type === "shop") return `/dashboard/shop`;
-  if (type === "worship_assignment") return `/dashboard/worship`;
-  return `/dashboard/inbox`;
+  return messageAttachmentHref({ type, id, anchor });
 }
 
 export function attachmentLabel(type: MessageAttachmentType): string {

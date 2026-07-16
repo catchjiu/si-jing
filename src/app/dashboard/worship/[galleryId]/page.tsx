@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -37,8 +37,21 @@ async function withSignedUrls(
 }
 
 export default function WorshipGalleryPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <WorshipGalleryPageInner />
+    </Suspense>
+  );
+}
+
+function WorshipGalleryPageInner() {
   const params = useParams<{ galleryId: string }>();
+  const searchParams = useSearchParams();
   const galleryId = params.galleryId;
+  const focusEntryId = searchParams.get("entry");
+  const focusGalleryCommentId = searchParams.get("galleryComment");
+  const focusPhotoCommentId = searchParams.get("photoComment");
+  const focusCommentsSection = searchParams.get("section") === "comments";
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const [gallery, setGallery] = useState<WorshipGalleryTopic | null>(null);
   const [entries, setEntries] = useState<WorshipEntryWithSignedUrl[]>([]);
@@ -100,6 +113,16 @@ export default function WorshipGalleryPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!focusCommentsSection || loading) return;
+    const el = document.getElementById("gallery-comments");
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [focusCommentsSection, focusGalleryCommentId, loading]);
 
   const onDeleted = (id: string) => {
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
@@ -202,6 +225,8 @@ export default function WorshipGalleryPage() {
         <WorshipGallery
           entries={entries}
           galleryId={gallery.id}
+          initialEntryId={focusEntryId}
+          highlightPhotoCommentId={focusPhotoCommentId}
           onDeleted={onDeleted}
           onChanged={load}
           onViewed={onViewed}
@@ -217,6 +242,7 @@ export default function WorshipGalleryPage() {
       </section>
 
       <section
+        id="gallery-comments"
         className={cn(
           "rounded-xl border border-gold/15 bg-charcoal/60 p-5"
         )}
@@ -224,6 +250,7 @@ export default function WorshipGalleryPage() {
         <WorshipGalleryCommentThread
           galleryId={gallery.id}
           galleryTopic={gallery.topic}
+          highlightCommentId={focusGalleryCommentId}
         />
       </section>
     </div>

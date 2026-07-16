@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense, type CSSProperties } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -118,7 +119,10 @@ async function withSignedUrls(
   );
 }
 
-export default function TeasesPage() {
+function TeasesPageInner() {
+  const searchParams = useSearchParams();
+  const focusTeaseId = searchParams.get("tease");
+  const focusCommentId = searchParams.get("comment");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<TeaseWithSignedUrl[]>([]);
   const [recipient, setRecipient] = useState<Profile | null>(null);
@@ -211,6 +215,16 @@ export default function TeasesPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!focusTeaseId || loading) return;
+    const el = document.getElementById(`tease-${focusTeaseId}`);
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [focusTeaseId, loading, items.length]);
 
   useEffect(() => {
     if (!isQueen) return;
@@ -1217,6 +1231,7 @@ export default function TeasesPage() {
             return (
               <article
                 key={t.id}
+                id={`tease-${t.id}`}
                 className={cn(
                   "overflow-hidden rounded-xl border bg-charcoal/80",
                   fullyRevealed ? "border-gold/30" : "border-gold/15"
@@ -1670,6 +1685,12 @@ export default function TeasesPage() {
                     teaseId={t.id}
                     teaseTitle={t.title}
                     mediaKind={t.media_kind ?? "image"}
+                    defaultOpen={
+                      focusTeaseId === t.id && Boolean(focusCommentId)
+                    }
+                    highlightCommentId={
+                      focusTeaseId === t.id ? focusCommentId : null
+                    }
                   />
                 </div>
               </article>
@@ -1757,5 +1778,13 @@ export default function TeasesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TeasesPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <TeasesPageInner />
+    </Suspense>
   );
 }

@@ -74,7 +74,10 @@ function SignedMedia({
   }
 
   return (
-    <WatermarkedFrame className="mt-2 max-h-72 overflow-hidden rounded-lg">
+    <WatermarkedFrame
+      className="mt-2 max-h-72 overflow-hidden rounded-lg"
+      mediaPath={path}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
@@ -486,13 +489,26 @@ export function ChatThread({
                 )}
 
                 {showTeaseEmbed && teaseId ? (
-                  <InboxTeaseEmbed teaseId={teaseId} />
+                  <InboxTeaseEmbed
+                    teaseId={teaseId}
+                    anchor={m.attachment_anchor}
+                  />
                 ) : m.attachment_type &&
                   m.attachment_id &&
                   m.attachment_type !== "tease" ? (
                   <MessageCard
                     type={m.attachment_type as MessageAttachmentType}
                     id={m.attachment_id}
+                    anchor={m.attachment_anchor}
+                    summary={m.content}
+                  />
+                ) : m.attachment_type === "tease" &&
+                  m.attachment_id &&
+                  !showTeaseEmbed ? (
+                  <MessageCard
+                    type="tease"
+                    id={m.attachment_id}
+                    anchor={m.attachment_anchor}
                     summary={m.content}
                   />
                 ) : null}

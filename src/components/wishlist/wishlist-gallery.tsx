@@ -191,7 +191,10 @@ export function WishlistGallery({
           >
             <div className="relative aspect-[4/5] bg-void">
               {item.signedUrl ? (
-                <WatermarkedFrame className="absolute inset-0">
+                <WatermarkedFrame
+                  className="absolute inset-0"
+                  mediaPath={item.image_path}
+                >
                   <Image
                     src={item.signedUrl}
                     alt={item.title || "Wishlist item"}
@@ -241,7 +244,11 @@ export function WishlistGallery({
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl ? (
-                  <WatermarkedFrame className="absolute inset-0" sizeClassName="w-[22%] max-w-[160px] min-w-[80px]">
+                  <WatermarkedFrame
+                    className="absolute inset-0"
+                    sizeClassName="w-[22%] max-w-[160px] min-w-[80px]"
+                    mediaPath={active.image_path}
+                  >
                     <Image
                       src={active.signedUrl}
                       alt={active.title || "Wishlist item"}
