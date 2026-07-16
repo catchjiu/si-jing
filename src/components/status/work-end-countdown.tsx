@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 function remainingParts(targetMs: number, nowMs: number) {
@@ -31,6 +31,8 @@ type WorkEndCountdownProps = {
   className?: string;
   /** Compact inline layout for narrow cards. */
   compact?: boolean;
+  /** Fires once when the shift end time is reached. */
+  onComplete?: () => void;
 };
 
 /** Live countdown until the current work shift ends. */
@@ -38,18 +40,28 @@ export function WorkEndCountdown({
   endAtMs,
   className,
   compact = false,
+  onComplete,
 }: WorkEndCountdownProps) {
   const [parts, setParts] = useState(() =>
     remainingParts(endAtMs, Date.now())
   );
+  const completedRef = useRef(false);
 
   useEffect(() => {
+    completedRef.current = false;
     setParts(remainingParts(endAtMs, Date.now()));
     const id = window.setInterval(() => {
       setParts(remainingParts(endAtMs, Date.now()));
     }, 1000);
     return () => window.clearInterval(id);
   }, [endAtMs]);
+
+  useEffect(() => {
+    if (parts.done && !completedRef.current) {
+      completedRef.current = true;
+      onComplete?.();
+    }
+  }, [parts.done, onComplete]);
 
   if (parts.done) return null;
 

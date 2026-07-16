@@ -9,20 +9,18 @@ const INTERVAL_MS = 60_000;
 
 /** Heartbeat so Queen can see D's last-active time; applies Queen work schedule. */
 export function PresenceHeartbeat() {
-  const { user, isQueen, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   const touch = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
     await supabase.rpc("touch_last_active");
-    if (isQueen) {
-      try {
-        await applyQueenWorkSchedules(supabase);
-      } catch {
-        // schedule apply is best-effort until migration is live
-      }
+    try {
+      await applyQueenWorkSchedules(supabase);
+    } catch {
+      // schedule apply is best-effort until migration is live
     }
-  }, [user, isQueen]);
+  }, [user]);
 
   useEffect(() => {
     if (loading || !user) return;

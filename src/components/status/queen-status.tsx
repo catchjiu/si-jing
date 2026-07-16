@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Briefcase,
@@ -12,7 +12,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { QueenAvailability } from "@/lib/types";
-import { fetchQueenWorkingUntil } from "@/lib/queen-work-schedule";
+import {
+  applyQueenWorkSchedules,
+  fetchQueenWorkingUntil,
+} from "@/lib/queen-work-schedule";
 import type { WorkingUntilInfo } from "@/lib/queen-work-schedule";
 import { QueenWorkScheduleDialog } from "@/components/status/queen-work-schedule";
 import { WorkEndCountdown } from "@/components/status/work-end-countdown";
@@ -76,21 +79,57 @@ export function QueenStatusPicker({
   const [value, setValue] = useState<QueenAvailability>("available");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [workingUntil, setWorkingUntil] = useState<WorkingUntilInfo | null>(
+    null
+  );
 
-  useEffect(() => {
+  const reloadStatus = useCallback(async () => {
     if (!profile || !isQueen) return;
     const supabase = createClient();
-    void supabase
+    const { data } = await supabase
       .from("user_status")
       .select("availability")
       .eq("user_id", profile.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const a = data?.availability as QueenAvailability | null | undefined;
-        if (a) setValue(a);
-        setLoaded(true);
-      });
+      .maybeSingle();
+    const a = data?.availability as QueenAvailability | null | undefined;
+    if (a) setValue(a);
   }, [profile, isQueen]);
+
+  useEffect(() => {
+    if (!profile || !isQueen) return;
+    void reloadStatus().then(() => setLoaded(true));
+  }, [profile, isQueen, reloadStatus]);
+
+  useEffect(() => {
+    if (!profile || !isQueen || value !== "working") {
+      setWorkingUntil(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    void fetchQueenWorkingUntil(supabase, profile.id)
+      .then((info) => {
+        if (!cancelled) setWorkingUntil(info);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkingUntil(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, isQueen, value]);
+
+  const onWorkShiftEnd = useCallback(async () => {
+    if (!profile) return;
+    const supabase = createClient();
+    try {
+      await applyQueenWorkSchedules(supabase);
+      await reloadStatus();
+      onUpdated?.();
+    } catch {
+      // best-effort
+    }
+  }, [profile, reloadStatus, onUpdated]);
 
   if (!isQueen) return null;
 
@@ -135,29 +174,43 @@ export function QueenStatusPicker({
       {!loaded ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {QUEEN_AVAILABILITY.map((opt) => {
-            const Icon = opt.icon;
-            const active = value === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={saving}
-                onClick={() => void save(opt.value)}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-all",
-                  active
-                    ? opt.className
-                    : "border-gold/10 bg-void/40 text-ivory/60 hover:border-gold/25 hover:text-ivory"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-sm font-medium">{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {QUEEN_AVAILABILITY.map((opt) => {
+              const Icon = opt.icon;
+              const active = value === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void save(opt.value)}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-all",
+                    active
+                      ? opt.className
+                      : "border-gold/10 bg-void/40 text-ivory/60 hover:border-gold/25 hover:text-ivory"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="text-sm font-medium">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {value === "working" && workingUntil ? (
+            <div className="mt-3 space-y-1.5 rounded-lg border border-gold/15 bg-void/40 px-3 py-2.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Shift ends in
+              </p>
+              <WorkEndCountdown
+                endAtMs={workingUntil.endAtMs}
+                compact
+                onComplete={() => void onWorkShiftEnd()}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -310,14 +363,41 @@ export function QueenStatusDisplay({
     };
   }, [availability, queenId]);
 
+  const onWorkShiftEnd = useCallback(async () => {
+    if (!queenId) return;
+    const supabase = createClient();
+    try {
+      await applyQueenWorkSchedules(supabase);
+      const { data: status } = await supabase
+        .from("user_status")
+        .select("availability, updated_at, last_active_at")
+        .eq("user_id", queenId)
+        .maybeSingle();
+      if (status) {
+        setAvailability(
+          (status.availability as QueenAvailability | null | undefined) ??
+            "available"
+        );
+        setUpdatedAt((status.updated_at as string | null | undefined) ?? null);
+        setLastActiveAt(
+          (status.last_active_at as string | null | undefined) ?? null
+        );
+      }
+      setWorkingUntil(null);
+    } catch {
+      // best-effort
+    }
+  }, [queenId]);
+
   const displayMeta = availabilityMeta(availability ?? "available");
   const DisplayIcon = displayMeta.icon;
   const isWorking = availability === "working";
+  const showScheduleLink = availability === "available" || isWorking;
 
   const cardClassName = cn(
     "flex w-full items-center gap-4 rounded-xl border px-4 py-3 text-left transition-opacity",
     displayMeta.className,
-    isWorking && "cursor-pointer hover:opacity-90 active:opacity-80",
+    showScheduleLink && "cursor-pointer hover:opacity-90 active:opacity-80",
     className
   );
 
@@ -336,7 +416,11 @@ export function QueenStatusDisplay({
             <p className="text-[10px] uppercase tracking-wider opacity-70">
               Shift ends in
             </p>
-            <WorkEndCountdown endAtMs={workingUntil.endAtMs} compact />
+            <WorkEndCountdown
+              endAtMs={workingUntil.endAtMs}
+              compact
+              onComplete={() => void onWorkShiftEnd()}
+            />
             <p className="text-xs opacity-80">
               {username} is working until {workingUntil.label}
             </p>
@@ -344,7 +428,7 @@ export function QueenStatusDisplay({
         ) : (
           <p className="text-xs opacity-80">{displayMeta.hint}</p>
         )}
-        {isWorking ? (
+        {showScheduleLink ? (
           <p className="mt-0.5 text-[10px] opacity-60">Tap for work schedule</p>
         ) : null}
         {lastActiveAt ? (
@@ -362,7 +446,7 @@ export function QueenStatusDisplay({
 
   return (
     <>
-      {isWorking ? (
+      {showScheduleLink ? (
         <button
           type="button"
           className={cardClassName}
