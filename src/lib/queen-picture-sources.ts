@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { StorageBucket } from "@/lib/storage/paths";
-import type { ImageLocationSource } from "@/lib/types";
+import type { ImageLocationSource, TeaseMediaKind } from "@/lib/types";
 
 export type QueenPictureSourceType = "reward" | "tease";
 
@@ -9,6 +9,7 @@ export type QueenPictureSource = {
   sourceType: QueenPictureSourceType;
   sourceId: string;
   imagePath: string;
+  mediaKind: TeaseMediaKind;
   storageBucket: StorageBucket;
   signedUrl?: string;
   label: string;
@@ -37,11 +38,10 @@ export async function fetchQueenPictureSources(
     supabase
       .from("teases")
       .select(
-        "id, title, image_path, latitude, longitude, accuracy_m, location_source, created_at, unblurred_at"
+        "id, title, image_path, media_kind, latitude, longitude, accuracy_m, location_source, created_at, unblurred_at"
       )
       .eq("sent_to", slaveId)
       .eq("is_blurred", false)
-      .eq("media_kind", "image")
       .not("image_path", "is", null)
       .lte("unlocks_at", now)
       .order("created_at", { ascending: false }),
@@ -55,6 +55,7 @@ export async function fetchQueenPictureSources(
       sourceType: "reward",
       sourceId: row.id as string,
       imagePath: row.image_path as string,
+      mediaKind: "image",
       storageBucket: "rewards",
       label: (row.title as string | null) || "Reward",
       subtitle: (row.message as string | null) ?? null,
@@ -68,12 +69,16 @@ export async function fetchQueenPictureSources(
 
   for (const row of teases ?? []) {
     if (!row.image_path) continue;
+    const mediaKind = (row.media_kind as TeaseMediaKind | null) ?? "image";
     items.push({
       sourceType: "tease",
       sourceId: row.id as string,
       imagePath: row.image_path as string,
+      mediaKind,
       storageBucket: "teases",
-      label: (row.title as string | null) || "Revealed tease",
+      label:
+        (row.title as string | null) ||
+        (mediaKind === "video" ? "Revealed video tease" : "Revealed tease"),
       subtitle: row.unblurred_at
         ? `Revealed ${new Date(row.unblurred_at as string).toLocaleDateString()}`
         : null,

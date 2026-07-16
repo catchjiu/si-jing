@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { WorshipMedia, isWorshipVideo } from "@/components/worship/worship-media";
 
 interface WorshipGalleriesGridProps {
   galleries: WorshipGalleryTopicWithMeta[];
@@ -109,20 +110,29 @@ export function WorshipGalleriesGrid({
             >
               <div className="relative aspect-[4/3] bg-void">
                 {gallery.coverSignedUrl ? (
-                  <WatermarkedFrame className="absolute inset-0">
-                    <Image
-                      src={gallery.coverSignedUrl}
+                  isWorshipVideo(gallery.coverMediaKind) ? (
+                    <WorshipMedia
+                      signedUrl={gallery.coverSignedUrl}
                       alt={gallery.topic}
-                      fill
-                      unoptimized
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      sizes="(max-width: 640px) 100vw, 33vw"
+                      mediaKind="video"
+                      variant="tile"
                     />
-                  </WatermarkedFrame>
+                  ) : (
+                    <WatermarkedFrame className="absolute inset-0">
+                      <Image
+                        src={gallery.coverSignedUrl}
+                        alt={gallery.topic}
+                        fill
+                        unoptimized
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 640px) 100vw, 33vw"
+                      />
+                    </WatermarkedFrame>
+                  )
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Crown className="h-8 w-8" />
-                    <span className="text-xs">No photos yet</span>
+                    <span className="text-xs">No media yet</span>
                   </div>
                 )}
                 {hasNew && (

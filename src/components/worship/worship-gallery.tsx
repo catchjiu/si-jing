@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Crown, Loader2, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,8 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
-import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { WorshipCommentThread } from "@/components/worship/worship-comment-thread";
+import { WorshipMedia } from "@/components/worship/worship-media";
 
 interface WorshipGalleryProps {
   entries: WorshipEntryWithSignedUrl[];
@@ -148,8 +147,8 @@ export function WorshipGallery({
         <Crown className="mx-auto mb-3 h-8 w-8 text-gold/40" />
         <p className="text-sm text-muted-foreground">
           {isSlave
-            ? "Add your first photo to this gallery."
-            : "No photos in this gallery yet."}
+            ? "Add your first photo or video to this gallery."
+            : "No photos or videos in this gallery yet."}
         </p>
       </div>
     );
@@ -175,19 +174,13 @@ export function WorshipGallery({
           >
             <div className="relative aspect-[4/5] bg-void">
               {entry.signedUrl ? (
-                <WatermarkedFrame
-                  className="absolute inset-0"
+                <WorshipMedia
+                  signedUrl={entry.signedUrl}
+                  alt={entry.title || "Worship"}
+                  mediaKind={entry.media_kind ?? "image"}
                   mediaPath={entry.image_path}
-                >
-                  <Image
-                    src={entry.signedUrl}
-                    alt={entry.title || "Worship"}
-                    fill
-                    unoptimized
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, 33vw"
-                  />
-                </WatermarkedFrame>
+                  variant="tile"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
                   <Crown className="h-8 w-8" />
@@ -228,20 +221,13 @@ export function WorshipGallery({
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
                 {active.signedUrl ? (
-                  <WatermarkedFrame
-                    className="absolute inset-0"
-                    sizeClassName="w-[22%] max-w-[160px] min-w-[80px]"
+                  <WorshipMedia
+                    signedUrl={active.signedUrl}
+                    alt={active.title || "Worship"}
+                    mediaKind={active.media_kind ?? "image"}
                     mediaPath={active.image_path}
-                  >
-                    <Image
-                      src={active.signedUrl}
-                      alt={active.title || "Worship"}
-                      fill
-                      unoptimized
-                      className="object-contain"
-                      sizes="100vw"
-                    />
-                  </WatermarkedFrame>
+                    variant="detail"
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
                     <Crown className="h-10 w-10" />

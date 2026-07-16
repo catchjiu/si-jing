@@ -88,6 +88,8 @@ export type WishlistItemWithSignedUrl = WishlistItem & {
   signedUrl?: string;
 };
 
+export type WorshipMediaKind = "image" | "video";
+
 export type WorshipEntrySourceType = "upload" | "reward" | "tease";
 
 export type WorshipEntry = {
@@ -97,6 +99,7 @@ export type WorshipEntry = {
   title: string | null;
   description: string | null;
   image_path: string;
+  media_kind: WorshipMediaKind;
   storage_bucket: string;
   source_type: WorshipEntrySourceType | null;
   source_id: string | null;
@@ -126,6 +129,7 @@ export type WorshipGalleryTopic = {
 
 export type WorshipGalleryTopicWithMeta = WorshipGalleryTopic & {
   coverSignedUrl?: string;
+  coverMediaKind?: WorshipMediaKind;
   entryCount: number;
   unviewedCount: number;
   avgLoveLevel: number | null;

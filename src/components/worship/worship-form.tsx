@@ -6,8 +6,13 @@ import { Crown, ImagePlus, Loader2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import {
+  MAX_VIDEO_BYTES,
+  prepareVideoForUpload,
+  VIDEO_TYPES,
+} from "@/lib/video-compress";
 import { resolveImageLocation } from "@/lib/location";
-import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
+import { presignAndUpload, removeObject } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyWorshipThread } from "@/lib/inbox";
 import { inboxAnchors } from "@/lib/inbox-deep-links";
@@ -18,6 +23,8 @@ import {
 } from "@/lib/worship-storage";
 import { loveColor, loveLabel } from "@/lib/worship";
 import { QueenPicturesPicker } from "@/components/worship/queen-pictures-picker";
+import { WorshipMedia } from "@/components/worship/worship-media";
+import type { WorshipMediaKind } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +33,13 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import type { WorshipEntryWithSignedUrl } from "@/lib/types";
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ACCEPTED_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+
+function isVideoType(type: string): boolean {
+  return VIDEO_TYPES.includes(type as (typeof VIDEO_TYPES)[number]);
+}
 
 type PhotoMode = "upload" | "queen";
 
@@ -61,6 +73,8 @@ export function WorshipForm({
   const [selectedQueenPicture, setSelectedQueenPicture] =
     useState<QueenPictureSource | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [previewMediaKind, setPreviewMediaKind] =
+    useState<WorshipMediaKind>("image");
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -75,6 +89,7 @@ export function WorshipForm({
     setPreview(null);
     setSelectedQueenPicture(null);
     setPhotoMode("upload");
+    setPreviewMediaKind(editingEntry?.media_kind ?? "image");
 
     if (!editingEntry) {
       setExistingImageUrl(null);
@@ -95,11 +110,14 @@ export function WorshipForm({
     };
   }, [editingEntry]);
 
-  const setImage = useCallback(
+  const setMediaFile = useCallback(
     (next: File | null) => {
       if (preview) URL.revokeObjectURL(preview);
       setFile(next);
       setPreview(next ? URL.createObjectURL(next) : null);
+      setPreviewMediaKind(
+        next && isVideoType(next.type) ? "video" : "image"
+      );
     },
     [preview]
   );
@@ -108,14 +126,19 @@ export function WorshipForm({
     const candidate = incoming?.[0];
     if (!candidate) return;
     if (!ACCEPTED_TYPES.includes(candidate.type)) {
-      toast.error("Use a JPG, PNG, WebP, or GIF image");
+      toast.error("Use a JPG, PNG, WebP, GIF, MP4, WebM, or MOV file");
       return;
     }
-    if (candidate.size > MAX_FILE_SIZE) {
+    if (isVideoType(candidate.type)) {
+      if (candidate.size > MAX_VIDEO_BYTES) {
+        toast.error("Video must be under 50MB");
+        return;
+      }
+    } else if (candidate.size > MAX_IMAGE_SIZE) {
       toast.error("Image must be under 10MB");
       return;
     }
-    setImage(candidate);
+    setMediaFile(candidate);
     setSelectedQueenPicture(null);
     setPhotoMode("upload");
   };
@@ -125,6 +148,7 @@ export function WorshipForm({
     setFile(null);
     setPreview(null);
     setSelectedQueenPicture(source);
+    setPreviewMediaKind(source?.mediaKind ?? "image");
     if (source) setPhotoMode("queen");
   };
 
@@ -135,7 +159,7 @@ export function WorshipForm({
       return;
     }
     if (!isEditing && !file && !selectedQueenPicture) {
-      toast.error("Attach a photo of Queen or pick one from her gifts");
+      toast.error("Attach a photo or video of Queen, or pick one from her gifts");
       return;
     }
 
@@ -151,6 +175,9 @@ export function WorshipForm({
       let longitude = editingEntry?.longitude ?? null;
       let accuracy_m = editingEntry?.accuracy_m ?? null;
       let location_source = editingEntry?.location_source ?? null;
+      let mediaKind: WorshipMediaKind =
+        editingEntry?.media_kind ?? "image";
+
       let signedUrl = editingEntry?.signedUrl;
 
       if (selectedQueenPicture && !file) {
@@ -162,61 +189,108 @@ export function WorshipForm({
         longitude = selectedQueenPicture.longitude;
         accuracy_m = selectedQueenPicture.accuracy_m;
         location_source = selectedQueenPicture.location_source;
+        mediaKind = selectedQueenPicture.mediaKind;
         signedUrl = selectedQueenPicture.signedUrl;
       } else if (file) {
-        const geo = await resolveImageLocation(file);
-        if (geo) {
-          toast.message(
-            geo.source === "exif"
-              ? "Photo location from image metadata"
-              : "Photo location from device GPS"
-          );
-        }
-        const uploadFile = await downsizeImageIfNeeded(file);
-        if (uploadFile.size < file.size) {
-          toast.message(
-            `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
-          );
-        }
-        const ext = uploadFile.name.split(".").pop() || "jpg";
-        const previousPath = imagePath;
-        imagePath = await presignAndUpload({
-          bucket: "worship",
-          file: uploadFile,
-          contentType: uploadFile.type || "image/jpeg",
-          ext,
-          relativePath: `${profile.id}/${Date.now()}.${ext}`,
-        });
-        storageBucket = "worship";
-        sourceType = "upload";
-        sourceId = null;
-        latitude = geo?.latitude ?? null;
-        longitude = geo?.longitude ?? null;
-        accuracy_m = geo?.accuracy_m ?? null;
-        location_source = geo?.source ?? null;
-        signedUrl =
-          (await signWorshipEntryUrl({
-            image_path: imagePath,
-            storage_bucket: storageBucket,
-          })) ?? undefined;
+        const isVideo = isVideoType(file.type);
+        mediaKind = isVideo ? "video" : "image";
 
-        if (
-          isEditing &&
-          previousPath &&
-          previousPath !== imagePath &&
-          editingEntry &&
-          isOwnedWorshipUpload(editingEntry)
-        ) {
-          try {
-            await removeObject({ bucket: "worship", path: previousPath });
-          } catch {
-            // Best-effort cleanup of replaced image
+        if (isVideo) {
+          const prepared = await prepareVideoForUpload(file);
+          if (prepared.compressed) {
+            toast.message("Video compressed for upload");
+          }
+          const uploadFile = prepared.file;
+          const ext = uploadFile.name.split(".").pop() || "mp4";
+          const previousPath = imagePath;
+          imagePath = await presignAndUpload({
+            bucket: "worship",
+            file: uploadFile,
+            contentType: uploadFile.type || "video/mp4",
+            ext,
+            relativePath: `${profile.id}/${Date.now()}.${ext}`,
+          });
+          storageBucket = "worship";
+          sourceType = "upload";
+          sourceId = null;
+          latitude = null;
+          longitude = null;
+          accuracy_m = null;
+          location_source = null;
+          signedUrl =
+            (await signWorshipEntryUrl({
+              image_path: imagePath,
+              storage_bucket: storageBucket,
+            })) ?? undefined;
+
+          if (
+            isEditing &&
+            previousPath &&
+            previousPath !== imagePath &&
+            editingEntry &&
+            isOwnedWorshipUpload(editingEntry)
+          ) {
+            try {
+              await removeObject({ bucket: "worship", path: previousPath });
+            } catch {
+              // Best-effort cleanup of replaced media
+            }
+          }
+        } else {
+          const geo = await resolveImageLocation(file);
+          if (geo) {
+            toast.message(
+              geo.source === "exif"
+                ? "Photo location from image metadata"
+                : "Photo location from device GPS"
+            );
+          }
+          const uploadFile = await downsizeImageIfNeeded(file);
+          if (uploadFile.size < file.size) {
+            toast.message(
+              `Image compressed to ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`
+            );
+          }
+          const ext = uploadFile.name.split(".").pop() || "jpg";
+          const previousPath = imagePath;
+          imagePath = await presignAndUpload({
+            bucket: "worship",
+            file: uploadFile,
+            contentType: uploadFile.type || "image/jpeg",
+            ext,
+            relativePath: `${profile.id}/${Date.now()}.${ext}`,
+          });
+          storageBucket = "worship";
+          sourceType = "upload";
+          sourceId = null;
+          latitude = geo?.latitude ?? null;
+          longitude = geo?.longitude ?? null;
+          accuracy_m = geo?.accuracy_m ?? null;
+          location_source = geo?.source ?? null;
+          signedUrl =
+            (await signWorshipEntryUrl({
+              image_path: imagePath,
+              storage_bucket: storageBucket,
+            })) ?? undefined;
+
+          if (
+            isEditing &&
+            previousPath &&
+            previousPath !== imagePath &&
+            editingEntry &&
+            isOwnedWorshipUpload(editingEntry)
+          ) {
+            try {
+              await removeObject({ bucket: "worship", path: previousPath });
+            } catch {
+              // Best-effort cleanup of replaced image
+            }
           }
         }
       }
 
       if (!imagePath) {
-        throw new Error("Image is required");
+        throw new Error("Media is required");
       }
 
       const resolvedTitle =
@@ -233,6 +307,7 @@ export function WorshipForm({
           ? formatRoleSpeech(description.trim(), "slave")
           : null,
         image_path: imagePath,
+        media_kind: mediaKind,
         storage_bucket: storageBucket,
         source_type: sourceType,
         source_id: sourceId,
@@ -256,6 +331,7 @@ export function WorshipForm({
         toast.success("Worship updated");
         onUpdated?.({
           ...(data as WorshipEntryWithSignedUrl),
+          media_kind: mediaKind,
           signedUrl: signedUrl ?? existingImageUrl ?? undefined,
         });
         onCancelEdit?.();
@@ -272,37 +348,38 @@ export function WorshipForm({
 
         if (insertError) {
           if (insertError.code === "23505") {
-            toast.error("That picture is already in this gallery");
+            toast.error("That item is already in this gallery");
             return;
           }
           throw insertError;
         }
 
-        toast.success("Photo added to gallery");
+        toast.success("Added to gallery");
         void notifyWorshipThread(supabase, {
           senderId: profile.id,
           content:
             title.trim() ||
             description.trim().slice(0, 120) ||
-            `New photo in ${galleryTopic ?? "gallery"}`,
+            `New worship in ${galleryTopic ?? "gallery"}`,
           galleryId,
           attachmentAnchor: inserted?.id
             ? inboxAnchors.worshipEntry(inserted.id)
             : null,
-          pushTitle: "New worship photo",
+          pushTitle: "New worship",
           pushBody:
             title.trim() ||
             description.trim().slice(0, 80) ||
             galleryTopic ||
-            "D added a photo of you",
+            "D added worship of you",
           notifyTarget: "queen",
         });
         setTitle("");
         setDescription("");
         setLoveLevel(50);
-        setImage(null);
+        setMediaFile(null);
         setSelectedQueenPicture(null);
         setPhotoMode("upload");
+        setPreviewMediaKind("image");
         onSuccess?.();
       }
     } catch (err) {
@@ -321,6 +398,13 @@ export function WorshipForm({
     existingImageUrl ||
     (photoMode === "queen" ? selectedQueenPicture?.signedUrl : null);
 
+  const activePreviewKind: WorshipMediaKind =
+    preview || file
+      ? previewMediaKind
+      : photoMode === "queen"
+        ? (selectedQueenPicture?.mediaKind ?? "image")
+        : editingEntry?.media_kind ?? "image";
+
   return (
     <form
       onSubmit={onSubmit}
@@ -336,14 +420,14 @@ export function WorshipForm({
           </div>
           <div>
             <h3 className="font-heading text-xl text-ivory">
-              {isEditing ? "Edit photo" : "Add photo"}
+              {isEditing ? "Edit offering" : "Add photo or video"}
             </h3>
             <p className="text-xs text-muted-foreground">
               {isEditing
-                ? "Update the photo, description, or love rating"
+                ? "Update the media, description, or love rating"
                 : galleryTopic
                   ? `Add to “${galleryTopic}”`
-                  : "Upload a photo of Queen for this gallery"}
+                  : "Upload a photo or video of Queen for this gallery"}
             </p>
           </div>
         </div>
@@ -447,12 +531,14 @@ export function WorshipForm({
                   : "border-gold/20 text-muted-foreground hover:text-ivory"
               )}
             >
-              From Queen&apos;s pictures
+              From Queen&apos;s media
             </button>
           )}
         </div>
 
-        <Label>{isEditing ? "Photo (optional replace)" : "Photo of Queen"}</Label>
+        <Label>
+          {isEditing ? "Media (optional replace)" : "Photo or video of Queen"}
+        </Label>
 
         {!isEditing && photoMode === "queen" ? (
           <div className="space-y-3">
@@ -462,34 +548,43 @@ export function WorshipForm({
               onSelect={onSelectQueenPicture}
             />
             {selectedQueenPicture?.signedUrl && (
-              <div className="relative overflow-hidden rounded-lg border border-gold/20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selectedQueenPicture.signedUrl}
+              <div className="relative overflow-hidden rounded-lg border border-gold/20 bg-void">
+                <WorshipMedia
+                  signedUrl={selectedQueenPicture.signedUrl}
                   alt={selectedQueenPicture.label}
-                  className="max-h-64 w-full object-contain bg-void"
+                  mediaKind={selectedQueenPicture.mediaKind}
+                  mediaPath={selectedQueenPicture.imagePath}
+                  variant="preview"
+                  fill={false}
                 />
               </div>
             )}
           </div>
         ) : displayPreview ? (
-          <div className="relative overflow-hidden rounded-lg border border-gold/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={displayPreview}
+          <div className="relative overflow-hidden rounded-lg border border-gold/20 bg-void">
+            <WorshipMedia
+              signedUrl={displayPreview}
               alt="Worship preview"
-              className="max-h-80 w-full object-contain bg-void"
+              mediaKind={activePreviewKind}
+              mediaPath={
+                editingEntry?.image_path ??
+                selectedQueenPicture?.imagePath ??
+                null
+              }
+              variant="preview"
+              fill={false}
             />
             <div className="absolute right-2 top-2 flex gap-2">
               {(file || selectedQueenPicture) && (
                 <button
                   type="button"
                   onClick={() => {
-                    setImage(null);
+                    setMediaFile(null);
                     setSelectedQueenPicture(null);
+                    setPreviewMediaKind("image");
                   }}
                   className="rounded-full bg-void/80 p-1.5 text-ivory hover:text-gold"
-                  aria-label="Remove selected image"
+                  aria-label="Remove selected media"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -528,7 +623,7 @@ export function WorshipForm({
           >
             <ImagePlus className="h-8 w-8 text-gold/70" />
             <span className="text-sm text-muted-foreground">
-              Drop a photo of Queen or click to choose
+              Drop a photo or video of Queen, or click to choose
             </span>
             <input
               type="file"
@@ -553,7 +648,7 @@ export function WorshipForm({
         ) : (
           <>
             <Crown className="mr-2 h-4 w-4" />
-            {isEditing ? "Save photo" : "Add photo"}
+            {isEditing ? "Save" : "Add to gallery"}
           </>
         )}
       </Button>

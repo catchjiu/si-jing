@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { Gift, Loader2, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -11,7 +10,7 @@ import {
   type QueenPictureSource,
 } from "@/lib/queen-picture-sources";
 import { cn } from "@/lib/utils";
-import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { WorshipMedia, isWorshipVideo } from "@/components/worship/worship-media";
 
 interface QueenPicturesPickerProps {
   galleryId: string;
@@ -88,7 +87,7 @@ export function QueenPicturesPicker({
   return (
     <div className={cn("space-y-3", className)}>
       <p className="text-xs text-muted-foreground">
-        Pick a reward or fully revealed tease from Queen to add to this gallery.
+        Pick a reward or fully revealed tease (photo or video) from Queen.
       </p>
       <div className="grid max-h-80 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
         {items.map((item) => {
@@ -110,26 +109,24 @@ export function QueenPicturesPicker({
             >
               <div className="relative aspect-square bg-void">
                 {item.signedUrl ? (
-                  <WatermarkedFrame
-                    className="absolute inset-0"
+                  <WorshipMedia
+                    signedUrl={item.signedUrl}
+                    alt={item.label}
+                    mediaKind={item.mediaKind}
                     mediaPath={item.imagePath}
-                  >
-                    <Image
-                      src={item.signedUrl}
-                      alt={item.label}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  </WatermarkedFrame>
+                    variant="tile"
+                  />
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
                     <Icon className="h-6 w-6" />
                   </div>
                 )}
                 <span className="absolute left-1.5 top-1.5 z-20 rounded bg-void/80 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-gold">
-                  {item.sourceType === "reward" ? "Reward" : "Tease"}
+                  {item.sourceType === "reward"
+                    ? "Reward"
+                    : isWorshipVideo(item.mediaKind)
+                      ? "Video tease"
+                      : "Tease"}
                 </span>
               </div>
               <div className="space-y-0.5 p-2">

@@ -138,6 +138,7 @@ export type Database = {
           title: string | null
           description: string | null
           image_path: string
+          media_kind: string
           storage_bucket: string
           source_type: string | null
           source_id: string | null
@@ -157,6 +158,7 @@ export type Database = {
           title?: string | null
           description?: string | null
           image_path: string
+          media_kind?: string
           storage_bucket?: string
           source_type?: string | null
           source_id?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           title?: string | null
           description?: string | null
           image_path?: string
+          media_kind?: string
           storage_bucket?: string
           source_type?: string | null
           source_id?: string | null

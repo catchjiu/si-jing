@@ -17,7 +17,7 @@ export async function loadWorshipGalleriesWithMeta(
   const galleryIds = galleries.map((g) => g.id);
   const { data: entries } = await supabase
     .from("worship_entries")
-    .select("id, gallery_id, image_path, storage_bucket, love_level, viewed_at, created_at")
+    .select("id, gallery_id, image_path, media_kind, storage_bucket, love_level, viewed_at, created_at")
     .in("gallery_id", galleryIds)
     .order("created_at", { ascending: false });
 
@@ -29,6 +29,7 @@ export async function loadWorshipGalleriesWithMeta(
       loveSum: number;
       coverPath: string | null;
       coverStorageBucket: string | null;
+      coverMediaKind: string | null;
     }
   >();
 
@@ -39,6 +40,7 @@ export async function loadWorshipGalleriesWithMeta(
       loveSum: 0,
       coverPath: null,
       coverStorageBucket: null,
+      coverMediaKind: null,
     });
   }
 
@@ -51,6 +53,14 @@ export async function loadWorshipGalleriesWithMeta(
     if (!meta.coverPath) {
       meta.coverPath = row.image_path as string;
       meta.coverStorageBucket = (row.storage_bucket as string | null) ?? "worship";
+      meta.coverMediaKind = (row.media_kind as string | null) ?? "image";
+    } else if (
+      meta.coverMediaKind === "video" &&
+      (row.media_kind as string | null) !== "video"
+    ) {
+      meta.coverPath = row.image_path as string;
+      meta.coverStorageBucket = (row.storage_bucket as string | null) ?? "worship";
+      meta.coverMediaKind = (row.media_kind as string | null) ?? "image";
     }
   }
 
@@ -73,6 +83,9 @@ export async function loadWorshipGalleriesWithMeta(
       return {
         ...gallery,
         coverSignedUrl,
+        coverMediaKind:
+          (meta.coverMediaKind as WorshipGalleryTopicWithMeta["coverMediaKind"]) ??
+          "image",
         entryCount: meta.count,
         unviewedCount: meta.unviewed,
         avgLoveLevel:
