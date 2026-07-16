@@ -10,7 +10,13 @@ import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyWorshipThread } from "@/lib/inbox";
+import type { QueenPictureSource } from "@/lib/queen-picture-sources";
+import {
+  isOwnedWorshipUpload,
+  signWorshipEntryUrl,
+} from "@/lib/worship-storage";
 import { loveColor, loveLabel } from "@/lib/worship";
+import { QueenPicturesPicker } from "@/components/worship/queen-pictures-picker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +27,8 @@ import type { WorshipEntryWithSignedUrl } from "@/lib/types";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+type PhotoMode = "upload" | "queen";
 
 interface WorshipFormProps {
   galleryId: string;
@@ -48,6 +56,9 @@ export function WorshipForm({
   const [loveLevel, setLoveLevel] = useState(50);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [photoMode, setPhotoMode] = useState<PhotoMode>("upload");
+  const [selectedQueenPicture, setSelectedQueenPicture] =
+    useState<QueenPictureSource | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -61,6 +72,8 @@ export function WorshipForm({
     setLoveLevel(editingEntry?.love_level ?? 50);
     setFile(null);
     setPreview(null);
+    setSelectedQueenPicture(null);
+    setPhotoMode("upload");
 
     if (!editingEntry) {
       setExistingImageUrl(null);
@@ -72,10 +85,7 @@ export function WorshipForm({
       return;
     }
 
-    void signObjectUrl({
-      bucket: "worship",
-      path: editingEntry.image_path,
-    }).then((url) => {
+    void signWorshipEntryUrl(editingEntry).then((url) => {
       if (!cancelled) setExistingImageUrl(url);
     });
 
@@ -105,6 +115,16 @@ export function WorshipForm({
       return;
     }
     setImage(candidate);
+    setSelectedQueenPicture(null);
+    setPhotoMode("upload");
+  };
+
+  const onSelectQueenPicture = (source: QueenPictureSource | null) => {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+    setSelectedQueenPicture(source);
+    if (source) setPhotoMode("queen");
   };
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -113,8 +133,8 @@ export function WorshipForm({
       toast.error("Only D can add worship");
       return;
     }
-    if (!isEditing && !file) {
-      toast.error("Attach a photo of Queen");
+    if (!isEditing && !file && !selectedQueenPicture) {
+      toast.error("Attach a photo of Queen or pick one from her gifts");
       return;
     }
 
@@ -123,13 +143,26 @@ export function WorshipForm({
 
     try {
       let imagePath = editingEntry?.image_path ?? null;
+      let storageBucket = editingEntry?.storage_bucket ?? "worship";
+      let sourceType = editingEntry?.source_type ?? null;
+      let sourceId = editingEntry?.source_id ?? null;
       let latitude = editingEntry?.latitude ?? null;
       let longitude = editingEntry?.longitude ?? null;
       let accuracy_m = editingEntry?.accuracy_m ?? null;
       let location_source = editingEntry?.location_source ?? null;
       let signedUrl = editingEntry?.signedUrl;
 
-      if (file) {
+      if (selectedQueenPicture && !file) {
+        imagePath = selectedQueenPicture.imagePath;
+        storageBucket = selectedQueenPicture.storageBucket;
+        sourceType = selectedQueenPicture.sourceType;
+        sourceId = selectedQueenPicture.sourceId;
+        latitude = selectedQueenPicture.latitude;
+        longitude = selectedQueenPicture.longitude;
+        accuracy_m = selectedQueenPicture.accuracy_m;
+        location_source = selectedQueenPicture.location_source;
+        signedUrl = selectedQueenPicture.signedUrl;
+      } else if (file) {
         const geo = await resolveImageLocation(file);
         if (geo) {
           toast.message(
@@ -153,17 +186,26 @@ export function WorshipForm({
           ext,
           relativePath: `${profile.id}/${Date.now()}.${ext}`,
         });
+        storageBucket = "worship";
+        sourceType = "upload";
+        sourceId = null;
         latitude = geo?.latitude ?? null;
         longitude = geo?.longitude ?? null;
         accuracy_m = geo?.accuracy_m ?? null;
         location_source = geo?.source ?? null;
         signedUrl =
-          (await signObjectUrl({
-            bucket: "worship",
-            path: imagePath,
+          (await signWorshipEntryUrl({
+            image_path: imagePath,
+            storage_bucket: storageBucket,
           })) ?? undefined;
 
-        if (isEditing && previousPath && previousPath !== imagePath) {
+        if (
+          isEditing &&
+          previousPath &&
+          previousPath !== imagePath &&
+          editingEntry &&
+          isOwnedWorshipUpload(editingEntry)
+        ) {
           try {
             await removeObject({ bucket: "worship", path: previousPath });
           } catch {
@@ -176,14 +218,23 @@ export function WorshipForm({
         throw new Error("Image is required");
       }
 
+      const resolvedTitle =
+        title.trim() ||
+        (selectedQueenPicture?.label && !file
+          ? selectedQueenPicture.label
+          : "");
+
       const payload = {
-        title: title.trim()
-          ? formatRoleSpeech(title.trim(), "slave")
+        title: resolvedTitle
+          ? formatRoleSpeech(resolvedTitle, "slave")
           : null,
         description: description.trim()
           ? formatRoleSpeech(description.trim(), "slave")
           : null,
         image_path: imagePath,
+        storage_bucket: storageBucket,
+        source_type: sourceType,
+        source_id: sourceId,
         love_level: loveLevel,
         latitude,
         longitude,
@@ -216,7 +267,13 @@ export function WorshipForm({
             ...payload,
           });
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          if (insertError.code === "23505") {
+            toast.error("That picture is already in this gallery");
+            return;
+          }
+          throw insertError;
+        }
 
         toast.success("Photo added to gallery");
         void notifyWorshipThread(supabase, {
@@ -238,6 +295,8 @@ export function WorshipForm({
         setDescription("");
         setLoveLevel(50);
         setImage(null);
+        setSelectedQueenPicture(null);
+        setPhotoMode("upload");
         onSuccess?.();
       }
     } catch (err) {
@@ -251,7 +310,10 @@ export function WorshipForm({
 
   if (!isSlave) return null;
 
-  const displayPreview = preview || existingImageUrl;
+  const displayPreview =
+    preview ||
+    existingImageUrl ||
+    (photoMode === "queen" ? selectedQueenPicture?.signedUrl : null);
 
   return (
     <form
@@ -344,9 +406,67 @@ export function WorshipForm({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoMode("upload");
+              setSelectedQueenPicture(null);
+            }}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs uppercase tracking-wider transition-colors",
+              photoMode === "upload"
+                ? "border-gold bg-gold/15 text-gold"
+                : "border-gold/20 text-muted-foreground hover:text-ivory"
+            )}
+          >
+            Upload new
+          </button>
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={() => {
+                setPhotoMode("queen");
+                if (preview) {
+                  URL.revokeObjectURL(preview);
+                  setFile(null);
+                  setPreview(null);
+                }
+              }}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs uppercase tracking-wider transition-colors",
+                photoMode === "queen"
+                  ? "border-gold bg-gold/15 text-gold"
+                  : "border-gold/20 text-muted-foreground hover:text-ivory"
+              )}
+            >
+              From Queen&apos;s pictures
+            </button>
+          )}
+        </div>
+
         <Label>{isEditing ? "Photo (optional replace)" : "Photo of Queen"}</Label>
-        {displayPreview ? (
+
+        {!isEditing && photoMode === "queen" ? (
+          <div className="space-y-3">
+            <QueenPicturesPicker
+              galleryId={galleryId}
+              selected={selectedQueenPicture}
+              onSelect={onSelectQueenPicture}
+            />
+            {selectedQueenPicture?.signedUrl && (
+              <div className="relative overflow-hidden rounded-lg border border-gold/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedQueenPicture.signedUrl}
+                  alt={selectedQueenPicture.label}
+                  className="max-h-64 w-full object-contain bg-void"
+                />
+              </div>
+            )}
+          </div>
+        ) : displayPreview ? (
           <div className="relative overflow-hidden rounded-lg border border-gold/20">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -355,25 +475,30 @@ export function WorshipForm({
               className="max-h-80 w-full object-contain bg-void"
             />
             <div className="absolute right-2 top-2 flex gap-2">
-              {file && (
+              {(file || selectedQueenPicture) && (
                 <button
                   type="button"
-                  onClick={() => setImage(null)}
+                  onClick={() => {
+                    setImage(null);
+                    setSelectedQueenPicture(null);
+                  }}
                   className="rounded-full bg-void/80 p-1.5 text-ivory hover:text-gold"
-                  aria-label="Remove new image"
+                  aria-label="Remove selected image"
                 >
                   <X className="h-4 w-4" />
                 </button>
               )}
-              <label className="cursor-pointer rounded-full bg-void/80 px-2.5 py-1.5 text-xs text-ivory hover:text-gold">
-                Replace
-                <input
-                  type="file"
-                  accept={ACCEPTED_TYPES.join(",")}
-                  className="sr-only"
-                  onChange={(e) => pickFile(e.target.files)}
-                />
-              </label>
+              {photoMode === "upload" && (
+                <label className="cursor-pointer rounded-full bg-void/80 px-2.5 py-1.5 text-xs text-ivory hover:text-gold">
+                  Replace
+                  <input
+                    type="file"
+                    accept={ACCEPTED_TYPES.join(",")}
+                    className="sr-only"
+                    onChange={(e) => pickFile(e.target.files)}
+                  />
+                </label>
+              )}
             </div>
           </div>
         ) : (
@@ -411,7 +536,7 @@ export function WorshipForm({
 
       <Button
         type="submit"
-        disabled={submitting || (!isEditing && !file)}
+        disabled={submitting || (!isEditing && !file && !selectedQueenPicture)}
         className="w-full bg-gold text-void hover:bg-gold-muted"
       >
         {submitting ? (

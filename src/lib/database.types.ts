@@ -138,6 +138,9 @@ export type Database = {
           title: string | null
           description: string | null
           image_path: string
+          storage_bucket: string
+          source_type: string | null
+          source_id: string | null
           love_level: number
           latitude: number | null
           longitude: number | null
@@ -154,6 +157,9 @@ export type Database = {
           title?: string | null
           description?: string | null
           image_path: string
+          storage_bucket?: string
+          source_type?: string | null
+          source_id?: string | null
           love_level?: number
           latitude?: number | null
           longitude?: number | null
@@ -170,6 +176,9 @@ export type Database = {
           title?: string | null
           description?: string | null
           image_path?: string
+          storage_bucket?: string
+          source_type?: string | null
+          source_id?: string | null
           love_level?: number
           latitude?: number | null
           longitude?: number | null

@@ -11,7 +11,7 @@ import { WorshipTopicForm } from "@/components/worship/worship-topic-form";
 import { WorshipForm } from "@/components/worship/worship-form";
 import { WorshipGallery } from "@/components/worship/worship-gallery";
 import { WorshipGalleryCommentThread } from "@/components/worship/worship-gallery-comment-thread";
-import { signObjectUrl } from "@/lib/storage/client";
+import { signWorshipEntryUrl } from "@/lib/worship-storage";
 import { cn } from "@/lib/utils";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import type {
@@ -27,10 +27,7 @@ async function withSignedUrls(
     entries.map(async (entry) => {
       try {
         const signedUrl =
-          (await signObjectUrl({
-            bucket: "worship",
-            path: entry.image_path,
-          })) ?? undefined;
+          (await signWorshipEntryUrl(entry)) ?? undefined;
         return { ...entry, signedUrl };
       } catch {
         return { ...entry, signedUrl: undefined };

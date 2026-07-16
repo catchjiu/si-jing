@@ -1,7 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { signObjectUrl } from "@/lib/storage/client";
+import { signWorshipEntryUrl } from "@/lib/worship-storage";
 import type {
   WorshipEntry,
   WorshipGalleryTopic,
@@ -17,7 +17,7 @@ export async function loadWorshipGalleriesWithMeta(
   const galleryIds = galleries.map((g) => g.id);
   const { data: entries } = await supabase
     .from("worship_entries")
-    .select("id, gallery_id, image_path, love_level, viewed_at, created_at")
+    .select("id, gallery_id, image_path, storage_bucket, love_level, viewed_at, created_at")
     .in("gallery_id", galleryIds)
     .order("created_at", { ascending: false });
 
@@ -28,6 +28,7 @@ export async function loadWorshipGalleriesWithMeta(
       unviewed: number;
       loveSum: number;
       coverPath: string | null;
+      coverStorageBucket: string | null;
     }
   >();
 
@@ -37,6 +38,7 @@ export async function loadWorshipGalleriesWithMeta(
       unviewed: 0,
       loveSum: 0,
       coverPath: null,
+      coverStorageBucket: null,
     });
   }
 
@@ -48,6 +50,7 @@ export async function loadWorshipGalleriesWithMeta(
     meta.loveSum += row.love_level as number;
     if (!meta.coverPath) {
       meta.coverPath = row.image_path as string;
+      meta.coverStorageBucket = (row.storage_bucket as string | null) ?? "worship";
     }
   }
 
@@ -58,9 +61,9 @@ export async function loadWorshipGalleriesWithMeta(
       if (meta.coverPath) {
         try {
           coverSignedUrl =
-            (await signObjectUrl({
-              bucket: "worship",
-              path: meta.coverPath,
+            (await signWorshipEntryUrl({
+              image_path: meta.coverPath,
+              storage_bucket: meta.coverStorageBucket ?? "worship",
             })) ?? undefined;
         } catch {
           coverSignedUrl = undefined;

@@ -8,6 +8,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { removeObject } from "@/lib/storage/client";
+import {
+  isOwnedWorshipUpload,
+  worshipEntryStorageBucket,
+} from "@/lib/worship-storage";
 import { loveColor, loveLabel } from "@/lib/worship";
 import { cn } from "@/lib/utils";
 import type { WorshipEntryWithSignedUrl } from "@/lib/types";
@@ -86,7 +90,12 @@ export function WorshipGallery({
       if (error) throw error;
 
       try {
-        await removeObject({ bucket: "worship", path: active.image_path });
+        if (isOwnedWorshipUpload(active)) {
+          await removeObject({
+            bucket: worshipEntryStorageBucket(active),
+            path: active.image_path,
+          });
+        }
       } catch {
         // Row is gone; storage cleanup is best-effort
       }

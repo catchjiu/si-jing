@@ -88,6 +88,8 @@ export type WishlistItemWithSignedUrl = WishlistItem & {
   signedUrl?: string;
 };
 
+export type WorshipEntrySourceType = "upload" | "reward" | "tease";
+
 export type WorshipEntry = {
   id: string;
   gallery_id: string;
@@ -95,6 +97,9 @@ export type WorshipEntry = {
   title: string | null;
   description: string | null;
   image_path: string;
+  storage_bucket: string;
+  source_type: WorshipEntrySourceType | null;
+  source_id: string | null;
   love_level: number;
   latitude: number | null;
   longitude: number | null;
