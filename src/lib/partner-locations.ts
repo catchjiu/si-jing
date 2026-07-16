@@ -24,7 +24,7 @@ export const QUEEN_PLACE: PartnerPlace = {
   timeZone: "America/Los_Angeles",
   latitude: 36.9741,
   longitude: -122.0308,
-  tempUnit: "fahrenheit",
+  tempUnit: "celsius",
   zoneShort: "PT",
 };
 
