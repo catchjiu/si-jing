@@ -382,6 +382,7 @@ function TeasesPageInner() {
             body: summary,
             url: "/dashboard/inbox",
             target: "slave",
+            kind: "tease",
           })
         );
       }
@@ -480,6 +481,7 @@ function TeasesPageInner() {
           body: tease.title || "Queen sent a tease again",
           url: "/dashboard/inbox",
           target: "slave",
+          kind: "tease",
         })
       );
       void load();
@@ -556,6 +558,7 @@ function TeasesPageInner() {
           body: tease.title || "Queen revealed a tease",
           url: "/dashboard/teases",
           target: "slave",
+          kind: "tease",
         })
       );
     }
@@ -656,6 +659,7 @@ function TeasesPageInner() {
               : `D looked ${metric}s — reaction cam sent`,
           url: "/dashboard/teases",
           target: "queen",
+          kind: "tease",
         })
       );
       toast.success("Reaction video sent to Queen");
@@ -887,6 +891,7 @@ function TeasesPageInner() {
         body: `${tease.title || "Tease"} · ${clamped}% wrecked`,
         url: "/dashboard/teases",
         target: "queen",
+        kind: "tease",
       })
     );
     setReactionPrompt(null);

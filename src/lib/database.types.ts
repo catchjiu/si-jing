@@ -1943,6 +1943,7 @@ export type Database = {
           mood_level: number
           mood_emoji: string
           availability: string | null
+          availability_source: string | null
           last_active_at: string | null
           updated_at: string
         }
@@ -1951,6 +1952,7 @@ export type Database = {
           mood_level?: number
           mood_emoji?: string
           availability?: string | null
+          availability_source?: string | null
           last_active_at?: string | null
           updated_at?: string
         }
@@ -1959,6 +1961,7 @@ export type Database = {
           mood_level?: number
           mood_emoji?: string
           availability?: string | null
+          availability_source?: string | null
           last_active_at?: string | null
           updated_at?: string
         }
@@ -1967,6 +1970,53 @@ export type Database = {
             foreignKeyName: "user_status_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      queen_work_schedule: {
+        Row: {
+          id: string
+          user_id: string
+          week_start: string
+          day_of_week: number
+          start_time: string
+          end_time: string
+          enabled: boolean
+          timezone: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          week_start: string
+          day_of_week: number
+          start_time: string
+          end_time: string
+          enabled?: boolean
+          timezone?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          week_start?: string
+          day_of_week?: number
+          start_time?: string
+          end_time?: string
+          enabled?: boolean
+          timezone?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queen_work_schedule_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -2261,6 +2311,7 @@ export type Database = {
         }[]
       }
       count_inbox_unread: { Args: never; Returns: number }
+      apply_queen_work_schedules: { Args: never; Returns: number }
       notify_user: {
         Args: {
           p_user_id: string

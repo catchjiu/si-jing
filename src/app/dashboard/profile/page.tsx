@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/types";
 import { PushEnableCard } from "@/components/push/push-enable";
+import { QueenWorkScheduleCard } from "@/components/status/queen-work-schedule";
 import { presignAndUpload } from "@/lib/storage/client";
 
 export default function ProfilePage() {
-  const { profile, role, refreshProfile, loading: authLoading } = useAuth();
+  const { profile, role, isQueen, refreshProfile, loading: authLoading } = useAuth();
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -291,6 +292,8 @@ export default function ProfilePage() {
       </div>
 
       <PushEnableCard />
+
+      {isQueen && <QueenWorkScheduleCard />}
     </div>
   );
 }

@@ -203,6 +203,8 @@ export async function listTopicThreads(
   const topics = threads
     .filter((t) => t.topic !== "general")
     .sort((a, b) => {
+      // Unread first, then newest activity
+      if (a.unread > 0 !== b.unread > 0) return a.unread > 0 ? -1 : 1;
       const aTime = a.lastMessage?.created_at ?? "";
       const bTime = b.lastMessage?.created_at ?? "";
       return bTime.localeCompare(aTime);
@@ -285,10 +287,11 @@ export async function notifyWorshipThread(
     body: opts.pushBody,
     url: dm ? deepLink : deepLink,
     target: opts.notifyTarget,
+    kind: "worship",
   });
 }
 
-/** Tease cards land in both Teases topic and Direct inbox. */
+/** Tease cards land in the Teases topic thread (not Direct — avoids double unread). */
 export async function postTeaseToInboxes(
   supabase: Supabase,
   opts: {
@@ -298,24 +301,14 @@ export async function postTeaseToInboxes(
     attachmentAnchor?: string | null;
   }
 ): Promise<void> {
-  await Promise.all([
-    postToTopicThread(supabase, {
-      topic: "teases",
-      senderId: opts.senderId,
-      content: opts.content,
-      attachmentType: "tease",
-      attachmentId: opts.teaseId,
-      attachmentAnchor: opts.attachmentAnchor ?? inboxAnchors.tease(opts.teaseId),
-    }),
-    postToTopicThread(supabase, {
-      topic: "general",
-      senderId: opts.senderId,
-      content: opts.content,
-      attachmentType: "tease",
-      attachmentId: opts.teaseId,
-      attachmentAnchor: opts.attachmentAnchor ?? inboxAnchors.tease(opts.teaseId),
-    }),
-  ]);
+  await postToTopicThread(supabase, {
+    topic: "teases",
+    senderId: opts.senderId,
+    content: opts.content,
+    attachmentType: "tease",
+    attachmentId: opts.teaseId,
+    attachmentAnchor: opts.attachmentAnchor ?? inboxAnchors.tease(opts.teaseId),
+  });
 }
 
 export async function getOtherMember(
@@ -323,12 +316,18 @@ export async function getOtherMember(
   conversationId: string,
   myId: string
 ): Promise<Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("conversation_members")
     .select("user_id, user:users!user_id(id, username, role, avatar_url)")
     .eq("conversation_id", conversationId)
     .neq("user_id", myId)
+    .limit(1)
     .maybeSingle();
+
+  if (error) {
+    console.error("getOtherMember failed", error);
+    return null;
+  }
 
   const row = data as
     | {
@@ -338,16 +337,58 @@ export async function getOtherMember(
   return row?.user ?? null;
 }
 
+/** Other party for a topic thread — member row first, then other-role profile. */
+export async function resolveInboxPartner(
+  supabase: Supabase,
+  opts: {
+    conversationId: string;
+    myId: string;
+    myRole: UserRole;
+  }
+): Promise<Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null> {
+  const fromMembers = await getOtherMember(
+    supabase,
+    opts.conversationId,
+    opts.myId
+  );
+  if (fromMembers) return fromMembers;
+
+  const otherRole: UserRole = opts.myRole === "queen" ? "slave" : "queen";
+  const { data } = await supabase
+    .from("users")
+    .select("id, username, role, avatar_url")
+    .eq("role", otherRole)
+    .limit(1)
+    .maybeSingle();
+
+  return (data as Pick<Profile, "id" | "username" | "role" | "avatar_url"> | null) ?? null;
+}
+
 export async function getConversationTopic(
   supabase: Supabase,
   conversationId: string
-): Promise<InboxTopic> {
+): Promise<InboxTopic | null> {
   const { data } = await supabase
     .from("conversations")
     .select("topic")
     .eq("id", conversationId)
     .maybeSingle();
-  return ((data?.topic as InboxTopic) ?? "general");
+  if (!data) return null;
+  return (data.topic as InboxTopic) ?? "general";
+}
+
+export async function isConversationMember(
+  supabase: Supabase,
+  conversationId: string,
+  userId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("conversation_members")
+    .select("user_id")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 export function messageSnippet(m: {
@@ -418,6 +459,29 @@ export async function markConversationRead(
     .eq("conversation_id", conversationId)
     .eq("user_id", userId);
 }
+
+/** Mark every topic/direct thread as read for this user. */
+export async function markAllConversationsRead(
+  supabase: Supabase,
+  userId: string
+) {
+  await supabase
+    .from("conversation_members")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("user_id", userId);
+}
+
+/** Map feature-nav href → inbox topic for sidebar badges. */
+export const NAV_TOPIC_BY_HREF: Partial<Record<string, InboxTopic>> = {
+  "/dashboard/teases": "teases",
+  "/dashboard/worship": "worship",
+  "/dashboard/tasks": "tasks",
+  "/dashboard/requests": "requests",
+  "/dashboard/punishments": "punishments",
+  "/dashboard/dates": "dates",
+  "/dashboard/rewards": "rewards",
+  "/dashboard/journal": "journal",
+};
 
 export async function countUnreadMessages(
   supabase: Supabase,

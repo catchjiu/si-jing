@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     { data: missed },
     { data: expired },
     { data: recurring },
+    { data: scheduleApplied },
   ] = await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     supabase.rpc("ensure_recurring_task_occurrences", {
       look_ahead_days: 14,
     }),
+    supabase.rpc("apply_queen_work_schedules"),
   ]);
 
   const nowIso = new Date().toISOString();
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
     missed: missed ?? 0,
     expired: expired ?? 0,
     recurring: recurring ?? 0,
+    scheduleApplied: scheduleApplied ?? 0,
   });
 }
 

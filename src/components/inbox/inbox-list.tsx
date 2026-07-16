@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import {
   listTopicThreads,
+  markAllConversationsRead,
   type AppNotification,
   type InboxTopic,
   type TopicThreadSummary,
@@ -37,6 +38,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PushInboxPrompt } from "@/components/push/push-inbox-prompt";
 
 const TOPIC_ICONS: Record<
   Exclude<InboxTopic, "general">,
@@ -52,6 +54,18 @@ const TOPIC_ICONS: Record<
   worship: Crown,
 };
 
+const ALERT_KIND_FILTERS: { id: string; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "tease", label: "Teases" },
+  { id: "worship", label: "Worship" },
+  { id: "task", label: "Tasks" },
+  { id: "request", label: "Requests" },
+  { id: "journal", label: "Journal" },
+  { id: "wishlist", label: "Wishlist" },
+  { id: "other", label: "Other" },
+];
+
 function previewText(thread: TopicThreadSummary): string {
   const m = thread.lastMessage;
   if (!m) return thread.description;
@@ -63,11 +77,100 @@ function previewText(thread: TopicThreadSummary): string {
   return thread.description;
 }
 
+/** Resolve category from kind, or fall back to title/href for older push rows. */
+function alertCategory(n: AppNotification): string {
+  const kind = (n.kind || "").toLowerCase().trim();
+  const known = [
+    "tease",
+    "worship",
+    "task",
+    "request",
+    "journal",
+    "wishlist",
+    "punishment",
+    "date",
+    "reward",
+  ] as const;
+  for (const k of known) {
+    if (kind.includes(k)) return k;
+  }
+
+  const haystack = `${n.title} ${n.body ?? ""} ${n.href}`.toLowerCase();
+  if (
+    haystack.includes("tease") ||
+    haystack.includes("/dashboard/teases")
+  ) {
+    return "tease";
+  }
+  if (
+    haystack.includes("worship") ||
+    haystack.includes("/dashboard/worship")
+  ) {
+    return "worship";
+  }
+  if (
+    haystack.includes("task") ||
+    haystack.includes("submission") ||
+    haystack.includes("/dashboard/task") ||
+    haystack.includes("/dashboard/submissions")
+  ) {
+    return "task";
+  }
+  if (
+    haystack.includes("request") ||
+    haystack.includes("directive") ||
+    haystack.includes("/dashboard/requests")
+  ) {
+    return "request";
+  }
+  if (
+    haystack.includes("journal") ||
+    haystack.includes("/dashboard/journal")
+  ) {
+    return "journal";
+  }
+  if (
+    haystack.includes("wishlist") ||
+    haystack.includes("gift idea") ||
+    haystack.includes("/dashboard/wishlist")
+  ) {
+    return "wishlist";
+  }
+  if (
+    haystack.includes("punishment") ||
+    haystack.includes("/dashboard/punishments")
+  ) {
+    return "punishment";
+  }
+  if (
+    haystack.includes("date") ||
+    haystack.includes("/dashboard/dates")
+  ) {
+    return "date";
+  }
+  if (
+    haystack.includes("reward") ||
+    haystack.includes("/dashboard/rewards")
+  ) {
+    return "reward";
+  }
+  return "other";
+}
+
+function alertMatchesFilter(n: AppNotification, filter: string): boolean {
+  if (filter === "all") return true;
+  if (filter === "unread") return !n.read_at;
+  return alertCategory(n) === filter;
+}
+
 export function InboxList({ className }: { className?: string }) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [threads, setThreads] = useState<TopicThreadSummary[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [alertFilter, setAlertFilter] = useState("all");
+  const [markingThreads, setMarkingThreads] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -120,6 +223,16 @@ export function InboxList({ className }: { className?: string }) {
         { event: "INSERT", schema: "public", table: "direct_messages" },
         schedule
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversation_members",
+          filter: `user_id=eq.${profile.id}`,
+        },
+        schedule
+      )
       .subscribe();
     return () => {
       if (debounce != null) window.clearTimeout(debounce);
@@ -127,7 +240,7 @@ export function InboxList({ className }: { className?: string }) {
     };
   }, [profile, load]);
 
-  const markAllRead = async () => {
+  const markAllAlertsRead = async () => {
     if (!profile) return;
     const supabase = createClient();
     await markAllNotificationsRead(supabase, profile.id);
@@ -139,6 +252,54 @@ export function InboxList({ className }: { className?: string }) {
     );
   };
 
+  const markAllThreadsRead = async () => {
+    if (!profile) return;
+    setMarkingThreads(true);
+    try {
+      const supabase = createClient();
+      await markAllConversationsRead(supabase, profile.id);
+      setThreads((prev) => prev.map((t) => ({ ...t, unread: 0 })));
+      toast.success("All threads marked read");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not mark threads read"
+      );
+    } finally {
+      setMarkingThreads(false);
+    }
+  };
+
+  const general = threads.find((t) => t.topic === "general");
+  const topics = threads.filter((t) => t.topic !== "general");
+  const unreadNotes = notifications.filter((n) => !n.read_at).length;
+  const unreadThreads = threads.reduce((sum, t) => sum + t.unread, 0);
+
+  const visibleTopics = useMemo(() => {
+    if (!unreadOnly) return topics;
+    return topics.filter((t) => t.unread > 0);
+  }, [topics, unreadOnly]);
+
+  const showGeneral =
+    !!general && (!unreadOnly || general.unread > 0);
+
+  const filteredAlerts = useMemo(
+    () => notifications.filter((n) => alertMatchesFilter(n, alertFilter)),
+    [notifications, alertFilter]
+  );
+
+  const unreadSummary = useMemo(() => {
+    const parts: string[] = [];
+    for (const t of threads) {
+      if (t.unread > 0) {
+        parts.push(`${t.label} ${t.unread > 9 ? "9+" : t.unread}`);
+      }
+    }
+    if (unreadNotes > 0) {
+      parts.push(`Alerts ${unreadNotes > 9 ? "9+" : unreadNotes}`);
+    }
+    return parts;
+  }, [threads, unreadNotes]);
+
   if (loading) {
     return (
       <div className="flex justify-center py-16">
@@ -147,13 +308,64 @@ export function InboxList({ className }: { className?: string }) {
     );
   }
 
-  const general = threads.find((t) => t.topic === "general");
-  const topics = threads.filter((t) => t.topic !== "general");
-  const unreadNotes = notifications.filter((n) => !n.read_at).length;
-
   return (
     <div className={cn("space-y-6", className)}>
-      {general && (
+      <PushInboxPrompt />
+
+      {(unreadThreads > 0 || unreadNotes > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3">
+          <p className="text-sm text-ivory/90">
+            <span className="font-medium text-gold">New: </span>
+            {unreadSummary.join(" · ")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {unreadThreads > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={markingThreads}
+                onClick={() => void markAllThreadsRead()}
+                className="border-gold/30 text-xs text-gold"
+              >
+                {markingThreads ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Mark threads read
+              </Button>
+            )}
+            {unreadNotes > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => void markAllAlertsRead()}
+                className="text-xs text-muted-foreground"
+              >
+                Mark alerts read
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={unreadOnly ? "default" : "outline"}
+          onClick={() => setUnreadOnly((v) => !v)}
+          className={
+            unreadOnly
+              ? "bg-gold text-void hover:bg-gold-muted"
+              : "border-gold/25 text-ivory/80"
+          }
+        >
+          Unread only
+        </Button>
+      </div>
+
+      {showGeneral && general && (
         <Link
           href={`/dashboard/inbox/${general.conversationId}`}
           className="flex items-center gap-3 rounded-xl border border-gold/30 bg-gradient-to-r from-royal/40 to-charcoal/80 p-4 transition-colors hover:border-gold/50"
@@ -209,47 +421,54 @@ export function InboxList({ className }: { className?: string }) {
           <MessageCircle className="h-4 w-4 text-gold" />
           <h2 className="font-heading text-lg text-ivory">Topic threads</h2>
         </div>
-        <ul className="space-y-2">
-          {topics.map((thread) => {
-            const Icon = TOPIC_ICONS[thread.topic as Exclude<InboxTopic, "general">];
-            return (
-              <li key={thread.conversationId}>
-                <Link
-                  href={`/dashboard/inbox/${thread.conversationId}`}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors hover:border-gold/40",
-                    thread.unread > 0
-                      ? "border-gold/30 bg-gold/5"
-                      : "border-gold/10 bg-charcoal/60"
-                  )}
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/25 bg-royal/30">
-                    <Icon className="h-4 w-4 text-gold" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-ivory">{thread.label}</p>
-                      {thread.unread > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[10px] font-semibold text-void">
-                          {thread.unread > 9 ? "9+" : thread.unread}
-                        </span>
-                      )}
+        {visibleTopics.length === 0 ? (
+          <p className="rounded-xl border border-gold/10 bg-charcoal/60 px-4 py-6 text-center text-sm text-muted-foreground">
+            {unreadOnly ? "No unread topic threads." : "No topic threads yet."}
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {visibleTopics.map((thread) => {
+              const Icon =
+                TOPIC_ICONS[thread.topic as Exclude<InboxTopic, "general">];
+              return (
+                <li key={thread.conversationId}>
+                  <Link
+                    href={`/dashboard/inbox/${thread.conversationId}`}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors hover:border-gold/40",
+                      thread.unread > 0
+                        ? "border-gold/30 bg-gold/5"
+                        : "border-gold/10 bg-charcoal/60"
+                    )}
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/25 bg-royal/30">
+                      <Icon className="h-4 w-4 text-gold" />
                     </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {previewText(thread)}
-                    </p>
-                  </div>
-                  {thread.lastMessage && (
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {formatRelative(thread.lastMessage.created_at)}
-                    </span>
-                  )}
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-ivory">{thread.label}</p>
+                        {thread.unread > 0 && (
+                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[10px] font-semibold text-void">
+                            {thread.unread > 9 ? "9+" : thread.unread}
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {previewText(thread)}
+                      </p>
+                    </div>
+                    {thread.lastMessage && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {formatRelative(thread.lastMessage.created_at)}
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -271,7 +490,7 @@ export function InboxList({ className }: { className?: string }) {
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => void markAllRead()}
+              onClick={() => void markAllAlertsRead()}
               className="text-xs text-muted-foreground"
             >
               Mark all read
@@ -279,13 +498,33 @@ export function InboxList({ className }: { className?: string }) {
           )}
         </div>
 
-        {notifications.length === 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {ALERT_KIND_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setAlertFilter(f.id)}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                alertFilter === f.id
+                  ? "border-gold/50 bg-gold/15 text-gold"
+                  : "border-gold/15 text-muted-foreground hover:border-gold/30 hover:text-ivory"
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {filteredAlerts.length === 0 ? (
           <p className="rounded-xl border border-gold/10 bg-charcoal/60 px-4 py-8 text-center text-sm text-muted-foreground">
-            No alerts yet.
+            {notifications.length === 0
+              ? "No alerts yet."
+              : "No alerts match this filter."}
           </p>
         ) : (
           <ul className="space-y-2">
-            {notifications.map((n) => (
+            {filteredAlerts.map((n) => (
               <li key={n.id}>
                 <Link
                   href={n.href}

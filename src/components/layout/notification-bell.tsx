@@ -6,16 +6,12 @@ import { Bell } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
+import type { AppNotification } from "@/lib/inbox";
 import {
-  ACTIVITY_COUNT_LIMIT,
-  countUnseen,
-  fetchRecentActivity,
-  filterUnseenActivity,
-  getActivitySeenAt,
-  markActivitySeen,
-  markActivitySeenUpTo,
-  type ActivityItem,
-} from "@/lib/activity";
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,73 +23,88 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+/** Global Updates control — server Alerts, not localStorage activity. */
 export function NotificationBell({ className }: { className?: string }) {
-  const { profile, role } = useAuth();
-  const [items, setItems] = useState<ActivityItem[]>([]);
-  const [seenAt, setSeenAt] = useState<string | null>(null);
-  const [unseen, setUnseen] = useState(0);
+  const { profile } = useAuth();
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
-    if (!profile || !role) return;
+    if (!profile) return;
     const supabase = createClient();
-    const feed = await fetchRecentActivity(
-      supabase,
-      { id: profile.id, role },
-      ACTIVITY_COUNT_LIMIT
-    );
-    const seen = getActivitySeenAt();
-    setSeenAt(seen);
-    setItems(filterUnseenActivity(feed, seen).slice(0, 10));
-    setUnseen(countUnseen(feed, seen));
-  }, [profile, role]);
+    try {
+      const notes = await fetchNotifications(supabase, profile.id, 12);
+      setItems(notes);
+      setUnread(notes.filter((n) => !n.read_at).length);
+    } catch {
+      // best-effort
+    }
+  }, [profile]);
 
   useEffect(() => {
     void load();
-    const id = window.setInterval(() => void load(), 60_000);
-    const onSeen = (e: Event) => {
-      const iso =
-        (e as CustomEvent<string>).detail ?? getActivitySeenAt();
-      setSeenAt(iso);
-      setUnseen(0);
-      setItems([]);
-      void load();
-    };
-    window.addEventListener("activity-seen", onSeen);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("activity-seen", onSeen);
-    };
   }, [load]);
 
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-  };
+  useEffect(() => {
+    if (!profile) return;
+    let debounce: number | null = null;
+    const schedule = () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      debounce = window.setTimeout(() => {
+        debounce = null;
+        void load();
+      }, 400);
+    };
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`updates-bell:${profile.id}:${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${profile.id}`,
+        },
+        schedule
+      )
+      .subscribe();
+    return () => {
+      if (debounce != null) window.clearTimeout(debounce);
+      void supabase.removeChannel(channel);
+    };
+  }, [profile, load]);
 
-  const markAllSeen = () => {
-    markActivitySeen();
-    setSeenAt(new Date().toISOString());
-    setUnseen(0);
-    setItems([]);
-    setOpen(false);
+  const markAll = async () => {
+    if (!profile) return;
+    const supabase = createClient();
+    await markAllNotificationsRead(supabase, profile.id);
+    setItems((prev) =>
+      prev.map((n) => ({
+        ...n,
+        read_at: n.read_at ?? new Date().toISOString(),
+      }))
+    );
+    setUnread(0);
   };
 
   if (!profile) return null;
 
   return (
-    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className={cn("relative text-ivory hover:text-gold", className)}
-          aria-label="Notifications"
+          aria-label="Updates"
         >
           <Bell className="size-5" />
-          {unseen > 0 && (
+          {unread > 0 && (
             <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-semibold text-void">
-              {unseen > 9 ? "9+" : unseen}
+              {unread > 9 ? "9+" : unread}
             </span>
           )}
         </Button>
@@ -102,8 +113,13 @@ export function NotificationBell({ className }: { className?: string }) {
         align="end"
         className="w-[min(20rem,calc(100vw-2rem))] border-gold/20 bg-charcoal p-0"
       >
-        <DropdownMenuLabel className="px-3 py-2.5 font-heading text-gold">
-          Recent activity
+        <DropdownMenuLabel className="flex items-center justify-between px-3 py-2.5 font-heading text-gold">
+          Updates
+          {unread > 0 && (
+            <span className="text-[10px] font-normal text-gold/80">
+              {unread} new
+            </span>
+          )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-gold/10" />
         {items.length === 0 ? (
@@ -111,41 +127,69 @@ export function NotificationBell({ className }: { className?: string }) {
             Nothing new yet.
           </p>
         ) : (
-          items.map((item) => (
+          items.map((n) => (
             <DropdownMenuItem
-              key={item.id}
+              key={n.id}
               asChild
               className="cursor-pointer rounded-none px-0 py-0 focus:bg-gold/10"
             >
               <Link
-                href={item.href}
-                className="block w-full px-3 py-2.5 outline-none"
-                onClick={() => markActivitySeenUpTo(item.at)}
+                href={n.href}
+                className={cn(
+                  "block w-full px-3 py-2.5 outline-none",
+                  !n.read_at && "bg-gold/5"
+                )}
+                onClick={() => {
+                  if (!n.read_at) {
+                    const supabase = createClient();
+                    void markNotificationRead(supabase, n.id);
+                    setItems((prev) =>
+                      prev.map((x) =>
+                        x.id === n.id
+                          ? { ...x, read_at: new Date().toISOString() }
+                          : x
+                      )
+                    );
+                    setUnread((u) => Math.max(0, u - 1));
+                  }
+                  setOpen(false);
+                }}
               >
-                <p className="text-sm text-ivory">{item.title}</p>
-                {item.body && (
+                <p className="text-sm text-ivory">{n.title}</p>
+                {n.body && (
                   <p className="truncate text-xs text-muted-foreground">
-                    {item.body}
+                    {n.body}
                   </p>
                 )}
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  {formatRelative(item.at)}
+                  {formatRelative(n.created_at)}
                 </p>
               </Link>
             </DropdownMenuItem>
           ))
         )}
         <DropdownMenuSeparator className="bg-gold/10" />
-        <div className="p-2">
+        <div className="flex gap-1 p-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="w-full text-gold hover:bg-gold/10"
-            onClick={markAllSeen}
-            disabled={unseen === 0}
+            className="flex-1 text-gold hover:bg-gold/10"
+            onClick={() => void markAll()}
+            disabled={unread === 0}
           >
-            Mark all as seen
+            Mark all read
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="flex-1 text-muted-foreground hover:bg-gold/10"
+            asChild
+          >
+            <Link href="/dashboard/inbox" onClick={() => setOpen(false)}>
+              Open Inbox
+            </Link>
           </Button>
         </div>
       </DropdownMenuContent>

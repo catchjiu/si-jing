@@ -36,6 +36,7 @@ import { AttentionBudgetPanel } from "@/components/attention/attention-budget-pa
 import { TaskProgressPanel } from "@/components/dashboard/task-progress-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import type { ActivityItem } from "@/lib/activity"
 
@@ -206,6 +207,8 @@ export function QueenDashboard({
           What needs your attention
         </p>
       </div>
+
+      <InboxUnreadBanner />
 
       <DashboardActivityPanel role="queen" initialItems={activity} />
 

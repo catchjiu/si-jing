@@ -161,6 +161,7 @@ export function TeaseBegThread({
       body: text.slice(0, 120),
       url: "/dashboard/inbox",
       target: isSlave ? "queen" : "slave",
+      kind: "tease",
     });
   };
 

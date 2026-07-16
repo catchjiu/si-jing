@@ -33,6 +33,7 @@ import { QueenStatusDisplay } from "@/components/status/queen-status"
 import { AttentionBudgetPanel } from "@/components/attention/attention-budget-panel"
 import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-panel"
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
+import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import type { ActivityItem } from "@/lib/activity"
 import { cn } from "@/lib/utils"
@@ -101,6 +102,8 @@ export function SlaveDashboard({
               : "Your schedule by day"}
         </p>
       </div>
+
+      <InboxUnreadBanner />
 
       <DashboardActivityPanel
         role="slave"

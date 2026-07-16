@@ -122,6 +122,16 @@ export function CommentThread({ submissionId, className }: CommentThreadProps) {
         attachmentId: submissionId,
       })
 
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "Comment on submission",
+          body: formatRoleSpeech(content.trim(), profile.role).slice(0, 120),
+          url: `/dashboard/submissions/${submissionId}`,
+          target: profile.role === "queen" ? "slave" : "queen",
+          kind: "task",
+        })
+      )
+
       if (parentId) {
         setReplyTo(null)
         setEditContent("")

@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getConversationTopic,
-  getOtherMember,
+  isConversationMember,
+  resolveInboxPartner,
   topicLabel,
   type InboxTopic,
 } from "@/lib/inbox";
@@ -28,38 +29,83 @@ export default function InboxChatPage() {
     "id" | "username" | "role" | "avatar_url"
   > | null>(null);
   const [ready, setReady] = useState(false);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     if (!profile || !conversationId) return;
+    let cancelled = false;
     const supabase = createClient();
     void (async () => {
       try {
+        // Ensure topic threads exist (worship etc. added after older seeds)
+        await supabase.rpc("ensure_topic_conversations");
+
         const t = await getConversationTopic(supabase, conversationId);
-        setTopic(t);
-        const member = await getOtherMember(
+        if (!t) {
+          if (!cancelled) setMissing(true);
+          return;
+        }
+
+        const member = await isConversationMember(
           supabase,
           conversationId,
           profile.id
         );
         if (!member) {
-          toast.error("Conversation not found");
+          if (!cancelled) setMissing(true);
           return;
         }
-        setOther(member);
+
+        const partner = await resolveInboxPartner(supabase, {
+          conversationId,
+          myId: profile.id,
+          myRole: profile.role,
+        });
+        if (!partner) {
+          if (!cancelled) setMissing(true);
+          return;
+        }
+
+        if (!cancelled) {
+          setTopic(t);
+          setOther(partner);
+          setMissing(false);
+        }
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Could not open chat"
         );
+        if (!cancelled) setMissing(true);
       } finally {
-        setReady(true);
+        if (!cancelled) setReady(true);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [profile, conversationId]);
 
-  if (!ready || !other) {
+  if (!ready) {
     return (
       <div className="flex justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-gold" />
+      </div>
+    );
+  }
+
+  if (missing || !other) {
+    return (
+      <div className="space-y-4 py-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          This conversation couldn&apos;t be opened. It may be outdated.
+        </p>
+        <Link
+          href="/dashboard/inbox"
+          className="inline-flex items-center gap-1 text-sm text-gold hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Inbox
+        </Link>
       </div>
     );
   }

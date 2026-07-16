@@ -98,6 +98,7 @@ export function QueenStatusPicker({
     const { error } = await supabase.from("user_status").upsert({
       user_id: profile.id,
       availability: next,
+      availability_source: "manual",
       updated_at: new Date().toISOString(),
     });
     setSaving(false);

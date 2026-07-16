@@ -95,6 +95,7 @@ export function ChatComposer({
       body: body ?? "",
       url: href,
       target: profile.role === "queen" ? "slave" : "queen",
+      kind: "message",
     });
   };
 

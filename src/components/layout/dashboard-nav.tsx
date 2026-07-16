@@ -32,7 +32,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BrandLogo } from "@/components/brand-logo"
-import { useInboxUnreadCount } from "@/components/inbox/use-inbox-unread"
+import { NotificationBell } from "@/components/layout/notification-bell"
+import {
+  useInboxUnread,
+} from "@/components/inbox/use-inbox-unread"
+import { NAV_TOPIC_BY_HREF } from "@/lib/inbox"
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -62,11 +66,21 @@ function InboxBadge({ count }: { count: number }) {
   )
 }
 
+function TopicBadge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-gold/90 px-1.5 text-[10px] font-semibold text-void">
+      {count > 9 ? "9+" : count}
+    </span>
+  )
+}
+
 export function DashboardNav() {
   const pathname = usePathname()
   const { profile, role, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const unread = useInboxUnreadCount()
+  const unread = useInboxUnread()
+  const unreadTotal = unread.total
 
   useEffect(() => {
     if (!mobileOpen) return
@@ -96,6 +110,7 @@ export function DashboardNav() {
           <p className="truncate font-heading text-lg text-ivory">Queen Sisi</p>
           <p className="text-xs text-muted-foreground">Private Chamber</p>
         </div>
+        <NotificationBell className="hidden shrink-0 lg:inline-flex" />
       </div>
 
       <Separator className="bg-gold/10" />
@@ -137,6 +152,8 @@ export function DashboardNav() {
             pathname === href ||
             (href !== "/dashboard" && pathname.startsWith(href))
           const isInbox = href === "/dashboard/inbox"
+          const topic = NAV_TOPIC_BY_HREF[href]
+          const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
 
           return (
             <Link
@@ -151,7 +168,8 @@ export function DashboardNav() {
             >
               <Icon className="size-4 shrink-0" />
               {label}
-              {isInbox && <InboxBadge count={unread} />}
+              {isInbox && <InboxBadge count={unreadTotal} />}
+              {!isInbox && <TopicBadge count={topicUnread} />}
             </Link>
           )
         })}
@@ -181,6 +199,7 @@ export function DashboardNav() {
           <span className="font-heading text-ivory">Queen Sisi</span>
         </div>
         <div className="flex items-center gap-1">
+          <NotificationBell />
           <Button
             asChild
             variant="ghost"
@@ -190,9 +209,9 @@ export function DashboardNav() {
           >
             <Link href="/dashboard/inbox">
               <Inbox className="size-5" />
-              {unread > 0 && (
+              {unreadTotal > 0 && (
                 <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-semibold text-void">
-                  {unread > 9 ? "9+" : unread}
+                  {unreadTotal > 9 ? "9+" : unreadTotal}
                 </span>
               )}
             </Link>
