@@ -489,7 +489,8 @@ export function attachmentHref(
   type: MessageAttachmentType,
   id: string
 ): string {
-  if (type === "task" || type === "submission") return `/dashboard/task/${id}`;
+  if (type === "task") return `/dashboard/task/${id}`;
+  if (type === "submission") return `/dashboard/submissions/${id}`;
   if (type === "tease") return `/dashboard/teases`;
   if (type === "punishment") return `/dashboard/punishments`;
   if (type === "reward") return `/dashboard/rewards`;
