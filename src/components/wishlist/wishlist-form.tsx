@@ -68,6 +68,11 @@ export function WishlistForm({
       return;
     }
 
+    if (!editingItem.image_path) {
+      setExistingImageUrl(null);
+      return;
+    }
+
     void signObjectUrl({
       bucket: "wishlist",
       path: editingItem.image_path,

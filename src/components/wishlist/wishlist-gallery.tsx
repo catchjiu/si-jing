@@ -23,6 +23,7 @@ import {
 } from "@/lib/wishlist";
 import {
   parseUsdInput,
+  hasRecordedPurchasePrice,
   purchaseStatusNeedsPrice,
   recordWishlistPurchase,
   formatUsdFromCents,
@@ -134,39 +135,52 @@ export function WishlistGallery({
 
   const saveFulfillment = async () => {
     if (!isSlave || !active) return;
-    setStatusBusy(true);
-    const supabase = createClient();
     const notes = fulfillmentNotes.trim()
       ? formatRoleSpeech(fulfillmentNotes.trim(), "slave")
       : null;
-    const alreadyPurchased =
-      active.purchase_price_usd != null && active.purchase_price_usd > 0;
+    const alreadyPurchased = hasRecordedPurchasePrice(
+      active.purchase_price_usd
+    );
     const needsPrice = purchaseStatusNeedsPrice(
       statusDraft,
       active.purchase_price_usd,
       alreadyPurchased
     );
 
+    if (needsPrice) {
+      const priceUsd = parseUsdInput(purchasePrice);
+      if (priceUsd == null || priceUsd <= 0) {
+        toast.error("Enter the purchase price (USD)");
+        return;
+      }
+    }
+
+    setStatusBusy(true);
+    const supabase = createClient();
+
     try {
       if (needsPrice) {
         const priceUsd = parseUsdInput(purchasePrice);
-        if (priceUsd == null) {
+        if (priceUsd == null || priceUsd <= 0) {
           toast.error("Enter the purchase price (USD)");
-          return;
-        }
-        if (statusDraft !== "ordered" && statusDraft !== "fulfilled") {
-          toast.error("Ordered or fulfilled status required to record a purchase");
           return;
         }
         await recordWishlistPurchase(supabase, {
           itemId: active.id,
           priceUsd,
-          status: statusDraft,
+          status: statusDraft as "ordered" | "fulfilled",
           fulfillmentNotes: notes,
         });
         toast.success("Purchase recorded — budget updated");
         onBudgetChange?.();
       } else {
+        if (
+          (statusDraft === "ordered" || statusDraft === "fulfilled") &&
+          !alreadyPurchased
+        ) {
+          toast.error("Enter the purchase price (USD)");
+          return;
+        }
         const updates = {
           status: statusDraft,
           fulfillment_notes: notes,
@@ -462,18 +476,17 @@ export function WishlistGallery({
                       />
                     </p>
                   )}
-                  {active.purchase_price_usd != null &&
-                    active.purchase_price_usd > 0 && (
-                      <p className="text-sm text-gold">
-                        Paid{" "}
-                        {formatUsdFromCents(
-                          Math.round(active.purchase_price_usd * 100)
-                        )}
-                        {active.purchased_at
-                          ? ` · ${formatRelative(active.purchased_at)}`
-                          : ""}
-                      </p>
-                    )}
+                  {hasRecordedPurchasePrice(active.purchase_price_usd) ? (
+                    <p className="text-sm text-gold">
+                      Paid{" "}
+                      {formatUsdFromCents(
+                        Math.round((active.purchase_price_usd ?? 0) * 100)
+                      )}
+                      {active.purchased_at
+                        ? ` · ${formatRelative(active.purchased_at)}`
+                        : ""}
+                    </p>
+                  ) : null}
                   {isSlave && (
                     <>
                       <div className="space-y-2">
@@ -500,33 +513,31 @@ export function WishlistGallery({
                           </SelectContent>
                         </Select>
                       </div>
-                      {purchaseStatusNeedsPrice(
-                        statusDraft,
-                        active.purchase_price_usd,
-                        !!(
-                          active.purchase_price_usd != null &&
-                          active.purchase_price_usd > 0
-                        )
-                      ) && (
-                        <div className="space-y-2">
-                          <Label htmlFor="wishlist-purchase-price">
-                            Purchase price (USD)
-                          </Label>
-                          <Input
-                            id="wishlist-purchase-price"
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="49.99"
-                            value={purchasePrice}
-                            onChange={(e) => setPurchasePrice(e.target.value)}
-                            className="border-gold/20 bg-void/60"
-                          />
-                          <p className="text-[11px] text-muted-foreground">
-                            Counts against this week&apos;s spend limit, then
-                            banked credit.
-                          </p>
-                        </div>
-                      )}
+                      {!hasRecordedPurchasePrice(active.purchase_price_usd) &&
+                        (statusDraft === "ordered" ||
+                          statusDraft === "fulfilled" ||
+                          active.status === "ordered" ||
+                          active.status === "fulfilled") && (
+                          <div className="space-y-2 rounded-lg border border-gold/30 bg-gold/5 p-3">
+                            <Label htmlFor="wishlist-purchase-price">
+                              Cost (USD) — required
+                            </Label>
+                            <Input
+                              id="wishlist-purchase-price"
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="e.g. 49.99"
+                              value={purchasePrice}
+                              onChange={(e) => setPurchasePrice(e.target.value)}
+                              className="border-gold/30 bg-void/60"
+                              autoFocus
+                            />
+                            <p className="text-[11px] text-muted-foreground">
+                              Required for Ordered / Fulfilled. Counts against
+                              this week&apos;s spend limit.
+                            </p>
+                          </div>
+                        )}
                       <div className="space-y-2">
                         <Label>
                           {isSlaveGift ? "Purchase notes" : "Fulfillment notes"}
@@ -552,7 +563,12 @@ export function WishlistGallery({
                         {statusBusy && (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         )}
-                        Save status
+                        {purchaseStatusNeedsPrice(
+                          statusDraft,
+                          active.purchase_price_usd
+                        )
+                          ? "Save & record cost"
+                          : "Save status"}
                       </Button>
                     </>
                   )}

@@ -157,12 +157,17 @@ export async function listWishlistPurchases(
   return data as WishlistPurchaseRow[];
 }
 
+export function hasRecordedPurchasePrice(
+  existingPrice: number | null | undefined
+): boolean {
+  return existingPrice != null && existingPrice > 0;
+}
+
 export function purchaseStatusNeedsPrice(
   status: string,
   existingPrice: number | null | undefined,
-  alreadyPurchased: boolean
+  alreadyPurchased?: boolean
 ): boolean {
-  if (alreadyPurchased) return false;
-  if (existingPrice != null && existingPrice > 0) return false;
+  if (alreadyPurchased || hasRecordedPurchasePrice(existingPrice)) return false;
   return status === "ordered" || status === "fulfilled";
 }
