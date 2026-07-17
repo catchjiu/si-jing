@@ -280,6 +280,7 @@ export function WishlistGallery({
         {items.map((item) => {
           const secret = isWishlistSecretForQueen(item, isQueen);
           if (secret) {
+            const status = item.status ?? "new";
             return (
               <div
                 key={item.id}
@@ -301,12 +302,23 @@ export function WishlistGallery({
                     )}
                 </div>
                 <div className="space-y-2 p-3">
-                  <Badge
-                    variant="outline"
-                    className="border-gold/40 text-[9px] uppercase tracking-wider text-gold"
-                  >
-                    Secret
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="border-gold/40 text-[9px] uppercase tracking-wider text-gold"
+                    >
+                      Secret
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[9px] uppercase tracking-wider",
+                        wishlistStatusClass(status)
+                      )}
+                    >
+                      {WISHLIST_STATUS_LABELS[status]}
+                    </Badge>
+                  </div>
                   <Button
                     type="button"
                     className="w-full bg-gold text-void hover:bg-gold-muted"
