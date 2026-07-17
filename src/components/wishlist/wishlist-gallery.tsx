@@ -107,8 +107,22 @@ export function WishlistGallery({
     setArrivingId(item.id);
     const supabase = createClient();
     try {
-      await markWishlistArrived(supabase, item.id);
+      const result = await markWishlistArrived(supabase, item.id);
       toast.success("Gift revealed");
+      if (result.notified) {
+        const giftName = result.title?.trim() || item.title?.trim();
+        void import("@/lib/push-client").then(({ notifyPush }) =>
+          notifyPush({
+            title: "Queen revealed your gift",
+            body: giftName
+              ? `She marked “${giftName}” as arrived.`
+              : "She marked one of your gifts as arrived.",
+            url: "/dashboard/wishlist",
+            target: "slave",
+            kind: "wishlist_gift_arrived",
+          })
+        );
+      }
       onChanged?.();
       onBudgetChange?.();
     } catch (err) {
