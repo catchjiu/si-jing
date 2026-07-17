@@ -8,6 +8,7 @@ import {
   CircleDot,
   Loader2,
   Moon,
+  PhoneOff,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -56,6 +57,13 @@ export const QUEEN_AVAILABILITY: {
     hint: "With Queen — wait your turn",
     icon: CalendarHeart,
     className: "border-rose-400/40 bg-rose-950/30 text-rose-200",
+  },
+  {
+    value: "no_contact",
+    label: "No contact",
+    hint: "Slave locked — no changes or additions",
+    icon: PhoneOff,
+    className: "border-red-500/40 bg-red-950/30 text-red-300",
   },
 ];
 
@@ -175,7 +183,7 @@ export function QueenStatusPicker({
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {QUEEN_AVAILABILITY.map((opt) => {
               const Icon = opt.icon;
               const active = value === opt.value;

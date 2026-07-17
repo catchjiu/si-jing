@@ -72,7 +72,7 @@ export type WishlistItem = {
   title: string | null;
   notes: string | null;
   link_url: string | null;
-  image_path: string;
+  image_path: string | null;
   latitude: number | null;
   longitude: number | null;
   accuracy_m: number | null;
@@ -82,6 +82,11 @@ export type WishlistItem = {
   seen_at: string | null;
   fulfillment_notes: string | null;
   fulfilled_at: string | null;
+  purchase_price_usd?: number | null;
+  purchased_at?: string | null;
+  arrived_at?: string | null;
+  /** True when Queen cannot view gift details yet. */
+  is_secret?: boolean;
 };
 
 export type WishlistItemWithSignedUrl = WishlistItem & {
@@ -323,7 +328,12 @@ export type JournalComment = {
   created_at: string;
 };
 
-export type QueenAvailability = "working" | "busy" | "dating" | "available";
+export type QueenAvailability =
+  | "working"
+  | "busy"
+  | "dating"
+  | "available"
+  | "no_contact";
 
 export type UserStatus = {
   user_id: string;

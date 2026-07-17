@@ -9,6 +9,8 @@ import { WishlistForm } from "@/components/wishlist/wishlist-form";
 import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
 import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping-address";
 import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
+import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
+import { fetchWishlistItems } from "@/lib/wishlist";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
@@ -17,6 +19,9 @@ async function withSignedUrls(
 ): Promise<WishlistItemWithSignedUrl[]> {
   return Promise.all(
     items.map(async (item) => {
+      if (!item.image_path || item.is_secret) {
+        return { ...item, signedUrl: undefined };
+      }
       try {
         const signedUrl =
           (await signObjectUrl({
@@ -39,6 +44,7 @@ export default function WishlistPage() {
     useState<WishlistItemWithSignedUrl | null>(null);
   const [editingGift, setEditingGift] =
     useState<WishlistItemWithSignedUrl | null>(null);
+  const [budgetRefresh, setBudgetRefresh] = useState(0);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -46,14 +52,7 @@ export default function WishlistPage() {
     const supabase = createClient();
 
     try {
-      const { data, error } = await supabase
-        .from("wishlist_items")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const list = (data ?? []) as WishlistItem[];
+      const list = await fetchWishlistItems(supabase);
       const signed = await withSignedUrls(list);
       setItems(signed);
     } catch (err) {
@@ -106,7 +105,7 @@ export default function WishlistPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Her taste and his gift ideas — track seen, ordered, and fulfilled"
+            ? "Her taste, plus secret gifts from D — mark Arrived to reveal"
             : "Her taste to study, plus gifts you want to buy her"}
         </p>
       </div>
@@ -114,6 +113,8 @@ export default function WishlistPage() {
       <WishlistShippingAddress />
 
       <WishlistSizeChart />
+
+      <WishlistBudgetPanel refreshKey={budgetRefresh} />
 
       {isQueen && (
         <WishlistForm
@@ -149,6 +150,7 @@ export default function WishlistPage() {
             itemKind="queen_taste"
             onDeleted={onDeleted}
             onChanged={load}
+            onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
             onEdit={
               isQueen
                 ? (item) => {
@@ -163,7 +165,7 @@ export default function WishlistPage() {
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">
-          {isSlave ? "Your gift ideas" : "D’s gift ideas"}
+          {isSlave ? "Your gift ideas" : "Gifts from D"}
         </h2>
         {loading && giftItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -173,6 +175,7 @@ export default function WishlistPage() {
             itemKind="slave_gift"
             onDeleted={onDeleted}
             onChanged={load}
+            onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
             onEdit={
               isSlave
                 ? (item) => {

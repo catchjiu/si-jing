@@ -348,6 +348,9 @@ export type Database = {
           seen_at: string | null
           fulfillment_notes: string | null
           fulfilled_at: string | null
+          purchase_price_usd: number | null
+          purchased_at: string | null
+          arrived_at: string | null
           updated_at: string
         }
         Insert: {
@@ -367,6 +370,9 @@ export type Database = {
           seen_at?: string | null
           fulfillment_notes?: string | null
           fulfilled_at?: string | null
+          purchase_price_usd?: number | null
+          purchased_at?: string | null
+          arrived_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -386,6 +392,9 @@ export type Database = {
           seen_at?: string | null
           fulfillment_notes?: string | null
           fulfilled_at?: string | null
+          purchase_price_usd?: number | null
+          purchased_at?: string | null
+          arrived_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -394,6 +403,95 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wishlist_budget_accounts: {
+        Row: {
+          user_id: string
+          credit_usd_cents: number
+          credit_item_credits: number
+          weekly_usd_limit_cents: number
+          weekly_item_limit: number
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          credit_usd_cents?: number
+          credit_item_credits?: number
+          weekly_usd_limit_cents?: number
+          weekly_item_limit?: number
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          credit_usd_cents?: number
+          credit_item_credits?: number
+          weekly_usd_limit_cents?: number
+          weekly_item_limit?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_budget_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wishlist_purchases: {
+        Row: {
+          id: string
+          user_id: string
+          wishlist_item_id: string
+          price_usd_cents: number
+          week_start: string
+          from_weekly_usd_cents: number
+          from_credit_usd_cents: number
+          from_weekly_items: number
+          from_credit_items: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          wishlist_item_id: string
+          price_usd_cents: number
+          week_start: string
+          from_weekly_usd_cents?: number
+          from_credit_usd_cents?: number
+          from_weekly_items?: number
+          from_credit_items?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          wishlist_item_id?: string
+          price_usd_cents?: number
+          week_start?: string
+          from_weekly_usd_cents?: number
+          from_credit_usd_cents?: number
+          from_weekly_items?: number
+          from_credit_items?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wishlist_purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wishlist_purchases_wishlist_item_id_fkey"
+            columns: ["wishlist_item_id"]
+            isOneToOne: true
+            referencedRelation: "wishlist_items"
             referencedColumns: ["id"]
           },
         ]
@@ -2426,7 +2524,48 @@ export type Database = {
         }[]
       }
       touch_last_active: { Args: never; Returns: undefined }
+      is_no_contact_active: { Args: never; Returns: boolean }
+      assert_slave_can_mutate: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
+      get_wishlist_budget: {
+        Args: { p_user_id?: string }
+        Returns: Json
+      }
+      fetch_wishlist_items: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      mark_wishlist_arrived: {
+        Args: { p_item_id: string }
+        Returns: Json
+      }
+      record_wishlist_purchase: {
+        Args: {
+          p_item_id: string
+          p_price_usd: number
+          p_status: string
+          p_fulfillment_notes?: string | null
+        }
+        Returns: Json
+      }
+      set_wishlist_budget: {
+        Args: {
+          p_user_id: string
+          p_weekly_usd_limit?: number | null
+          p_weekly_item_limit?: number | null
+          p_credit_usd?: number | null
+          p_credit_items?: number | null
+        }
+        Returns: Json
+      }
+      list_wishlist_purchases: {
+        Args: { p_user_id?: string; p_week_only?: boolean }
+        Returns: Json
+      }
+      wishlist_week_start_pt: {
+        Args: { p_at?: string }
+        Returns: string
+      }
       consume_attention: {
         Args: { p_kind: string }
         Returns: Record<string, unknown>

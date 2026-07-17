@@ -3,12 +3,30 @@
 import { useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { ExternalLink, Heart, Loader2, Pencil, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  Gift,
+  Heart,
+  Loader2,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { removeObject } from "@/lib/storage/client";
-import { WISHLIST_STATUS_LABELS, wishlistStatusClass } from "@/lib/wishlist";
+import {
+  WISHLIST_STATUS_LABELS,
+  isWishlistSecretForQueen,
+  markWishlistArrived,
+  wishlistStatusClass,
+} from "@/lib/wishlist";
+import {
+  parseUsdInput,
+  purchaseStatusNeedsPrice,
+  recordWishlistPurchase,
+  formatUsdFromCents,
+} from "@/lib/wishlist-budget";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import type {
@@ -27,6 +45,7 @@ import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -45,6 +64,7 @@ interface WishlistGalleryProps {
   onDeleted?: (id: string) => void;
   onEdit?: (item: WishlistItemWithSignedUrl) => void;
   onChanged?: () => void;
+  onBudgetChange?: () => void;
   className?: string;
 }
 
@@ -54,6 +74,7 @@ export function WishlistGallery({
   onDeleted,
   onEdit,
   onChanged,
+  onBudgetChange,
   className,
 }: WishlistGalleryProps) {
   const { isQueen, isSlave, profile } = useAuth();
@@ -62,15 +83,39 @@ export function WishlistGallery({
   const [active, setActive] = useState<WishlistItemWithSignedUrl | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [arrivingId, setArrivingId] = useState<string | null>(null);
   const [fulfillmentNotes, setFulfillmentNotes] = useState("");
   const [statusDraft, setStatusDraft] = useState<WishlistStatus>("new");
+  const [purchasePrice, setPurchasePrice] = useState("");
 
   const openItem = (item: WishlistItemWithSignedUrl) => {
+    if (isWishlistSecretForQueen(item, isQueen)) return;
     setActive(item);
     setStatusDraft(item.status ?? "new");
     setFulfillmentNotes(item.fulfillment_notes ?? "");
+    setPurchasePrice(
+      item.purchase_price_usd != null ? String(item.purchase_price_usd) : ""
+    );
     if (isSlave && !isSlaveGift && item.status === "new") {
       void markSeen(item);
+    }
+  };
+
+  const markArrived = async (item: WishlistItemWithSignedUrl) => {
+    if (!isQueen) return;
+    setArrivingId(item.id);
+    const supabase = createClient();
+    try {
+      await markWishlistArrived(supabase, item.id);
+      toast.success("Gift revealed");
+      onChanged?.();
+      onBudgetChange?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not mark as arrived"
+      );
+    } finally {
+      setArrivingId(null);
     }
   };
 
@@ -91,28 +136,62 @@ export function WishlistGallery({
     if (!isSlave || !active) return;
     setStatusBusy(true);
     const supabase = createClient();
-    const updates = {
-      status: statusDraft,
-      fulfillment_notes: fulfillmentNotes.trim()
-        ? formatRoleSpeech(fulfillmentNotes.trim(), "slave")
-        : null,
-      fulfilled_at:
-        statusDraft === "fulfilled"
-          ? active.fulfilled_at ?? new Date().toISOString()
-          : active.fulfilled_at,
-    };
-    const { error } = await supabase
-      .from("wishlist_items")
-      .update(updates)
-      .eq("id", active.id);
-    setStatusBusy(false);
-    if (error) {
-      toast.error(error.message || "Could not update status");
-      return;
+    const notes = fulfillmentNotes.trim()
+      ? formatRoleSpeech(fulfillmentNotes.trim(), "slave")
+      : null;
+    const alreadyPurchased =
+      active.purchase_price_usd != null && active.purchase_price_usd > 0;
+    const needsPrice = purchaseStatusNeedsPrice(
+      statusDraft,
+      active.purchase_price_usd,
+      alreadyPurchased
+    );
+
+    try {
+      if (needsPrice) {
+        const priceUsd = parseUsdInput(purchasePrice);
+        if (priceUsd == null) {
+          toast.error("Enter the purchase price (USD)");
+          return;
+        }
+        if (statusDraft !== "ordered" && statusDraft !== "fulfilled") {
+          toast.error("Ordered or fulfilled status required to record a purchase");
+          return;
+        }
+        await recordWishlistPurchase(supabase, {
+          itemId: active.id,
+          priceUsd,
+          status: statusDraft,
+          fulfillmentNotes: notes,
+        });
+        toast.success("Purchase recorded — budget updated");
+        onBudgetChange?.();
+      } else {
+        const updates = {
+          status: statusDraft,
+          fulfillment_notes: notes,
+          fulfilled_at:
+            statusDraft === "fulfilled"
+              ? active.fulfilled_at ?? new Date().toISOString()
+              : active.fulfilled_at,
+        };
+        const { error } = await supabase
+          .from("wishlist_items")
+          .update(updates)
+          .eq("id", active.id);
+        if (error) throw error;
+        toast.success("Wishlist updated");
+        setActive({ ...active, ...updates } as WishlistItemWithSignedUrl);
+      }
+      onChanged?.();
+      setActive(null);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not update status"
+      );
+    } finally {
+      setStatusBusy(false);
     }
-    toast.success("Wishlist updated");
-    setActive({ ...active, ...updates } as WishlistItemWithSignedUrl);
-    onChanged?.();
   };
 
   const emptyMessage = isSlaveGift
@@ -143,10 +222,12 @@ export function WishlistGallery({
         .eq("id", active.id);
       if (error) throw error;
 
-      try {
-        await removeObject({ bucket: "wishlist", path: active.image_path });
-      } catch {
-        // Row is gone; storage cleanup is best-effort
+      if (active.image_path) {
+        try {
+          await removeObject({ bucket: "wishlist", path: active.image_path });
+        } catch {
+          // Row is gone; storage cleanup is best-effort
+        }
       }
 
       toast.success(
@@ -182,60 +263,117 @@ export function WishlistGallery({
       <div
         className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}
       >
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => openItem(item)}
-            className="group overflow-hidden rounded-xl border border-gold/15 bg-charcoal/80 text-left transition-all duration-300 hover:border-gold/30"
-          >
-            <div className="relative aspect-[4/5] bg-void">
-              {item.signedUrl ? (
-                <WatermarkedFrame
-                  className="absolute inset-0"
-                  mediaPath={item.image_path}
-                >
-                  <Image
-                    src={item.signedUrl}
-                    alt={item.title || "Wishlist item"}
-                    fill
-                    unoptimized
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, 33vw"
-                  />
-                </WatermarkedFrame>
-              ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                  <Heart className="h-8 w-8" />
+        {items.map((item) => {
+          const secret = isWishlistSecretForQueen(item, isQueen);
+          if (secret) {
+            return (
+              <div
+                key={item.id}
+                className="overflow-hidden rounded-xl border border-gold/25 bg-charcoal/80"
+              >
+                <div className="relative flex aspect-[4/5] flex-col items-center justify-center gap-3 bg-void px-4 text-center">
+                  <Gift className="h-10 w-10 text-gold/70" />
+                  <p className="font-heading text-xl text-ivory">Secret</p>
+                  <p className="text-xs text-muted-foreground">
+                    A gift from D — reveal when it arrives
+                  </p>
+                  {item.purchase_price_usd != null &&
+                    item.purchase_price_usd > 0 && (
+                      <p className="text-sm text-gold/90">
+                        {formatUsdFromCents(
+                          Math.round(item.purchase_price_usd * 100)
+                        )}
+                      </p>
+                    )}
                 </div>
-              )}
-            </div>
-            <div className="space-y-1 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="truncate font-heading text-ivory">
-                  {item.title || "Wishlist item"}
-                </p>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "shrink-0 text-[9px] uppercase tracking-wider",
-                    wishlistStatusClass(item.status ?? "new")
-                  )}
-                >
-                  {WISHLIST_STATUS_LABELS[item.status ?? "new"]}
-                </Badge>
+                <div className="space-y-2 p-3">
+                  <Badge
+                    variant="outline"
+                    className="border-gold/40 text-[9px] uppercase tracking-wider text-gold"
+                  >
+                    Secret
+                  </Badge>
+                  <Button
+                    type="button"
+                    className="w-full bg-gold text-void hover:bg-gold-muted"
+                    disabled={arrivingId === item.id}
+                    onClick={() => void markArrived(item)}
+                  >
+                    {arrivingId === item.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Gift className="mr-2 h-4 w-4" />
+                    )}
+                    Arrived
+                  </Button>
+                </div>
               </div>
-              {isSlaveGift && (
-                <p className="text-[10px] uppercase tracking-wider text-gold/80">
-                  Gift idea
+            );
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => openItem(item)}
+              className="group overflow-hidden rounded-xl border border-gold/15 bg-charcoal/80 text-left transition-all duration-300 hover:border-gold/30"
+            >
+              <div className="relative aspect-[4/5] bg-void">
+                {item.signedUrl && item.image_path ? (
+                  <WatermarkedFrame
+                    className="absolute inset-0"
+                    mediaPath={item.image_path}
+                  >
+                    <Image
+                      src={item.signedUrl}
+                      alt={item.title || "Wishlist item"}
+                      fill
+                      unoptimized
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      sizes="(max-width: 640px) 100vw, 33vw"
+                    />
+                  </WatermarkedFrame>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-muted-foreground">
+                    <Heart className="h-8 w-8" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-1 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate font-heading text-ivory">
+                    {item.title || "Wishlist item"}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "shrink-0 text-[9px] uppercase tracking-wider",
+                      wishlistStatusClass(item.status ?? "new")
+                    )}
+                  >
+                    {WISHLIST_STATUS_LABELS[item.status ?? "new"]}
+                  </Badge>
+                </div>
+                {isSlaveGift && (
+                  <p className="text-[10px] uppercase tracking-wider text-gold/80">
+                    Gift idea
+                  </p>
+                )}
+                {item.purchase_price_usd != null &&
+                  item.purchase_price_usd > 0 && (
+                    <p className="text-xs text-gold/90">
+                      {formatUsdFromCents(
+                        Math.round(item.purchase_price_usd * 100)
+                      )}
+                    </p>
+                  )}
+                <p className="text-xs text-muted-foreground">
+                  {formatRelative(item.created_at)}
                 </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {formatRelative(item.created_at)}
-              </p>
-            </div>
-          </button>
-        ))}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
@@ -243,7 +381,7 @@ export function WishlistGallery({
           {active && (
             <>
               <div className="relative aspect-[4/5] max-h-[50vh] w-full bg-void">
-                {active.signedUrl ? (
+                {active.signedUrl && active.image_path ? (
                   <WatermarkedFrame
                     className="absolute inset-0"
                     sizeClassName="w-[22%] max-w-[160px] min-w-[80px]"
@@ -324,6 +462,18 @@ export function WishlistGallery({
                       />
                     </p>
                   )}
+                  {active.purchase_price_usd != null &&
+                    active.purchase_price_usd > 0 && (
+                      <p className="text-sm text-gold">
+                        Paid{" "}
+                        {formatUsdFromCents(
+                          Math.round(active.purchase_price_usd * 100)
+                        )}
+                        {active.purchased_at
+                          ? ` · ${formatRelative(active.purchased_at)}`
+                          : ""}
+                      </p>
+                    )}
                   {isSlave && (
                     <>
                       <div className="space-y-2">
@@ -350,6 +500,33 @@ export function WishlistGallery({
                           </SelectContent>
                         </Select>
                       </div>
+                      {purchaseStatusNeedsPrice(
+                        statusDraft,
+                        active.purchase_price_usd,
+                        !!(
+                          active.purchase_price_usd != null &&
+                          active.purchase_price_usd > 0
+                        )
+                      ) && (
+                        <div className="space-y-2">
+                          <Label htmlFor="wishlist-purchase-price">
+                            Purchase price (USD)
+                          </Label>
+                          <Input
+                            id="wishlist-purchase-price"
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="49.99"
+                            value={purchasePrice}
+                            onChange={(e) => setPurchasePrice(e.target.value)}
+                            className="border-gold/20 bg-void/60"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Counts against this week&apos;s spend limit, then
+                            banked credit.
+                          </p>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label>
                           {isSlaveGift ? "Purchase notes" : "Fulfillment notes"}
