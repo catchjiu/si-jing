@@ -10,6 +10,7 @@ DECLARE
   v_item public.wishlist_items;
   v_was_secret BOOLEAN := false;
   v_title TEXT;
+  v_was_idea BOOLEAN := false;
 BEGIN
   IF public.current_user_role() <> 'queen' THEN
     RAISE EXCEPTION 'Only the Queen can mark a gift as arrived';
@@ -25,6 +26,7 @@ BEGIN
   END IF;
 
   v_was_secret := v_item.arrived_at IS NULL;
+  v_was_idea := v_item.status = 'idea';
   v_title := NULLIF(trim(COALESCE(v_item.title, '')), '');
 
   UPDATE public.wishlist_items
@@ -46,9 +48,14 @@ BEGIN
     PERFORM public.notify_user(
       v_item.created_by,
       'wishlist_gift_arrived',
-      'Queen revealed your gift',
       CASE
+        WHEN v_was_idea THEN 'Queen revealed your gift idea'
+        ELSE 'Queen revealed your gift'
+      END,
+      CASE
+        WHEN v_title IS NOT NULL AND v_was_idea THEN format('She revealed “%s”.', v_title)
         WHEN v_title IS NOT NULL THEN format('She marked “%s” as arrived.', v_title)
+        WHEN v_was_idea THEN 'She revealed one of your gift ideas.'
         ELSE 'She marked one of your gifts as arrived.'
       END,
       '/dashboard/wishlist',
@@ -64,7 +71,8 @@ BEGIN
     'fulfilled_at', v_item.fulfilled_at,
     'is_secret', false,
     'title', v_item.title,
-    'notified', v_was_secret
+    'notified', v_was_secret,
+    'was_idea', v_was_idea
   );
 END;
 $$;

@@ -6,6 +6,7 @@ type Supabase = ReturnType<typeof createClient>;
 export const WISHLIST_STATUS_LABELS = {
   new: "New",
   seen: "Seen",
+  idea: "Idea",
   ordered: "Ordered",
   fulfilled: "Fulfilled",
 } as const;
@@ -13,8 +14,15 @@ export const WISHLIST_STATUS_LABELS = {
 export function wishlistStatusClass(status: string): string {
   if (status === "fulfilled") return "border-emerald-500/40 text-emerald-300";
   if (status === "ordered") return "border-gold/40 text-gold";
+  if (status === "idea") return "border-sky-400/40 text-sky-200";
   if (status === "seen") return "border-ivory/30 text-ivory/70";
   return "border-muted text-muted-foreground";
+}
+
+/** Queen secret-card action: purchased gifts use Arrived; ideas use Reveal. */
+export function wishlistRevealButtonLabel(status: string | null | undefined): string {
+  if (status === "ordered" || status === "fulfilled") return "Arrived";
+  return "Reveal";
 }
 
 export function isWishlistSecretForQueen(

@@ -19,11 +19,13 @@ import {
   WISHLIST_STATUS_LABELS,
   isWishlistSecretForQueen,
   markWishlistArrived,
+  wishlistRevealButtonLabel,
   wishlistStatusClass,
 } from "@/lib/wishlist";
 import {
   parseUsdInput,
   hasRecordedPurchasePrice,
+  purchaseStatusCountsAgainstBudget,
   purchaseStatusNeedsPrice,
   recordWishlistPurchase,
   formatUsdFromCents,
@@ -111,12 +113,19 @@ export function WishlistGallery({
       toast.success("Gift revealed");
       if (result.notified) {
         const giftName = result.title?.trim() || item.title?.trim();
+        const wasIdea = item.status === "idea";
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
-            title: "Queen revealed your gift",
+            title: wasIdea
+              ? "Queen revealed your gift idea"
+              : "Queen revealed your gift",
             body: giftName
-              ? `She marked “${giftName}” as arrived.`
-              : "She marked one of your gifts as arrived.",
+              ? wasIdea
+                ? `She revealed “${giftName}”.`
+                : `She marked “${giftName}” as arrived.`
+              : wasIdea
+                ? "She revealed one of your gift ideas."
+                : "She marked one of your gifts as arrived.",
             url: "/dashboard/wishlist",
             target: "slave",
             kind: "wishlist_gift_arrived",
@@ -153,12 +162,14 @@ export function WishlistGallery({
       ? formatRoleSpeech(fulfillmentNotes.trim(), "slave")
       : null;
     const alreadyPurchased = hasRecordedPurchasePrice(
-      active.purchase_price_usd
+      active.purchase_price_usd,
+      active.purchased_at
     );
     const needsPrice = purchaseStatusNeedsPrice(
       statusDraft,
       active.purchase_price_usd,
-      alreadyPurchased
+      alreadyPurchased,
+      active.purchased_at
     );
 
     if (needsPrice) {
@@ -173,7 +184,7 @@ export function WishlistGallery({
     const supabase = createClient();
 
     try {
-      if (needsPrice) {
+      if (needsPrice && purchaseStatusCountsAgainstBudget(statusDraft)) {
         const priceUsd = parseUsdInput(purchasePrice);
         if (priceUsd == null || priceUsd <= 0) {
           toast.error("Enter the purchase price (USD)");
@@ -187,10 +198,33 @@ export function WishlistGallery({
         });
         toast.success("Purchase recorded — budget updated");
         onBudgetChange?.();
+      } else if (needsPrice && statusDraft === "idea") {
+        const priceUsd = parseUsdInput(purchasePrice);
+        if (priceUsd == null || priceUsd <= 0) {
+          toast.error("Enter the planned price (USD)");
+          return;
+        }
+        const updates = {
+          status: statusDraft,
+          fulfillment_notes: notes,
+          purchase_price_usd: priceUsd,
+          purchased_at: null as string | null,
+        };
+        const { error } = await supabase
+          .from("wishlist_items")
+          .update(updates)
+          .eq("id", active.id);
+        if (error) throw error;
+        toast.success("Gift idea saved with price");
+        setActive({ ...active, ...updates } as WishlistItemWithSignedUrl);
       } else {
         if (
-          (statusDraft === "ordered" || statusDraft === "fulfilled") &&
-          !alreadyPurchased
+          purchaseStatusNeedsPrice(
+            statusDraft,
+            active.purchase_price_usd,
+            alreadyPurchased,
+            active.purchased_at
+          )
         ) {
           toast.error("Enter the purchase price (USD)");
           return;
@@ -295,6 +329,7 @@ export function WishlistGallery({
           const secret = isWishlistSecretForQueen(item, isQueen);
           if (secret) {
             const status = item.status ?? "new";
+            const revealLabel = wishlistRevealButtonLabel(status);
             return (
               <div
                 key={item.id}
@@ -304,7 +339,9 @@ export function WishlistGallery({
                   <Gift className="h-10 w-10 text-gold/70" />
                   <p className="font-heading text-xl text-ivory">Secret</p>
                   <p className="text-xs text-muted-foreground">
-                    A gift from D — reveal when it arrives
+                    {status === "idea"
+                      ? "A gift idea from D — reveal when you want"
+                      : "A gift from D — reveal when it arrives"}
                   </p>
                   {item.purchase_price_usd != null &&
                     item.purchase_price_usd > 0 && (
@@ -344,7 +381,7 @@ export function WishlistGallery({
                     ) : (
                       <Gift className="mr-2 h-4 w-4" />
                     )}
-                    Arrived
+                    {revealLabel}
                   </Button>
                 </div>
               </div>
@@ -502,7 +539,10 @@ export function WishlistGallery({
                       />
                     </p>
                   )}
-                  {hasRecordedPurchasePrice(active.purchase_price_usd) ? (
+                  {hasRecordedPurchasePrice(
+                    active.purchase_price_usd,
+                    active.purchased_at
+                  ) ? (
                     <p className="text-sm text-gold">
                       Paid{" "}
                       {formatUsdFromCents(
@@ -511,6 +551,14 @@ export function WishlistGallery({
                       {active.purchased_at
                         ? ` · ${formatRelative(active.purchased_at)}`
                         : ""}
+                    </p>
+                  ) : active.purchase_price_usd != null &&
+                    active.purchase_price_usd > 0 ? (
+                    <p className="text-sm text-sky-200">
+                      Planned{" "}
+                      {formatUsdFromCents(
+                        Math.round(active.purchase_price_usd * 100)
+                      )}
                     </p>
                   ) : null}
                   {isSlave && (
@@ -539,14 +587,17 @@ export function WishlistGallery({
                           </SelectContent>
                         </Select>
                       </div>
-                      {!hasRecordedPurchasePrice(active.purchase_price_usd) &&
-                        (statusDraft === "ordered" ||
-                          statusDraft === "fulfilled" ||
-                          active.status === "ordered" ||
-                          active.status === "fulfilled") && (
+                      {purchaseStatusNeedsPrice(
+                        statusDraft,
+                        active.purchase_price_usd,
+                        false,
+                        active.purchased_at
+                      ) && (
                           <div className="space-y-2 rounded-lg border border-gold/30 bg-gold/5 p-3">
                             <Label htmlFor="wishlist-purchase-price">
-                              Cost (USD) — required
+                              {statusDraft === "idea"
+                                ? "Planned price (USD) — required"
+                                : "Cost (USD) — required"}
                             </Label>
                             <Input
                               id="wishlist-purchase-price"
@@ -559,8 +610,9 @@ export function WishlistGallery({
                               autoFocus
                             />
                             <p className="text-[11px] text-muted-foreground">
-                              Required for Ordered / Fulfilled. Counts against
-                              this week&apos;s spend limit.
+                              {statusDraft === "idea"
+                                ? "Saved on the idea only — does not spend your weekly limit until Ordered or Fulfilled."
+                                : "Required for Ordered / Fulfilled. Counts against this week’s spend limit."}
                             </p>
                           </div>
                         )}
@@ -591,9 +643,13 @@ export function WishlistGallery({
                         )}
                         {purchaseStatusNeedsPrice(
                           statusDraft,
-                          active.purchase_price_usd
+                          active.purchase_price_usd,
+                          false,
+                          active.purchased_at
                         )
-                          ? "Save & record cost"
+                          ? statusDraft === "idea"
+                            ? "Save idea & price"
+                            : "Save & record cost"
                           : "Save status"}
                       </Button>
                     </>

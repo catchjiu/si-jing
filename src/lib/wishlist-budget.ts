@@ -158,17 +158,35 @@ export async function listWishlistPurchases(
   return data as WishlistPurchaseRow[];
 }
 
+/** True only when a real purchase was logged (not just an Idea planned price). */
 export function hasRecordedPurchasePrice(
-  existingPrice: number | null | undefined
+  existingPrice: number | null | undefined,
+  purchasedAt?: string | null
 ): boolean {
-  return existingPrice != null && existingPrice > 0;
+  return (
+    existingPrice != null &&
+    existingPrice > 0 &&
+    purchasedAt != null &&
+    purchasedAt !== ""
+  );
 }
 
 export function purchaseStatusNeedsPrice(
   status: string,
   existingPrice: number | null | undefined,
-  alreadyPurchased?: boolean
+  alreadyPurchased?: boolean,
+  purchasedAt?: string | null
 ): boolean {
-  if (alreadyPurchased || hasRecordedPurchasePrice(existingPrice)) return false;
+  if (
+    alreadyPurchased ||
+    hasRecordedPurchasePrice(existingPrice, purchasedAt)
+  ) {
+    return false;
+  }
+  return status === "idea" || status === "ordered" || status === "fulfilled";
+}
+
+/** Ordered/fulfilled spend against the weekly budget; idea only stores a planned price. */
+export function purchaseStatusCountsAgainstBudget(status: string): boolean {
   return status === "ordered" || status === "fulfilled";
 }
