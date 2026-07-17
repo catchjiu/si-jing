@@ -28,6 +28,7 @@ import {
   postTeaseToInboxes,
   postToTopicThread,
   sendDirectMessage,
+  type DirectMessage,
   type DirectMessageWithSender,
   type MessageAttachmentType,
 } from "@/lib/inbox";
@@ -54,7 +55,7 @@ interface ChatComposerProps {
   contactBlocked?: boolean;
   replyingTo?: DirectMessageWithSender | null;
   onCancelReply?: () => void;
-  onSent?: () => void;
+  onSent?: (message?: DirectMessage) => void;
   className?: string;
 }
 
@@ -120,7 +121,7 @@ export function ChatComposer({
     try {
       const text = formatRoleSpeech(draft.trim(), profile.role);
       if (!(await gateSlaveMessage(supabase))) return;
-      await sendDirectMessage(supabase, {
+      const sent = await sendDirectMessage(supabase, {
         conversationId,
         senderId: profile.id,
         content: text,
@@ -128,12 +129,12 @@ export function ChatComposer({
       });
       setDraft("");
       onCancelReply?.();
-      await notifyRecipient(
+      onSent?.(sent);
+      void notifyRecipient(
         profile.role === "queen" ? "Message from Queen" : "Message from D",
         text.slice(0, 120),
         `/dashboard/inbox/${conversationId}`
       );
-      onSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not send");
     } finally {
@@ -174,7 +175,7 @@ export function ChatComposer({
       const caption = draft.trim()
         ? formatRoleSpeech(draft.trim(), profile.role)
         : null;
-      await sendDirectMessage(supabase, {
+      const sent = await sendDirectMessage(supabase, {
         conversationId,
         senderId: profile.id,
         content: caption,
@@ -184,12 +185,12 @@ export function ChatComposer({
       });
       setDraft("");
       onCancelReply?.();
-      await notifyRecipient(
+      onSent?.(sent);
+      void notifyRecipient(
         profile.role === "queen" ? "Media from Queen" : "Media from D",
         caption || (isVideo ? "Sent a video" : "Sent a photo"),
         `/dashboard/inbox/${conversationId}`
       );
-      onSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -252,7 +253,7 @@ export function ChatComposer({
         ext,
         relativePath: `${profile.id}/message/${Date.now()}.${ext}`,
       });
-      await sendDirectMessage(supabase, {
+      const sent = await sendDirectMessage(supabase, {
         conversationId,
         senderId: profile.id,
         voicePath: path,
@@ -260,12 +261,12 @@ export function ChatComposer({
         replyToId: replyingTo?.id ?? null,
       });
       onCancelReply?.();
-      await notifyRecipient(
+      onSent?.(sent);
+      void notifyRecipient(
         profile.role === "queen" ? "Voice from Queen" : "Voice from D",
         "Sent a voice note",
         `/dashboard/inbox/${conversationId}`
       );
-      onSent?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Voice send failed");
     } finally {

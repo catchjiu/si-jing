@@ -13,6 +13,7 @@ import {
   markConversationRead,
   messageSnippet,
   softDeleteMessage,
+  type DirectMessage,
   type DirectMessageWithSender,
   type MessageAttachmentType,
   type MessageMediaType,
@@ -514,9 +515,27 @@ export function ChatThread({
         contactBlocked={contactBlocked}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
-        onSent={() => {
+        onSent={(sent?: DirectMessage) => {
           setReplyingTo(null);
-          void load();
+          if (sent && profile) {
+            const optimistic: DirectMessageWithSender = {
+              ...sent,
+              sender: {
+                id: profile.id,
+                username: profile.username,
+                role: profile.role,
+                avatar_url: profile.avatar_url ?? null,
+              },
+              reply_to: null,
+            };
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === sent.id)) return prev;
+              return [...prev, optimistic];
+            });
+          }
+          // Avoid full reload — unified thread is long and oldest-first
+          // reload was hiding newly sent messages.
+          requestAnimationFrame(() => scrollToBottom("smooth"));
         }}
       />
     </div>

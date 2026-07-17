@@ -401,18 +401,19 @@ export function messageSnippet(m: {
 export async function fetchMessages(
   supabase: Supabase,
   conversationId: string,
-  limit = 100
+  limit = 80
 ): Promise<DirectMessageWithSender[]> {
+  // Newest-first query, then reverse for chat display (oldest → newest).
   const { data, error } = await supabase
     .from("direct_messages")
     .select("*, sender:users!sender_id(id, username, role, avatar_url)")
     .eq("conversation_id", conversationId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
-  const rows = (data as DirectMessageWithSender[]) ?? [];
+  const rows = ((data as DirectMessageWithSender[]) ?? []).slice().reverse();
   const byId = new Map(rows.map((m) => [m.id, m]));
   return rows.map((m) => ({
     ...m,
