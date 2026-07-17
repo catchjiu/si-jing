@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { WishlistForm } from "@/components/wishlist/wishlist-form";
 import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
 import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping-address";
+import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
@@ -111,6 +112,8 @@ export default function WishlistPage() {
       </div>
 
       <WishlistShippingAddress />
+
+      <WishlistSizeChart />
 
       {isQueen && (
         <WishlistForm

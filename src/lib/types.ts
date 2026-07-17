@@ -88,6 +88,26 @@ export type WishlistItemWithSignedUrl = WishlistItem & {
   signedUrl?: string;
 };
 
+export type QueenSizeChartDraft = {
+  height: string;
+  bust: string;
+  waist: string;
+  hips: string;
+  dress_size: string;
+  top_size: string;
+  bottom_size: string;
+  bra_size: string;
+  underwear_size: string;
+  shoe_size: string;
+  ring_size: string;
+  notes: string;
+};
+
+export type QueenSizeChart = QueenSizeChartDraft & {
+  user_id: string;
+  updated_at: string;
+};
+
 export type WorshipMediaKind = "image" | "video";
 
 export type WorshipEntrySourceType = "upload" | "reward" | "tease";

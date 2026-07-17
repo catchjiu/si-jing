@@ -1978,6 +1978,65 @@ export type Database = {
           },
         ]
       }
+      queen_size_chart: {
+        Row: {
+          user_id: string
+          height: string | null
+          bust: string | null
+          waist: string | null
+          hips: string | null
+          dress_size: string | null
+          top_size: string | null
+          bottom_size: string | null
+          bra_size: string | null
+          underwear_size: string | null
+          shoe_size: string | null
+          ring_size: string | null
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          height?: string | null
+          bust?: string | null
+          waist?: string | null
+          hips?: string | null
+          dress_size?: string | null
+          top_size?: string | null
+          bottom_size?: string | null
+          bra_size?: string | null
+          underwear_size?: string | null
+          shoe_size?: string | null
+          ring_size?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          height?: string | null
+          bust?: string | null
+          waist?: string | null
+          hips?: string | null
+          dress_size?: string | null
+          top_size?: string | null
+          bottom_size?: string | null
+          bra_size?: string | null
+          underwear_size?: string | null
+          shoe_size?: string | null
+          ring_size?: string | null
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queen_size_chart_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queen_work_schedule: {
         Row: {
           id: string
