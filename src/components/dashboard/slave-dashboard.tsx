@@ -30,6 +30,7 @@ import { DayAgenda } from "@/components/tasks/day-agenda"
 import { groupTasksByDay } from "@/lib/day-groups"
 import { MoodPicker } from "@/components/mood/mood-picker"
 import { QueenStatusDisplay } from "@/components/status/queen-status"
+import { QueenCyclePanel } from "@/components/dashboard/queen-cycle-panel"
 import { PartnerLocalCard } from "@/components/dashboard/partner-local-card"
 import { QueenReturnsCountdown } from "@/components/dashboard/queen-returns-countdown"
 import { AttentionBudgetPanel } from "@/components/attention/attention-budget-panel"
@@ -128,6 +129,8 @@ export function SlaveDashboard({
         lastActiveAt={queenLastActiveAt}
         username={queenUsername}
       />
+
+      <QueenCyclePanel />
 
       <PartnerLocalCard placeId="queen" />
 
