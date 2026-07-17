@@ -469,7 +469,8 @@ export async function fetchRecentActivity(
         id: `wish-gift-${w.id}`,
         at: w.created_at as string,
         title: "Gift idea · D",
-        body: (w.title as string) || "Something he wants to buy you",
+        // Titles stay secret until Arrived/Reveal (RLS also hides unrevealed rows).
+        body: "D suggested a gift for you",
         href: "/dashboard/wishlist",
         kind: "wishlist_gift_add",
       });

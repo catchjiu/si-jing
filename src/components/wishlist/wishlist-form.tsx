@@ -366,9 +366,11 @@ export function WishlistForm({
           void import("@/lib/push-client").then(({ notifyPush }) =>
             notifyPush({
               title: "Gift idea on wishlist",
-              body: title.trim() || "D suggested something to buy you",
+              // Keep secret — Queen must not see the item name until Arrived/Reveal.
+              body: "D suggested a gift for you",
               url: "/dashboard/wishlist",
               target: "queen",
+              kind: "wishlist_gift_add",
             })
           );
         }
