@@ -80,9 +80,9 @@ export async function fetchWishlistBudget(
   supabase: Supabase,
   userId?: string
 ): Promise<WishlistBudgetSummary | null> {
-  const { data, error } = await supabase.rpc("get_wishlist_budget", {
-    p_user_id: userId ?? undefined,
-  });
+  const { data, error } = userId
+    ? await supabase.rpc("get_wishlist_budget", { p_user_id: userId })
+    : await supabase.rpc("get_wishlist_budget");
   if (error) throw error;
   if (!data || typeof data !== "object") return null;
   return data as WishlistBudgetSummary;
@@ -148,10 +148,11 @@ export async function listWishlistPurchases(
   supabase: Supabase,
   opts?: { userId?: string; weekOnly?: boolean }
 ): Promise<WishlistPurchaseRow[]> {
-  const { data, error } = await supabase.rpc("list_wishlist_purchases", {
-    p_user_id: opts?.userId ?? undefined,
+  const args: { p_user_id?: string; p_week_only?: boolean } = {
     p_week_only: opts?.weekOnly ?? true,
-  });
+  };
+  if (opts?.userId) args.p_user_id = opts.userId;
+  const { data, error } = await supabase.rpc("list_wishlist_purchases", args);
   if (error) throw error;
   if (!Array.isArray(data)) return [];
   return data as WishlistPurchaseRow[];

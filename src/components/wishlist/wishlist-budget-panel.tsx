@@ -40,10 +40,12 @@ export function WishlistBudgetPanel({
   const [settings, setSettings] = useState<WishlistBudgetSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
+    setLoadError(null);
     const supabase = createClient();
     try {
       let userId = profile.id;
@@ -53,6 +55,7 @@ export function WishlistBudgetPanel({
           setBudget(null);
           setPurchases([]);
           setSlaveId(null);
+          setLoadError("No slave account found for spend limits.");
           return;
         }
         userId = id;
@@ -70,9 +73,13 @@ export function WishlistBudgetPanel({
       if (data?.is_slave) {
         setSettings(budgetSummaryToSettings(data));
       }
-    } catch {
+    } catch (err) {
       setBudget(null);
       setPurchases([]);
+      const msg =
+        err instanceof Error ? err.message : "Could not load spend limit";
+      setLoadError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -98,20 +105,46 @@ export function WishlistBudgetPanel({
     );
   }
 
+  if (loadError) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-200",
+          className
+        )}
+      >
+        <p className="font-medium">Spend limit unavailable</p>
+        <p className="mt-1 text-xs text-red-200/80">{loadError}</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-3 border-red-400/40 text-red-200"
+          onClick={() => void load()}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (!budget?.is_slave) {
     return null;
   }
 
   const weeklyUsdLimit = budget.weekly_usd_limit_cents ?? 5000;
   const weeklyItemLimit = budget.weekly_item_limit ?? 3;
-  const weeklyUsdUsed = budget.weekly_usd_used_cents ?? 0;
-  const weeklyItemsUsed = budget.weekly_items_used ?? 0;
   const weeklyUsdLeft = budget.weekly_usd_remaining_cents ?? 0;
   const weeklyItemsLeft = budget.weekly_items_remaining ?? 0;
   const creditUsd = budget.credit_usd_cents ?? 0;
   const creditItems = budget.credit_items ?? 0;
   const totalUsd = budget.total_usd_remaining_cents ?? 0;
   const totalItems = budget.total_items_remaining ?? 0;
+  const spentSoFarCents = purchases.reduce(
+    (sum, row) => sum + (row.price_usd_cents ?? 0),
+    0
+  );
+  const itemsBought = purchases.length;
 
   const saveLimits = async () => {
     if (!isQueen || !slaveId || !settings) return;
@@ -170,8 +203,7 @@ export function WishlistBudgetPanel({
             {totalItems === 1 ? "" : "s"} left
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            This week: {formatUsdFromCents(weeklyUsdUsed)} /{" "}
-            {formatUsdFromCents(weeklyUsdLimit)} · {weeklyItemsUsed} /{" "}
+            Weekly allowance {formatUsdFromCents(weeklyUsdLimit)} /{" "}
             {weeklyItemLimit} items · resets Monday (Pacific)
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -186,6 +218,34 @@ export function WishlistBudgetPanel({
               and counts against this limit.
             </p>
           ) : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-gold/20 bg-void/50 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Spent so far
+          </p>
+          <p className="font-heading text-2xl tabular-nums text-gold">
+            {formatUsdFromCents(spentSoFarCents)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            This week · of {formatUsdFromCents(weeklyUsdLimit)} weekly
+          </p>
+        </div>
+        <div className="rounded-lg border border-gold/20 bg-void/50 px-3 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Items bought
+          </p>
+          <p className="font-heading text-2xl tabular-nums text-gold">
+            {itemsBought}
+            <span className="text-base text-muted-foreground">
+              /{weeklyItemLimit}
+            </span>
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            This week
+          </p>
         </div>
       </div>
 
