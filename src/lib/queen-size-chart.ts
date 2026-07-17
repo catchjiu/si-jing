@@ -21,6 +21,47 @@ export const SIZE_CHART_FIELDS: {
   { key: "ring_size", label: "Ring", placeholder: "US 6" },
 ];
 
+/** Body measurements that may be stored in cm and toggled to inches. */
+export const SIZE_CHART_CM_KEYS: (keyof QueenSizeChartDraft)[] = [
+  "height",
+  "bust",
+  "waist",
+  "hips",
+];
+
+const CM_IN_VALUE = /(\d+(?:\.\d+)?)\s*cm\b/i;
+
+export function valueHasCm(value: string): boolean {
+  return CM_IN_VALUE.test(value.trim());
+}
+
+export function draftHasCmMeasurements(draft: QueenSizeChartDraft): boolean {
+  return SIZE_CHART_CM_KEYS.some((key) => valueHasCm(draft[key]));
+}
+
+function cmToInchesDisplay(cm: number): string {
+  const inches = Math.round((cm / 2.54) * 10) / 10;
+  return `${inches}"`;
+}
+
+/** Convert a cm measurement string to inches for display (leaves non-cm as-is). */
+export function formatSizeValueAsInches(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  if (!valueHasCm(trimmed)) return trimmed;
+  return trimmed.replace(CM_IN_VALUE, (_full, num: string) =>
+    cmToInchesDisplay(Number(num))
+  );
+}
+
+export function displaySizeChartValue(
+  value: string,
+  showInches: boolean
+): string {
+  if (!showInches) return value;
+  return formatSizeValueAsInches(value);
+}
+
 export function emptySizeChartDraft(): QueenSizeChartDraft {
   return {
     height: "",
@@ -85,11 +126,19 @@ export function hasAnySizeChartValue(draft: QueenSizeChartDraft): boolean {
     draft.notes.trim().length > 0;
 }
 
-export function formatSizeChartForCopy(draft: QueenSizeChartDraft): string {
+export function formatSizeChartForCopy(
+  draft: QueenSizeChartDraft,
+  showInches = false
+): string {
   const lines: string[] = [];
   for (const { key, label } of SIZE_CHART_FIELDS) {
-    const value = draft[key].trim();
-    if (value) lines.push(`${label}: ${value}`);
+    const raw = draft[key].trim();
+    if (!raw) continue;
+    const value =
+      showInches && SIZE_CHART_CM_KEYS.includes(key)
+        ? displaySizeChartValue(raw, true)
+        : raw;
+    lines.push(`${label}: ${value}`);
   }
   if (draft.notes.trim()) {
     lines.push(`Notes: ${draft.notes.trim()}`);

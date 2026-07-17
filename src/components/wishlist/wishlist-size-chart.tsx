@@ -6,14 +6,18 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
+  SIZE_CHART_CM_KEYS,
   SIZE_CHART_FIELDS,
   chartToDraft,
+  displaySizeChartValue,
+  draftHasCmMeasurements,
   emptySizeChartDraft,
   fetchPrimaryQueenId,
   fetchQueenSizeChart,
   formatSizeChartForCopy,
   hasAnySizeChartValue,
   saveQueenSizeChart,
+  valueHasCm,
 } from "@/lib/queen-size-chart";
 import type { QueenSizeChartDraft } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
@@ -31,6 +35,7 @@ export function WishlistSizeChart() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showInches, setShowInches] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -86,13 +91,21 @@ export function WishlistSizeChart() {
   const copyAll = async () => {
     if (!hasAnySizeChartValue(draft)) return;
     try {
-      await navigator.clipboard.writeText(formatSizeChartForCopy(draft));
+      await navigator.clipboard.writeText(
+        formatSizeChartForCopy(draft, showInches)
+      );
       setCopied(true);
       toast.success("Sizes copied");
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Could not copy sizes");
     }
+  };
+
+  const canToggleUnits = draftHasCmMeasurements(draft);
+  const toggleUnits = () => {
+    if (!canToggleUnits) return;
+    setShowInches((prev) => !prev);
   };
 
   const showEdit = isQueen && (editing || !hasAnySizeChartValue(draft));
@@ -114,6 +127,12 @@ export function WishlistSizeChart() {
             {updatedAt ? (
               <p className="mt-0.5 text-[10px] text-muted-foreground">
                 Updated {formatRelative(updatedAt)}
+              </p>
+            ) : null}
+            {!showEdit && canToggleUnits ? (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                Tap a cm measurement to switch to{" "}
+                {showInches ? "cm" : "inches"}
               </p>
             ) : null}
           </div>
@@ -215,21 +234,51 @@ export function WishlistSizeChart() {
           </div>
         </form>
       ) : hasAnySizeChartValue(draft) ? (
-        <dl className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {SIZE_CHART_FIELDS.filter(({ key }) => draft[key].trim()).map(
-            ({ key, label }) => (
-              <div
-                key={key}
-                className="rounded-lg border border-gold/10 bg-void/40 px-3 py-2"
-              >
-                <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {label}
-                </dt>
-                <dd className="mt-0.5 text-sm text-ivory">{draft[key]}</dd>
-              </div>
-            )
+            ({ key, label }) => {
+              const raw = draft[key];
+              const isCmField =
+                SIZE_CHART_CM_KEYS.includes(key) && valueHasCm(raw);
+              const display = displaySizeChartValue(raw, showInches);
+              const tileClass =
+                "rounded-lg border border-gold/10 bg-void/40 px-3 py-2 text-left w-full";
+
+              if (isCmField) {
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={toggleUnits}
+                    className={cn(
+                      tileClass,
+                      "transition-colors hover:border-gold/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/40"
+                    )}
+                    title={
+                      showInches
+                        ? "Show all measurements in cm"
+                        : "Show all measurements in inches"
+                    }
+                  >
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {label}
+                    </p>
+                    <p className="mt-0.5 text-sm text-ivory">{display}</p>
+                  </button>
+                );
+              }
+
+              return (
+                <div key={key} className={tileClass}>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className="mt-0.5 text-sm text-ivory">{display}</p>
+                </div>
+              );
+            }
           )}
-        </dl>
+        </div>
       ) : (
         <p className={cn("mt-4 text-sm text-muted-foreground")}>
           {isQueen
