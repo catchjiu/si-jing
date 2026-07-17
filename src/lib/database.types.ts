@@ -501,21 +501,24 @@ export type Database = {
           id: string
           wishlist_id: string
           author_id: string
-          content: string
+          content: string | null
+          image_path: string | null
           created_at: string
         }
         Insert: {
           id?: string
           wishlist_id: string
           author_id: string
-          content: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           wishlist_id?: string
           author_id?: string
-          content?: string
+          content?: string | null
+          image_path?: string | null
           created_at?: string
         }
         Relationships: [

@@ -296,7 +296,7 @@ export async function fetchRecentActivity(
       supabase
         .from("wishlist_messages")
         .select(
-          "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
+          "id, content, image_path, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -519,10 +519,15 @@ export async function fetchRecentActivity(
 
     for (const m of wishlistMessages.data ?? []) {
       const item = m.item as { title?: string } | null;
+      const content =
+        (m.content as string | null)?.trim() ||
+        ((m as { image_path?: string | null }).image_path
+          ? "Sent a photo"
+          : "");
       pushOtherPartyComment(items, profile, {
         id: `wish-comment-${m.id}`,
         at: m.created_at as string,
-        content: m.content as string,
+        content,
         where: "wishlist",
         href: "/dashboard/wishlist",
         kind: "wishlist_comment",
@@ -967,7 +972,7 @@ export async function fetchRecentActivity(
       supabase
         .from("wishlist_messages")
         .select(
-          "id, content, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
+          "id, content, image_path, created_at, wishlist_id, author_id, author:users!author_id(id, role, username), item:wishlist_items(title)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1146,10 +1151,15 @@ export async function fetchRecentActivity(
 
     for (const m of wishlistMessages.data ?? []) {
       const item = m.item as { title?: string } | null;
+      const content =
+        (m.content as string | null)?.trim() ||
+        ((m as { image_path?: string | null }).image_path
+          ? "Sent a photo"
+          : "");
       pushOtherPartyComment(items, profile, {
         id: `wish-comment-${m.id}`,
         at: m.created_at as string,
-        content: m.content as string,
+        content,
         where: "wishlist",
         href: "/dashboard/wishlist",
         kind: "wishlist_comment",
