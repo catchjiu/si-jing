@@ -4,19 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Ban,
-  BookOpen,
-  CalendarHeart,
   ChevronRight,
-  Gift,
   Crown,
-  HandHeart,
   Inbox,
-  ListTodo,
   Loader2,
-  MessageCircle,
-  Pin,
-  Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -25,7 +16,6 @@ import {
   listTopicThreads,
   markAllConversationsRead,
   type AppNotification,
-  type InboxTopic,
   type TopicThreadSummary,
 } from "@/lib/inbox";
 import {
@@ -40,20 +30,6 @@ import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PushInboxPrompt } from "@/components/push/push-inbox-prompt";
-
-const TOPIC_ICONS: Record<
-  Exclude<InboxTopic, "general">,
-  typeof Sparkles
-> = {
-  teases: Sparkles,
-  punishments: Ban,
-  dates: CalendarHeart,
-  tasks: ListTodo,
-  rewards: Gift,
-  requests: HandHeart,
-  journal: BookOpen,
-  worship: Crown,
-};
 
 const ALERT_KIND_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "All" },
@@ -169,7 +145,6 @@ export function InboxList({ className }: { className?: string }) {
   const [loading, setLoading] = useState(true);
   const [threads, setThreads] = useState<TopicThreadSummary[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unreadOnly, setUnreadOnly] = useState(false);
   const [alertFilter, setAlertFilter] = useState("all");
   const [markingThreads, setMarkingThreads] = useState(false);
 
@@ -204,7 +179,7 @@ export function InboxList({ className }: { className?: string }) {
       debounce = window.setTimeout(() => {
         debounce = null;
         void load();
-      }, 350);
+      }, 400);
     };
     const supabase = createClient();
     const channel = supabase
@@ -222,16 +197,6 @@ export function InboxList({ className }: { className?: string }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "direct_messages" },
-        schedule
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "conversation_members",
-          filter: `user_id=eq.${profile.id}`,
-        },
         schedule
       )
       .subscribe();
@@ -260,28 +225,19 @@ export function InboxList({ className }: { className?: string }) {
       const supabase = createClient();
       await markAllConversationsRead(supabase, profile.id);
       setThreads((prev) => prev.map((t) => ({ ...t, unread: 0 })));
-      toast.success("All threads marked read");
+      toast.success("Queen Sisi marked read");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not mark threads read"
+        err instanceof Error ? err.message : "Could not mark thread read"
       );
     } finally {
       setMarkingThreads(false);
     }
   };
 
-  const general = threads.find((t) => t.topic === "general");
-  const topics = threads.filter((t) => t.topic !== "general");
+  const general = threads.find((t) => t.topic === "general") ?? threads[0];
   const unreadNotes = notifications.filter((n) => !n.read_at).length;
   const unreadThreads = threads.reduce((sum, t) => sum + t.unread, 0);
-
-  const visibleTopics = useMemo(() => {
-    if (!unreadOnly) return topics;
-    return topics.filter((t) => t.unread > 0);
-  }, [topics, unreadOnly]);
-
-  const showGeneral =
-    !!general && (!unreadOnly || general.unread > 0);
 
   const filteredAlerts = useMemo(
     () => notifications.filter((n) => alertMatchesFilter(n, alertFilter)),
@@ -292,19 +248,6 @@ export function InboxList({ className }: { className?: string }) {
     () => buildAlertDigests(filteredAlerts),
     [filteredAlerts]
   );
-
-  const unreadSummary = useMemo(() => {
-    const parts: string[] = [];
-    for (const t of threads) {
-      if (t.unread > 0) {
-        parts.push(`${t.label} ${t.unread > 9 ? "9+" : t.unread}`);
-      }
-    }
-    if (unreadNotes > 0) {
-      parts.push(`Alerts ${unreadNotes > 9 ? "9+" : unreadNotes}`);
-    }
-    return parts;
-  }, [threads, unreadNotes]);
 
   if (loading) {
     return (
@@ -322,7 +265,16 @@ export function InboxList({ className }: { className?: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/25 bg-gold/5 px-4 py-3">
           <p className="text-sm text-ivory/90">
             <span className="font-medium text-gold">New: </span>
-            {unreadSummary.join(" · ")}
+            {[
+              unreadThreads > 0
+                ? `Queen Sisi ${unreadThreads > 9 ? "9+" : unreadThreads}`
+                : null,
+              unreadNotes > 0
+                ? `Alerts ${unreadNotes > 9 ? "9+" : unreadNotes}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           <div className="flex flex-wrap gap-2">
             {unreadThreads > 0 && (
@@ -337,7 +289,7 @@ export function InboxList({ className }: { className?: string }) {
                 {markingThreads ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                Mark threads read
+                Mark thread read
               </Button>
             )}
             {unreadNotes > 0 && (
@@ -355,23 +307,7 @@ export function InboxList({ className }: { className?: string }) {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant={unreadOnly ? "default" : "outline"}
-          onClick={() => setUnreadOnly((v) => !v)}
-          className={
-            unreadOnly
-              ? "bg-gold text-void hover:bg-gold-muted"
-              : "border-gold/25 text-ivory/80"
-          }
-        >
-          Unread only
-        </Button>
-      </div>
-
-      {showGeneral && general && (
+      {general ? (
         <Link
           href={`/dashboard/inbox/${general.conversationId}`}
           className="flex items-center gap-3 rounded-xl border border-gold/30 bg-gradient-to-r from-royal/40 to-charcoal/80 p-4 transition-colors hover:border-gold/50"
@@ -380,34 +316,22 @@ export function InboxList({ className }: { className?: string }) {
             <Avatar size="lg">
               <SignedAvatarImage
                 avatarUrl={general.other?.avatar_url}
-                alt={general.other?.username ?? "Chat"}
+                alt={general.other?.username ?? "Queen Sisi"}
               />
               <AvatarFallback className="bg-royal text-gold">
-                {general.other?.username?.[0]?.toUpperCase() ?? "?"}
+                <Crown className="h-5 w-5" />
               </AvatarFallback>
             </Avatar>
-            <span className="absolute -left-1 -top-1 rounded-full border border-gold/40 bg-void p-0.5">
-              <Pin className="h-3 w-3 text-gold" />
-            </span>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="font-heading text-lg text-ivory">
-                {general.other?.username ?? "Direct"}
-              </p>
-              {general.other?.role && (
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-[10px] uppercase tracking-wider",
-                    general.other.role === "queen"
-                      ? "border-gold/50 text-gold"
-                      : "border-royal/60 text-ivory/80"
-                  )}
-                >
-                  {general.other.role}
-                </Badge>
-              )}
+              <p className="font-heading text-lg text-ivory">Queen Sisi</p>
+              <Badge
+                variant="outline"
+                className="border-gold/50 text-[10px] uppercase tracking-wider text-gold"
+              >
+                Thread
+              </Badge>
               {general.unread > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[10px] font-semibold text-void">
                   {general.unread > 9 ? "9+" : general.unread}
@@ -417,65 +341,19 @@ export function InboxList({ className }: { className?: string }) {
             <p className="truncate text-sm text-muted-foreground">
               {previewText(general)}
             </p>
+            {general.lastMessage && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {formatRelative(general.lastMessage.created_at)}
+              </p>
+            )}
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-gold/60" />
         </Link>
+      ) : (
+        <p className="rounded-xl border border-gold/10 bg-charcoal/60 px-4 py-8 text-center text-sm text-muted-foreground">
+          Queen Sisi thread is not ready yet.
+        </p>
       )}
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-gold" />
-          <h2 className="font-heading text-lg text-ivory">Topic threads</h2>
-        </div>
-        {visibleTopics.length === 0 ? (
-          <p className="rounded-xl border border-gold/10 bg-charcoal/60 px-4 py-6 text-center text-sm text-muted-foreground">
-            {unreadOnly ? "No unread topic threads." : "No topic threads yet."}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {visibleTopics.map((thread) => {
-              const Icon =
-                TOPIC_ICONS[thread.topic as Exclude<InboxTopic, "general">];
-              return (
-                <li key={thread.conversationId}>
-                  <Link
-                    href={`/dashboard/inbox/${thread.conversationId}`}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors hover:border-gold/40",
-                      thread.unread > 0
-                        ? "border-gold/30 bg-gold/5"
-                        : "border-gold/10 bg-charcoal/60"
-                    )}
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/25 bg-royal/30">
-                      <Icon className="h-4 w-4 text-gold" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-ivory">{thread.label}</p>
-                        {thread.unread > 0 && (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1.5 text-[10px] font-semibold text-void">
-                            {thread.unread > 9 ? "9+" : thread.unread}
-                          </span>
-                        )}
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {previewText(thread)}
-                      </p>
-                    </div>
-                    {thread.lastMessage && (
-                      <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {formatRelative(thread.lastMessage.created_at)}
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">

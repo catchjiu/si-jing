@@ -2,28 +2,29 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
   getConversationTopic,
+  getTopicConversationId,
   isConversationMember,
   resolveInboxPartner,
-  topicLabel,
-  type InboxTopic,
 } from "@/lib/inbox";
 import type { Profile } from "@/lib/types";
 import { ChatThread } from "@/components/inbox/chat-thread";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 
 export default function InboxChatPage() {
   const params = useParams();
+  const router = useRouter();
   const conversationId = String(params.conversationId ?? "");
   const { profile } = useAuth();
-  const [topic, setTopic] = useState<InboxTopic>("general");
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    null
+  );
   const [other, setOther] = useState<Pick<
     Profile,
     "id" | "username" | "role" | "avatar_url"
@@ -37,7 +38,6 @@ export default function InboxChatPage() {
     const supabase = createClient();
     void (async () => {
       try {
-        // Ensure topic threads exist (worship etc. added after older seeds)
         await supabase.rpc("ensure_topic_conversations");
 
         const t = await getConversationTopic(supabase, conversationId);
@@ -46,9 +46,18 @@ export default function InboxChatPage() {
           return;
         }
 
+        // Collapse legacy topic threads into the unified Queen Sisi conversation.
+        let resolvedId = conversationId;
+        if (t !== "general") {
+          resolvedId = await getTopicConversationId(supabase, "general");
+          if (!cancelled && resolvedId !== conversationId) {
+            router.replace(`/dashboard/inbox/${resolvedId}`);
+          }
+        }
+
         const member = await isConversationMember(
           supabase,
-          conversationId,
+          resolvedId,
           profile.id
         );
         if (!member) {
@@ -57,7 +66,7 @@ export default function InboxChatPage() {
         }
 
         const partner = await resolveInboxPartner(supabase, {
-          conversationId,
+          conversationId: resolvedId,
           myId: profile.id,
           myRole: profile.role,
         });
@@ -67,7 +76,7 @@ export default function InboxChatPage() {
         }
 
         if (!cancelled) {
-          setTopic(t);
+          setActiveConversationId(resolvedId);
           setOther(partner);
           setMissing(false);
         }
@@ -83,7 +92,7 @@ export default function InboxChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [profile, conversationId]);
+  }, [profile, conversationId, router]);
 
   if (!ready) {
     return (
@@ -93,7 +102,7 @@ export default function InboxChatPage() {
     );
   }
 
-  if (missing || !other) {
+  if (missing || !other || !activeConversationId) {
     return (
       <div className="space-y-4 py-8 text-center">
         <p className="text-sm text-muted-foreground">
@@ -110,9 +119,6 @@ export default function InboxChatPage() {
     );
   }
 
-  const title =
-    topic === "general" ? other.username : topicLabel(topic);
-
   return (
     <div className="flex h-[calc(100dvh-8rem)] min-h-[28rem] flex-col space-y-3">
       <div className="flex shrink-0 items-center gap-3">
@@ -125,30 +131,18 @@ export default function InboxChatPage() {
         </Link>
       </div>
       <div className="flex shrink-0 items-center gap-2 border-b border-gold/10 pb-3">
-        <h1 className="font-heading text-xl text-ivory sm:text-2xl">{title}</h1>
-        {topic === "general" ? (
-          <Badge
-            variant="outline"
-            className={cn(
-              "text-[10px] uppercase tracking-wider",
-              other.role === "queen"
-                ? "border-gold/50 text-gold"
-                : "border-royal/60 text-ivory/80"
-            )}
-          >
-            {other.role}
-          </Badge>
-        ) : (
-          <Badge
-            variant="outline"
-            className="border-gold/40 text-[10px] uppercase tracking-wider text-gold"
-          >
-            Topic
-          </Badge>
-        )}
+        <h1 className="font-heading text-xl text-ivory sm:text-2xl">
+          Queen Sisi
+        </h1>
+        <Badge
+          variant="outline"
+          className="border-gold/50 text-[10px] uppercase tracking-wider text-gold"
+        >
+          {other.username}
+        </Badge>
       </div>
       <ChatThread
-        conversationId={conversationId}
+        conversationId={activeConversationId}
         recipientId={other.id}
         className="min-h-0 flex-1"
       />

@@ -21,12 +21,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { VoicePlayer } from "@/components/voice/voice-player";
-import { MessageCard } from "@/components/inbox/message-card";
 import { ChatComposer } from "@/components/inbox/chat-composer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
-import { InboxTeaseEmbed } from "@/components/inbox/inbox-tease-embed";
+import { InboxAttachmentEmbed } from "@/components/inbox/inbox-attachment-embed";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import type { EvidencePinMediaKind } from "@/lib/types";
 
@@ -339,13 +338,15 @@ export function ChatThread({
                   m.attachment_type
               );
             const keep = canKeep ? keepPropsForMessage(m) : null;
-            const teaseId =
-              m.attachment_type === "tease" && m.attachment_id
-                ? m.attachment_id
+            const attachmentKey =
+              m.attachment_type && m.attachment_id
+                ? `${m.attachment_type}:${m.attachment_id}:${m.attachment_anchor ?? ""}`
                 : null;
-            const showTeaseEmbed =
-              !!teaseId && !shownTeaseEmbeds.has(teaseId);
-            if (teaseId && showTeaseEmbed) shownTeaseEmbeds.add(teaseId);
+            const showAttachmentEmbed =
+              !!attachmentKey && !shownTeaseEmbeds.has(attachmentKey);
+            if (attachmentKey && showAttachmentEmbed) {
+              shownTeaseEmbeds.add(attachmentKey);
+            }
 
             const senderName = m.sender?.username ?? "Someone";
             const senderInitial = senderName[0]?.toUpperCase() ?? "?";
@@ -488,25 +489,11 @@ export function ChatThread({
                   </div>
                 )}
 
-                {showTeaseEmbed && teaseId ? (
-                  <InboxTeaseEmbed
-                    teaseId={teaseId}
-                    anchor={m.attachment_anchor}
-                  />
-                ) : m.attachment_type &&
-                  m.attachment_id &&
-                  m.attachment_type !== "tease" ? (
-                  <MessageCard
+                {showAttachmentEmbed &&
+                m.attachment_type &&
+                m.attachment_id ? (
+                  <InboxAttachmentEmbed
                     type={m.attachment_type as MessageAttachmentType}
-                    id={m.attachment_id}
-                    anchor={m.attachment_anchor}
-                    summary={m.content}
-                  />
-                ) : m.attachment_type === "tease" &&
-                  m.attachment_id &&
-                  !showTeaseEmbed ? (
-                  <MessageCard
-                    type="tease"
                     id={m.attachment_id}
                     anchor={m.attachment_anchor}
                     summary={m.content}

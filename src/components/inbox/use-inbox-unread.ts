@@ -41,7 +41,11 @@ function buildBreakdown(
     if (t.unread > 0) {
       byTopic[t.topic] = t.unread;
       dmTotal += t.unread;
-      summaryParts.push(`${t.label} ${t.unread > 9 ? "9+" : t.unread}`);
+      summaryParts.push(
+        `${t.topic === "general" ? "Queen Sisi" : t.label} ${
+          t.unread > 9 ? "9+" : t.unread
+        }`
+      );
     }
   }
   if (alerts > 0) {

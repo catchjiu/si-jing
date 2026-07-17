@@ -24,13 +24,11 @@ import { presignAndUpload } from "@/lib/storage/client";
 import { normalizeVoiceBlob } from "@/lib/voice-format";
 import { pickRecorderMimeType } from "@/lib/voice-format";
 import {
-  getTopicConversationId,
   messageSnippet,
   postTeaseToInboxes,
   postToTopicThread,
   sendDirectMessage,
   type DirectMessageWithSender,
-  type InboxTopic,
   type MessageAttachmentType,
 } from "@/lib/inbox";
 import { notifyPush } from "@/lib/push-client";
@@ -289,47 +287,9 @@ export function ChatComposer({
           teaseId: id,
           content: summary,
         });
-        const generalId = await getTopicConversationId(supabase, "general");
-        const teasesId = await getTopicConversationId(supabase, "teases");
-        if (
-          conversationId !== generalId &&
-          conversationId !== teasesId
-        ) {
-          await sendDirectMessage(supabase, {
-            conversationId,
-            senderId: profile.id,
-            content: summary,
-            attachmentType: type,
-            attachmentId: id,
-          });
-        }
-        setSheet(null);
-        onSent?.();
-        return;
-      }
-
-      const topicByType: Partial<Record<MessageAttachmentType, InboxTopic>> = {
-        task: "tasks",
-        punishment: "punishments",
-        reward: "rewards",
-        request: "requests",
-        date: "dates",
-        journal: "journal",
-        submission: "tasks",
-        worship: "worship",
-      };
-      const topic = topicByType[type] ?? "general";
-      await postToTopicThread(supabase, {
-        topic,
-        senderId: profile.id,
-        content: summary,
-        attachmentType: type,
-        attachmentId: id,
-      });
-      const topicConvId = await getTopicConversationId(supabase, topic);
-      if (conversationId !== topicConvId) {
-        await sendDirectMessage(supabase, {
-          conversationId,
+      } else {
+        await postToTopicThread(supabase, {
+          topic: "general",
           senderId: profile.id,
           content: summary,
           attachmentType: type,

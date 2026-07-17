@@ -38,8 +38,8 @@ export const INBOX_TOPICS: {
 }[] = [
   {
     topic: "general",
-    label: "Direct",
-    description: "Private messages",
+    label: "Queen Sisi",
+    description: "Messages, comments, and important posts",
   },
   {
     topic: "teases",
@@ -183,37 +183,27 @@ export async function listTopicThreads(
     byTopic.set(row.topic, row);
   }
 
-  const threads = INBOX_TOPICS.flatMap((meta) => {
-    const row = byTopic.get(meta.topic);
-    if (!row) return [];
-    return [
-      {
-        conversationId: row.conversation_id,
-        topic: meta.topic,
-        label: meta.label,
-        description: meta.description,
-        unread: Number(row.unread ?? 0),
-        lastMessage: row.last_message ?? null,
-        other: row.other_user ?? null,
-      },
-    ];
-  });
-
-  const general = threads.find((t) => t.topic === "general");
-  const topics = threads
-    .filter((t) => t.topic !== "general")
-    .sort((a, b) => {
-      // Unread first, then newest activity
-      if (a.unread > 0 !== b.unread > 0) return a.unread > 0 ? -1 : 1;
-      const aTime = a.lastMessage?.created_at ?? "";
-      const bTime = b.lastMessage?.created_at ?? "";
-      return bTime.localeCompare(aTime);
-    });
-
-  return general ? [general, ...topics] : topics;
+  // Single unified thread — topic conversations are hidden from the inbox.
+  const meta = INBOX_TOPICS.find((t) => t.topic === "general")!;
+  const row = byTopic.get("general");
+  if (!row) return [];
+  return [
+    {
+      conversationId: row.conversation_id,
+      topic: "general",
+      label: meta.label,
+      description: meta.description,
+      unread: Number(row.unread ?? 0),
+      lastMessage: row.last_message ?? null,
+      other: row.other_user ?? null,
+    },
+  ];
 }
 
-/** Post into a topic thread (mirrors entity activity into inbox). */
+/**
+ * Mirror entity activity into the unified Queen Sisi inbox thread.
+ * `topic` is accepted for call-site compatibility but always writes to `general`.
+ */
 export async function postToTopicThread(
   supabase: Supabase,
   opts: {
@@ -230,7 +220,7 @@ export async function postToTopicThread(
   }
 ): Promise<DirectMessage | null> {
   try {
-    const conversationId = await getTopicConversationId(supabase, opts.topic);
+    const conversationId = await getTopicConversationId(supabase, "general");
     return await sendDirectMessage(supabase, {
       conversationId,
       senderId: opts.senderId,
@@ -267,7 +257,7 @@ export async function notifyWorshipThread(
   }
 ): Promise<void> {
   const dm = await postToTopicThread(supabase, {
-    topic: "worship",
+    topic: "general",
     senderId: opts.senderId,
     content: opts.content,
     attachmentType: "worship",
@@ -302,7 +292,7 @@ export async function postTeaseToInboxes(
   }
 ): Promise<void> {
   await postToTopicThread(supabase, {
-    topic: "teases",
+    topic: "general",
     senderId: opts.senderId,
     content: opts.content,
     attachmentType: "tease",
@@ -471,17 +461,8 @@ export async function markAllConversationsRead(
     .eq("user_id", userId);
 }
 
-/** Map feature-nav href → inbox topic for sidebar badges. */
-export const NAV_TOPIC_BY_HREF: Partial<Record<string, InboxTopic>> = {
-  "/dashboard/teases": "teases",
-  "/dashboard/worship": "worship",
-  "/dashboard/tasks": "tasks",
-  "/dashboard/requests": "requests",
-  "/dashboard/punishments": "punishments",
-  "/dashboard/dates": "dates",
-  "/dashboard/rewards": "rewards",
-  "/dashboard/journal": "journal",
-};
+/** Topic-thread nav badges retired — everything lives in the Queen Sisi thread. */
+export const NAV_TOPIC_BY_HREF: Partial<Record<string, InboxTopic>> = {};
 
 export async function countUnreadMessages(
   supabase: Supabase,
