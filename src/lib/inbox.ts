@@ -401,7 +401,7 @@ export function messageSnippet(m: {
 export async function fetchMessages(
   supabase: Supabase,
   conversationId: string,
-  limit = 80
+  limit = 40
 ): Promise<DirectMessageWithSender[]> {
   // Newest-first query, then reverse for chat display (oldest → newest).
   const { data, error } = await supabase
@@ -515,25 +515,25 @@ export async function sendDirectMessage(
     replyToId?: string | null;
   }
 ): Promise<DirectMessage> {
-  const { data, error } = await supabase
-    .from("direct_messages")
-    .insert({
-      conversation_id: opts.conversationId,
-      sender_id: opts.senderId,
-      content: opts.content ?? null,
-      media_path: opts.mediaPath ?? null,
-      media_type: opts.mediaType ?? null,
-      voice_path: opts.voicePath ?? null,
-      voice_duration_ms: opts.voiceDurationMs ?? null,
-      attachment_type: opts.attachmentType ?? null,
-      attachment_id: opts.attachmentId ?? null,
-      attachment_anchor: opts.attachmentAnchor ?? null,
-      reply_to_id: opts.replyToId ?? null,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await supabase.rpc("send_inbox_message", {
+    p_conversation_id: opts.conversationId,
+    p_content: opts.content ?? null,
+    p_media_path: opts.mediaPath ?? null,
+    p_media_type: opts.mediaType ?? null,
+    p_voice_path: opts.voicePath ?? null,
+    p_voice_duration_ms: opts.voiceDurationMs ?? null,
+    p_attachment_type: opts.attachmentType ?? null,
+    p_attachment_id: opts.attachmentId ?? null,
+    p_attachment_anchor: opts.attachmentAnchor ?? null,
+    p_reply_to_id: opts.replyToId ?? null,
+  });
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(error.message || "Could not send message");
+  }
+  if (!data) {
+    throw new Error("Could not send message");
+  }
   return data as DirectMessage;
 }
 

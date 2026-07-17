@@ -2471,6 +2471,21 @@ export type Database = {
         }[]
       }
       count_inbox_unread: { Args: never; Returns: number }
+      send_inbox_message: {
+        Args: {
+          p_conversation_id: string
+          p_content?: string | null
+          p_media_path?: string | null
+          p_media_type?: string | null
+          p_voice_path?: string | null
+          p_voice_duration_ms?: number | null
+          p_attachment_type?: string | null
+          p_attachment_id?: string | null
+          p_attachment_anchor?: string | null
+          p_reply_to_id?: string | null
+        }
+        Returns: Database["public"]["Tables"]["direct_messages"]["Row"]
+      }
       apply_queen_work_schedules: { Args: never; Returns: number }
       notify_user: {
         Args: {

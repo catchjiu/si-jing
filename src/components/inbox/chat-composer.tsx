@@ -305,7 +305,7 @@ export function ChatComposer({
   };
 
   return (
-    <div className={cn("space-y-2 border-t border-gold/10 pt-3", className)}>
+    <div className={cn("space-y-2 px-0.5 pb-1", className)}>
       {blocked && (
         <p className="rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-2 text-xs text-red-200">
           Contact is restricted — messaging is blocked.

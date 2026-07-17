@@ -311,10 +311,10 @@ export function ChatThread({
   };
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}>
       <div
         ref={scrollerRef}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pb-4"
       >
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -509,35 +509,35 @@ export function ChatThread({
         <div ref={bottomRef} />
       </div>
 
-      <ChatComposer
-        conversationId={conversationId}
-        recipientId={recipientId}
-        contactBlocked={contactBlocked}
-        replyingTo={replyingTo}
-        onCancelReply={() => setReplyingTo(null)}
-        onSent={(sent?: DirectMessage) => {
-          setReplyingTo(null);
-          if (sent && profile) {
-            const optimistic: DirectMessageWithSender = {
-              ...sent,
-              sender: {
-                id: profile.id,
-                username: profile.username,
-                role: profile.role,
-                avatar_url: profile.avatar_url ?? null,
-              },
-              reply_to: null,
-            };
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === sent.id)) return prev;
-              return [...prev, optimistic];
-            });
-          }
-          // Avoid full reload — unified thread is long and oldest-first
-          // reload was hiding newly sent messages.
-          requestAnimationFrame(() => scrollToBottom("smooth"));
-        }}
-      />
+      <div className="shrink-0 border-t border-gold/15 bg-charcoal/95 pt-2 backdrop-blur">
+        <ChatComposer
+          conversationId={conversationId}
+          recipientId={recipientId}
+          contactBlocked={contactBlocked}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+          onSent={(sent?: DirectMessage) => {
+            setReplyingTo(null);
+            if (sent && profile) {
+              const optimistic: DirectMessageWithSender = {
+                ...sent,
+                sender: {
+                  id: profile.id,
+                  username: profile.username,
+                  role: profile.role,
+                  avatar_url: profile.avatar_url ?? null,
+                },
+                reply_to: null,
+              };
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === sent.id)) return prev;
+                return [...prev, optimistic];
+              });
+            }
+            requestAnimationFrame(() => scrollToBottom("smooth"));
+          }}
+        />
+      </div>
     </div>
   );
 }
