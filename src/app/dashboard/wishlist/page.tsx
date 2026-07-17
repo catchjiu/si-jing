@@ -10,7 +10,7 @@ import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
 import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping-address";
 import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
-import { fetchWishlistItems } from "@/lib/wishlist";
+import { fetchWishlistItems, isWishlistGiftBought } from "@/lib/wishlist";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
@@ -72,8 +72,15 @@ export default function WishlistPage() {
     () => items.filter((item) => (item.item_kind ?? "queen_taste") === "queen_taste"),
     [items]
   );
-  const giftItems = useMemo(
-    () => items.filter((item) => item.item_kind === "slave_gift"),
+  const giftIdeaItems = useMemo(
+    () =>
+      items.filter(
+        (item) => item.item_kind === "slave_gift" && !isWishlistGiftBought(item)
+      ),
+    [items]
+  );
+  const giftsBoughtItems = useMemo(
+    () => items.filter((item) => isWishlistGiftBought(item)),
     [items]
   );
 
@@ -105,8 +112,8 @@ export default function WishlistPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Her taste, plus secret gifts from D — mark Arrived to reveal"
-            : "Her taste to study, plus gifts you want to buy her"}
+            ? "Her taste, secret gifts from D, and gifts already bought for You"
+            : "Her taste to study, gift ideas, and gifts you’ve bought for Queen"}
         </p>
       </div>
 
@@ -168,11 +175,39 @@ export default function WishlistPage() {
         <h2 className="font-heading text-xl text-gold">
           {isSlave ? "Your gift ideas" : "Gifts from D"}
         </h2>
-        {loading && giftItems.length === 0 ? (
+        {loading && giftIdeaItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <WishlistGallery
-            items={giftItems}
+            items={giftIdeaItems}
+            itemKind="slave_gift"
+            onDeleted={onDeleted}
+            onChanged={load}
+            onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
+            onEdit={
+              isSlave
+                ? (item) => {
+                    setEditingGift(item);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                : undefined
+            }
+          />
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="font-heading text-xl text-gold">
+          Gifts bought for Queen
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Arrived and collected — fully visible.
+        </p>
+        {loading && giftsBoughtItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <WishlistGallery
+            items={giftsBoughtItems}
             itemKind="slave_gift"
             onDeleted={onDeleted}
             onChanged={load}

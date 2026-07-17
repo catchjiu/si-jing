@@ -193,10 +193,14 @@ export function WishlistGallery({
         await recordWishlistPurchase(supabase, {
           itemId: active.id,
           priceUsd,
-          status: statusDraft as "ordered" | "fulfilled",
+          status: statusDraft as "ordered" | "fulfilled" | "revealed",
           fulfillmentNotes: notes,
         });
-        toast.success("Purchase recorded — budget updated");
+        toast.success(
+          statusDraft === "revealed"
+            ? "Gift revealed — visible under Gifts bought for Queen"
+            : "Purchase recorded — budget updated"
+        );
         onBudgetChange?.();
       } else if (needsPrice && statusDraft === "idea") {
         const priceUsd = parseUsdInput(purchasePrice);
@@ -229,20 +233,29 @@ export function WishlistGallery({
           toast.error("Enter the purchase price (USD)");
           return;
         }
+        const nowIso = new Date().toISOString();
         const updates = {
           status: statusDraft,
           fulfillment_notes: notes,
           fulfilled_at:
-            statusDraft === "fulfilled"
-              ? active.fulfilled_at ?? new Date().toISOString()
+            statusDraft === "fulfilled" || statusDraft === "revealed"
+              ? active.fulfilled_at ?? nowIso
               : active.fulfilled_at,
+          arrived_at:
+            statusDraft === "revealed"
+              ? active.arrived_at ?? nowIso
+              : active.arrived_at,
         };
         const { error } = await supabase
           .from("wishlist_items")
           .update(updates)
           .eq("id", active.id);
         if (error) throw error;
-        toast.success("Wishlist updated");
+        toast.success(
+          statusDraft === "revealed"
+            ? "Gift revealed — visible under Gifts bought for Queen"
+            : "Wishlist updated"
+        );
         setActive({ ...active, ...updates } as WishlistItemWithSignedUrl);
       }
       onChanged?.();
@@ -434,9 +447,9 @@ export function WishlistGallery({
                 {isSlaveGift && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="text-[10px] uppercase tracking-wider text-gold/80">
-                      Gift idea
+                      {item.status === "revealed" ? "Gift for Queen" : "Gift idea"}
                     </p>
-                    {item.arrived_at && (
+                    {item.arrived_at && item.status !== "revealed" && (
                       <Badge
                         variant="outline"
                         className="border-emerald-500/40 text-[9px] uppercase tracking-wider text-emerald-300"
@@ -535,22 +548,25 @@ export function WishlistGallery({
                     >
                       {WISHLIST_STATUS_LABELS[active.status ?? "new"]}
                     </Badge>
-                    {isSlaveGift && active.arrived_at && (
+                    {isSlaveGift &&
+                      active.arrived_at &&
+                      active.status !== "revealed" && (
                       <Badge
                         variant="outline"
                         className="border-emerald-500/40 text-[10px] uppercase tracking-wider text-emerald-300"
                       >
-                        Revealed
+                        Visible
                       </Badge>
                     )}
-                    {active.fulfilled_at && (
+                    {active.fulfilled_at && active.status !== "revealed" && (
                       <span className="text-xs text-muted-foreground">
                         Fulfilled {formatRelative(active.fulfilled_at)}
                       </span>
                     )}
                     {isSlaveGift && active.arrived_at && (
                       <span className="text-xs text-muted-foreground">
-                        Revealed {formatRelative(active.arrived_at)}
+                        {active.status === "revealed" ? "Collected" : "Visible"}{" "}
+                        {formatRelative(active.arrived_at)}
                       </span>
                     )}
                   </div>
@@ -634,8 +650,10 @@ export function WishlistGallery({
                             />
                             <p className="text-[11px] text-muted-foreground">
                               {statusDraft === "idea"
-                                ? "Saved on the idea only — does not spend your weekly limit until Ordered or Fulfilled."
-                                : "Required for Ordered / Fulfilled. Counts against this week’s spend limit."}
+                                ? "Saved on the idea only — does not spend your weekly limit until Ordered, Fulfilled, or Revealed."
+                                : statusDraft === "revealed"
+                                  ? "Required when Revealed with no purchase yet. Marks the gift arrived & collected for Queen."
+                                  : "Required for Ordered / Fulfilled. Counts against this week’s spend limit."}
                             </p>
                           </div>
                         )}

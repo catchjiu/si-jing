@@ -276,10 +276,14 @@ export function WishlistForm({
           await recordWishlistPurchase(supabase, {
             itemId: editingItem.id,
             priceUsd,
-            status: status as "ordered" | "fulfilled",
+            status: status as "ordered" | "fulfilled" | "revealed",
             fulfillmentNotes: null,
           });
-          toast.success("Gift updated — budget recorded");
+          toast.success(
+            status === "revealed"
+              ? "Gift revealed — visible under Gifts bought for Queen"
+              : "Gift updated — budget recorded"
+          );
           onBudgetChange?.();
           onUpdated?.({
             ...editingItem,
@@ -287,9 +291,14 @@ export function WishlistForm({
             status,
             purchase_price_usd: priceUsd,
             purchased_at: editingItem.purchased_at ?? new Date().toISOString(),
+            arrived_at:
+              status === "revealed"
+                ? editingItem.arrived_at ?? new Date().toISOString()
+                : editingItem.arrived_at,
             signedUrl: signedUrl ?? existingImageUrl ?? undefined,
           });
         } else {
+          const nowIso = new Date().toISOString();
           const giftFields = isSlaveGift
             ? {
                 status,
@@ -299,6 +308,14 @@ export function WishlistForm({
                     : editingItem.purchase_price_usd ?? null,
                 purchased_at:
                   status === "idea" ? null : editingItem.purchased_at ?? null,
+                fulfilled_at:
+                  status === "fulfilled" || status === "revealed"
+                    ? editingItem.fulfilled_at ?? nowIso
+                    : editingItem.fulfilled_at,
+                arrived_at:
+                  status === "revealed"
+                    ? editingItem.arrived_at ?? nowIso
+                    : editingItem.arrived_at,
               }
             : {};
 
@@ -353,7 +370,7 @@ export function WishlistForm({
           await recordWishlistPurchase(supabase, {
             itemId: data.id as string,
             priceUsd,
-            status: status as "ordered" | "fulfilled",
+            status: status as "ordered" | "fulfilled" | "revealed",
             fulfillmentNotes: null,
           });
           onBudgetChange?.();

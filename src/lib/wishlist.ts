@@ -9,9 +9,11 @@ export const WISHLIST_STATUS_LABELS = {
   idea: "Idea",
   ordered: "Ordered",
   fulfilled: "Fulfilled",
+  revealed: "Revealed",
 } as const;
 
 export function wishlistStatusClass(status: string): string {
+  if (status === "revealed") return "border-emerald-500/40 text-emerald-300";
   if (status === "fulfilled") return "border-emerald-500/40 text-emerald-300";
   if (status === "ordered") return "border-gold/40 text-gold";
   if (status === "idea") return "border-sky-400/40 text-sky-200";
@@ -21,8 +23,16 @@ export function wishlistStatusClass(status: string): string {
 
 /** Queen secret-card action: purchased gifts use Arrived; ideas use Reveal. */
 export function wishlistRevealButtonLabel(status: string | null | undefined): string {
-  if (status === "ordered" || status === "fulfilled") return "Arrived";
+  if (status === "ordered" || status === "fulfilled" || status === "revealed") {
+    return "Arrived";
+  }
   return "Reveal";
+}
+
+export function isWishlistGiftBought(
+  item: Pick<WishlistItem, "item_kind" | "status">
+): boolean {
+  return item.item_kind === "slave_gift" && item.status === "revealed";
 }
 
 export function isWishlistSecretForQueen(

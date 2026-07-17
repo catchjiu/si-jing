@@ -107,7 +107,7 @@ export async function recordWishlistPurchase(
   opts: {
     itemId: string;
     priceUsd: number;
-    status: "ordered" | "fulfilled";
+    status: "ordered" | "fulfilled" | "revealed";
     fulfillmentNotes?: string | null;
   }
 ): Promise<WishlistBudgetSummary | null> {
@@ -183,10 +183,17 @@ export function purchaseStatusNeedsPrice(
   ) {
     return false;
   }
-  return status === "idea" || status === "ordered" || status === "fulfilled";
+  return (
+    status === "idea" ||
+    status === "ordered" ||
+    status === "fulfilled" ||
+    status === "revealed"
+  );
 }
 
-/** Ordered/fulfilled spend against the weekly budget; idea only stores a planned price. */
+/** Ordered/fulfilled/revealed spend against the weekly budget; idea only stores a planned price. */
 export function purchaseStatusCountsAgainstBudget(status: string): boolean {
-  return status === "ordered" || status === "fulfilled";
+  return (
+    status === "ordered" || status === "fulfilled" || status === "revealed"
+  );
 }

@@ -67,7 +67,8 @@ export type WishlistStatus =
   | "seen"
   | "idea"
   | "ordered"
-  | "fulfilled";
+  | "fulfilled"
+  | "revealed";
 export type WishlistItemKind = "queen_taste" | "slave_gift";
 
 export type WishlistItem = {
