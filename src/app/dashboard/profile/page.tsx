@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/lib/types";
 import { PushEnableCard } from "@/components/push/push-enable";
 import { QueenWorkScheduleCard } from "@/components/status/queen-work-schedule";
+import { QueenCyclePanel } from "@/components/dashboard/queen-cycle-panel";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { presignAndUpload } from "@/lib/storage/client";
 
@@ -295,7 +296,12 @@ export default function ProfilePage() {
 
       <PushEnableCard />
 
-      {isQueen && <QueenWorkScheduleCard />}
+      {isQueen && (
+        <>
+          <QueenCyclePanel />
+          <QueenWorkScheduleCard />
+        </>
+      )}
     </div>
   );
 }
