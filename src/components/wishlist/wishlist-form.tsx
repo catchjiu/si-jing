@@ -9,12 +9,30 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { WISHLIST_STATUS_LABELS } from "@/lib/wishlist";
+import {
+  parseUsdInput,
+  purchaseStatusCountsAgainstBudget,
+  purchaseStatusNeedsPrice,
+  recordWishlistPurchase,
+} from "@/lib/wishlist-budget";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { WishlistItemKind, WishlistItemWithSignedUrl } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type {
+  WishlistItemKind,
+  WishlistItemWithSignedUrl,
+  WishlistStatus,
+} from "@/lib/types";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -25,6 +43,7 @@ interface WishlistFormProps {
   onCancelEdit?: () => void;
   onSuccess?: () => void;
   onUpdated?: (item: WishlistItemWithSignedUrl) => void;
+  onBudgetChange?: () => void;
   className?: string;
 }
 
@@ -34,6 +53,7 @@ export function WishlistForm({
   onCancelEdit,
   onSuccess,
   onUpdated,
+  onBudgetChange,
   className,
 }: WishlistFormProps) {
   const { profile, isQueen, isSlave } = useAuth();
@@ -44,6 +64,10 @@ export function WishlistForm({
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [status, setStatus] = useState<WishlistStatus>(
+    isSlaveGift ? "idea" : "new"
+  );
+  const [price, setPrice] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
@@ -55,6 +79,15 @@ export function WishlistForm({
     setTitle(editingItem?.title ?? "");
     setNotes(editingItem?.notes ?? "");
     setLinkUrl(editingItem?.link_url ?? "");
+    setStatus(
+      (editingItem?.status as WishlistStatus | undefined) ??
+        (isSlaveGift ? "idea" : "new")
+    );
+    setPrice(
+      editingItem?.purchase_price_usd != null
+        ? String(editingItem.purchase_price_usd)
+        : ""
+    );
     setFile(null);
     setPreview(null);
 
@@ -83,7 +116,7 @@ export function WishlistForm({
     return () => {
       cancelled = true;
     };
-  }, [editingItem]);
+  }, [editingItem, isSlaveGift]);
 
   const setImage = useCallback(
     (next: File | null) => {
@@ -108,6 +141,15 @@ export function WishlistForm({
     setImage(candidate);
   };
 
+  const resetGiftFields = () => {
+    setTitle("");
+    setNotes("");
+    setLinkUrl("");
+    setStatus("idea");
+    setPrice("");
+    setImage(null);
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canUseForm || !profile) {
@@ -129,6 +171,19 @@ export function WishlistForm({
         new URL(trimmedLink);
       } catch {
         toast.error("Enter a valid link URL (including https://)");
+        return;
+      }
+    }
+
+    let priceUsd: number | null = null;
+    if (isSlaveGift && purchaseStatusNeedsPrice(status, null, false, null)) {
+      priceUsd = parseUsdInput(price);
+      if (priceUsd == null || priceUsd <= 0) {
+        toast.error(
+          status === "idea"
+            ? "Enter the planned price (USD)"
+            : "Enter the purchase price (USD)"
+        );
         return;
       }
     }
@@ -191,56 +246,118 @@ export function WishlistForm({
         throw new Error("Image is required");
       }
 
+      const baseFields = {
+        title: title.trim()
+          ? formatRoleSpeech(title.trim(), speechRole)
+          : null,
+        notes: notes.trim()
+          ? formatRoleSpeech(notes.trim(), speechRole)
+          : null,
+        link_url: trimmedLink || null,
+        image_path: imagePath,
+        latitude,
+        longitude,
+        accuracy_m,
+        location_source,
+      };
+
       if (isEditing && editingItem) {
-        const { data, error } = await supabase
-          .from("wishlist_items")
-          .update({
-            title: title.trim()
-              ? formatRoleSpeech(title.trim(), speechRole)
-              : null,
-            notes: notes.trim()
-              ? formatRoleSpeech(notes.trim(), speechRole)
-              : null,
-            link_url: trimmedLink || null,
-            image_path: imagePath,
-            latitude,
-            longitude,
-            accuracy_m,
-            location_source,
-          })
-          .eq("id", editingItem.id)
-          .select("*")
-          .single();
+        if (
+          isSlaveGift &&
+          purchaseStatusCountsAgainstBudget(status) &&
+          priceUsd != null
+        ) {
+          const { error } = await supabase
+            .from("wishlist_items")
+            .update(baseFields)
+            .eq("id", editingItem.id);
+          if (error) throw error;
 
-        if (error) throw error;
+          await recordWishlistPurchase(supabase, {
+            itemId: editingItem.id,
+            priceUsd,
+            status: status as "ordered" | "fulfilled",
+            fulfillmentNotes: null,
+          });
+          toast.success("Gift updated — budget recorded");
+          onBudgetChange?.();
+          onUpdated?.({
+            ...editingItem,
+            ...baseFields,
+            status,
+            purchase_price_usd: priceUsd,
+            purchased_at: editingItem.purchased_at ?? new Date().toISOString(),
+            signedUrl: signedUrl ?? existingImageUrl ?? undefined,
+          });
+        } else {
+          const giftFields = isSlaveGift
+            ? {
+                status,
+                purchase_price_usd:
+                  status === "idea" && priceUsd != null
+                    ? priceUsd
+                    : editingItem.purchase_price_usd ?? null,
+                purchased_at:
+                  status === "idea" ? null : editingItem.purchased_at ?? null,
+              }
+            : {};
 
-        toast.success("Wishlist item updated");
-        onUpdated?.({
-          ...(data as WishlistItemWithSignedUrl),
-          signedUrl: signedUrl ?? existingImageUrl ?? undefined,
-        });
+          const { data, error } = await supabase
+            .from("wishlist_items")
+            .update({
+              ...baseFields,
+              ...giftFields,
+            })
+            .eq("id", editingItem.id)
+            .select("*")
+            .single();
+
+          if (error) throw error;
+
+          toast.success(
+            isSlaveGift ? "Gift idea updated" : "Wishlist item updated"
+          );
+          onUpdated?.({
+            ...(data as WishlistItemWithSignedUrl),
+            signedUrl: signedUrl ?? existingImageUrl ?? undefined,
+          });
+        }
         onCancelEdit?.();
       } else {
-        const { error: insertError } = await supabase
+        const insertStatus = isSlaveGift ? status : "new";
+        const { data, error: insertError } = await supabase
           .from("wishlist_items")
           .insert({
             created_by: profile.id,
             item_kind: variant,
-            title: title.trim()
-              ? formatRoleSpeech(title.trim(), speechRole)
-              : null,
-            notes: notes.trim()
-              ? formatRoleSpeech(notes.trim(), speechRole)
-              : null,
-            link_url: trimmedLink || null,
-            image_path: imagePath,
-            latitude,
-            longitude,
-            accuracy_m,
-            location_source,
-          });
+            ...baseFields,
+            status: insertStatus,
+            ...(isSlaveGift && status === "idea" && priceUsd != null
+              ? {
+                  purchase_price_usd: priceUsd,
+                  purchased_at: null,
+                }
+              : {}),
+          })
+          .select("*")
+          .single();
 
         if (insertError) throw insertError;
+
+        if (
+          isSlaveGift &&
+          data &&
+          purchaseStatusCountsAgainstBudget(status) &&
+          priceUsd != null
+        ) {
+          await recordWishlistPurchase(supabase, {
+            itemId: data.id as string,
+            priceUsd,
+            status: status as "ordered" | "fulfilled",
+            fulfillmentNotes: null,
+          });
+          onBudgetChange?.();
+        }
 
         toast.success(
           isSlaveGift ? "Gift idea added for Queen" : "Wishlist item added"
@@ -255,10 +372,13 @@ export function WishlistForm({
             })
           );
         }
-        setTitle("");
-        setNotes("");
-        setLinkUrl("");
-        setImage(null);
+        if (isSlaveGift) resetGiftFields();
+        else {
+          setTitle("");
+          setNotes("");
+          setLinkUrl("");
+          setImage(null);
+        }
         onSuccess?.();
       }
     } catch (err) {
@@ -273,6 +393,8 @@ export function WishlistForm({
   if (!canUseForm) return null;
 
   const displayPreview = preview || existingImageUrl;
+  const showGiftStatus = isSlaveGift;
+  const needsPrice = showGiftStatus && purchaseStatusNeedsPrice(status, null);
   const formTitle = isEditing
     ? isSlaveGift
       ? "Edit gift idea"
@@ -283,7 +405,7 @@ export function WishlistForm({
   const formSubtitle = isEditing
     ? "Update details or replace the photo"
     : isSlaveGift
-      ? "Something you want to buy her — photo, link, and notes"
+      ? "Something you want to buy her — status, cost, photo, and notes"
       : "Share something you like so he can know your taste";
 
   return (
@@ -335,7 +457,7 @@ export function WishlistForm({
           onChange={(e) => setNotes(e.target.value)}
           placeholder={
             isSlaveGift
-              ? "Why she’d love it, price range, when you plan to buy…"
+              ? "Why she’d love it, when you plan to buy…"
               : "Why you like it, size, color…"
           }
           rows={3}
@@ -354,6 +476,54 @@ export function WishlistForm({
           className="border-gold/20 bg-void/60"
         />
       </div>
+
+      {showGiftStatus ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={status}
+              onValueChange={(v) => setStatus(v as WishlistStatus)}
+            >
+              <SelectTrigger className="border-gold/20 bg-void/60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(WISHLIST_STATUS_LABELS) as WishlistStatus[]).map(
+                  (s) => (
+                    <SelectItem key={s} value={s}>
+                      {WISHLIST_STATUS_LABELS[s]}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {needsPrice ? (
+            <div className="space-y-2">
+              <Label htmlFor="wishlist-form-price">
+                {status === "idea" ? "Planned price (USD)" : "Cost (USD)"}
+              </Label>
+              <Input
+                id="wishlist-form-price"
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. 49.99"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="border-gold/20 bg-void/60"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {status === "idea"
+                  ? "Does not spend the weekly limit until Ordered or Fulfilled."
+                  : "Counts against this week’s spend limit."}
+              </p>
+            </div>
+          ) : (
+            <div className="hidden sm:block" />
+          )}
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <Label>{isEditing ? "Item image (optional replace)" : "Item image"}</Label>

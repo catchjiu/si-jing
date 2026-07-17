@@ -135,6 +135,7 @@ export default function WishlistPage() {
           onCancelEdit={() => setEditingGift(null)}
           onSuccess={load}
           onUpdated={onUpdated}
+          onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
         />
       )}
 
