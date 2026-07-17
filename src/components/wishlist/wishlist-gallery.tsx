@@ -432,9 +432,19 @@ export function WishlistGallery({
                   </Badge>
                 </div>
                 {isSlaveGift && (
-                  <p className="text-[10px] uppercase tracking-wider text-gold/80">
-                    Gift idea
-                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-gold/80">
+                      Gift idea
+                    </p>
+                    {item.arrived_at && (
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-500/40 text-[9px] uppercase tracking-wider text-emerald-300"
+                      >
+                        Revealed
+                      </Badge>
+                    )}
+                  </div>
                 )}
                 {item.purchase_price_usd != null &&
                   item.purchase_price_usd > 0 && (
@@ -525,9 +535,22 @@ export function WishlistGallery({
                     >
                       {WISHLIST_STATUS_LABELS[active.status ?? "new"]}
                     </Badge>
+                    {isSlaveGift && active.arrived_at && (
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-500/40 text-[10px] uppercase tracking-wider text-emerald-300"
+                      >
+                        Revealed
+                      </Badge>
+                    )}
                     {active.fulfilled_at && (
                       <span className="text-xs text-muted-foreground">
                         Fulfilled {formatRelative(active.fulfilled_at)}
+                      </span>
+                    )}
+                    {isSlaveGift && active.arrived_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Revealed {formatRelative(active.arrived_at)}
                       </span>
                     )}
                   </div>
