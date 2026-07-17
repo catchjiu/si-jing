@@ -6,7 +6,7 @@ VALUES (
   jsonb_build_object(
     'last_period_start', '2026-07-17',
     'cycle_length_days', 28,
-    'period_length_days', 5,
+    'period_length_days', 7,
     'remind_slave', true
   ),
   now()

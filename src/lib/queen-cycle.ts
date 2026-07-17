@@ -26,7 +26,7 @@ export type QueenCycleInfo = QueenCycleSettings & {
 const DEFAULTS: QueenCycleSettings = {
   last_period_start: "2026-07-17",
   cycle_length_days: 28,
-  period_length_days: 5,
+  period_length_days: 7,
   remind_slave: true,
 };
 
@@ -73,7 +73,7 @@ export function normalizeCycleSettings(
       raw?.last_period_start ?? DEFAULTS.last_period_start
     ),
     cycle_length_days: Math.min(45, Math.max(21, Math.floor(cycle) || 28)),
-    period_length_days: Math.min(10, Math.max(2, Math.floor(period) || 5)),
+    period_length_days: Math.min(10, Math.max(2, Math.floor(period) || 7)),
     remind_slave: raw?.remind_slave !== false,
   };
 }

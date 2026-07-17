@@ -232,7 +232,7 @@ export function QueenCyclePanel({ className }: Props) {
                 d
                   ? {
                       ...d,
-                      period_length_days: Number(e.target.value) || 5,
+                      period_length_days: Number(e.target.value) || 7,
                     }
                   : d
               )
