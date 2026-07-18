@@ -2548,6 +2548,7 @@ export type Database = {
       touch_last_active: { Args: never; Returns: undefined }
       is_no_contact_active: { Args: never; Returns: boolean }
       clear_expired_no_contact: { Args: never; Returns: number }
+      get_slave_write_lock: { Args: never; Returns: Json }
       assert_slave_can_mutate: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
       get_wishlist_budget: {

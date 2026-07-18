@@ -79,7 +79,7 @@ export function bannerCopy(p: Punishment): { headline: string; body: string } {
     case "contact_restriction":
       return {
         headline: p.title || "Contact Restricted",
-        body: "You may not initiate contact with Queen Sisi until this timer ends.",
+        body: "Browse only — you cannot change or add anything until this timer ends.",
       };
     case "date_timeout":
       return {

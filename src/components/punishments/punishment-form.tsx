@@ -34,7 +34,7 @@ const DURATION_PRESETS = [
 
 const TYPE_DESCRIPTIONS: Record<PunishmentType, string> = {
   contact_restriction:
-    "D cannot send requests or messages until the timer ends.",
+    "Full lock — D cannot change or add anything (same as No contact) until the timer ends.",
   custom: "Timed consequence with a custom title — honor system.",
   task_debt: "Creates N tasks; clears when Queen has approved all of them.",
   date_timeout: "D can view Dates but cannot post on the timeline.",
