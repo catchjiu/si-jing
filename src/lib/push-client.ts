@@ -5,6 +5,13 @@ export async function notifyPush(opts: {
   url?: string;
   target?: "queen" | "slave" | "both";
   kind?: string;
+  /** Stable tag so later pushes can replace/clear the same notification. */
+  tag?: string;
+  /** Best-effort sticky (ignored or limited on iOS Web Push). */
+  requireInteraction?: boolean;
+  renotify?: boolean;
+  /** Close existing notifications with this tag instead of showing a new one. */
+  action?: "show" | "close";
 }) {
   try {
     await fetch("/api/push/notify", {

@@ -5,6 +5,10 @@ export type PushPayload = {
   title: string;
   body: string;
   url?: string;
+  tag?: string;
+  requireInteraction?: boolean;
+  renotify?: boolean;
+  action?: "show" | "close";
 };
 
 export type PushTarget = "queen" | "slave" | "both" | "self";
@@ -34,6 +38,12 @@ export async function sendPushToSubscriptions(
     title: payload.title,
     body: payload.body,
     url: payload.url || "/dashboard",
+    ...(payload.tag ? { tag: payload.tag } : {}),
+    ...(payload.requireInteraction != null
+      ? { requireInteraction: payload.requireInteraction }
+      : {}),
+    ...(payload.renotify != null ? { renotify: payload.renotify } : {}),
+    ...(payload.action ? { action: payload.action } : {}),
   });
 
   let sent = 0;

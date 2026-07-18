@@ -20,8 +20,11 @@ import {
 import type { WorkingUntilInfo } from "@/lib/queen-work-schedule";
 import { QueenWorkScheduleDialog } from "@/components/status/queen-work-schedule";
 import { WorkEndCountdown } from "@/components/status/work-end-countdown";
+import { notifyPush } from "@/lib/push-client";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
+
+const NO_CONTACT_PUSH_TAG = "no-contact";
 
 export const QUEEN_AVAILABILITY: {
   value: QueenAvailability;
@@ -143,6 +146,7 @@ export function QueenStatusPicker({
 
   const save = async (next: QueenAvailability) => {
     if (!profile || next === value) return;
+    const prev = value;
     setSaving(true);
     setValue(next);
     const supabase = createClient();
@@ -154,11 +158,35 @@ export function QueenStatusPicker({
     });
     setSaving(false);
     if (error) {
+      setValue(prev);
       toast.error("Could not update status");
       return;
     }
     toast.success(`Status: ${availabilityMeta(next).label}`);
     onUpdated?.();
+
+    if (next === "no_contact" && prev !== "no_contact") {
+      void notifyPush({
+        title: "No contact",
+        body: "Queen set No contact. You cannot change or add anything until she releases it.",
+        url: "/dashboard",
+        target: "slave",
+        kind: "no_contact",
+        tag: NO_CONTACT_PUSH_TAG,
+        requireInteraction: true,
+        renotify: true,
+      });
+    } else if (prev === "no_contact" && next !== "no_contact") {
+      void notifyPush({
+        title: "No contact lifted",
+        body: `Queen is ${availabilityMeta(next).label.toLowerCase()} again. You may engage.`,
+        url: "/dashboard",
+        target: "slave",
+        kind: "no_contact_lifted",
+        tag: NO_CONTACT_PUSH_TAG,
+        renotify: true,
+      });
+    }
   };
 
   return (

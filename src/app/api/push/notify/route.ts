@@ -17,6 +17,7 @@ export async function POST(request: Request) {
   } = {
     title: "Queen Sisi",
     body: "Update",
+    action: "show",
   };
   try {
     body = { ...body, ...(await request.json()) };
@@ -49,9 +50,10 @@ export async function POST(request: Request) {
 
   const href = body.url || "/dashboard/inbox";
   const kind = body.kind || "push";
+  const action = body.action === "close" ? "close" : "show";
 
   // Durable inbox notifications (even if web push is not configured)
-  if (recipients && recipients.length > 0) {
+  if (action === "show" && recipients && recipients.length > 0) {
     await supabase.from("notifications").insert(
       recipients.map((r) => ({
         user_id: r.id,
@@ -74,6 +76,10 @@ export async function POST(request: Request) {
     title: body.title,
     body: body.body,
     url: href,
+    tag: body.tag,
+    requireInteraction: body.requireInteraction,
+    renotify: body.renotify,
+    action,
   });
 
   return NextResponse.json({

@@ -9,6 +9,10 @@ self.addEventListener("push", (event) => {
     title: "Queen Sisi",
     body: "Something new happened",
     url: "/dashboard",
+    tag: undefined,
+    requireInteraction: false,
+    renotify: false,
+    action: "show",
   };
 
   try {
@@ -18,13 +22,44 @@ self.addEventListener("push", (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      data: { url: payload.url || "/dashboard" },
-      vibrate: [100, 50, 100],
-    })
+    (async () => {
+      // Clear a tagged notification (e.g. No contact released).
+      if (payload.action === "close" && payload.tag) {
+        const existing = await self.registration.getNotifications({
+          tag: payload.tag,
+        });
+        for (const n of existing) n.close();
+        // Still show a short release notice with the same tag so iOS replaces
+        // the prior alert when the OS kept it.
+        if (payload.title || payload.body) {
+          await self.registration.showNotification(
+            payload.title || "Queen Sisi",
+            {
+              body: payload.body,
+              icon: "/icon-192.png",
+              badge: "/icon-192.png",
+              tag: payload.tag,
+              renotify: true,
+              data: { url: payload.url || "/dashboard" },
+            }
+          );
+        }
+        return;
+      }
+
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        data: { url: payload.url || "/dashboard" },
+        vibrate: [100, 50, 100],
+        ...(payload.tag ? { tag: payload.tag } : {}),
+        ...(payload.requireInteraction
+          ? { requireInteraction: true }
+          : {}),
+        ...(payload.renotify ? { renotify: true } : {}),
+      });
+    })()
   );
 });
 
