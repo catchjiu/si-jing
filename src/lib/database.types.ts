@@ -2049,6 +2049,7 @@ export type Database = {
           availability: string | null
           availability_source: string | null
           last_active_at: string | null
+          no_contact_ends_at: string | null
           updated_at: string
         }
         Insert: {
@@ -2058,6 +2059,7 @@ export type Database = {
           availability?: string | null
           availability_source?: string | null
           last_active_at?: string | null
+          no_contact_ends_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -2067,6 +2069,7 @@ export type Database = {
           availability?: string | null
           availability_source?: string | null
           last_active_at?: string | null
+          no_contact_ends_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2539,10 +2542,12 @@ export type Database = {
           availability: string | null
           updated_at: string | null
           last_active_at: string | null
+          no_contact_ends_at: string | null
         }[]
       }
       touch_last_active: { Args: never; Returns: undefined }
       is_no_contact_active: { Args: never; Returns: boolean }
+      clear_expired_no_contact: { Args: never; Returns: number }
       assert_slave_can_mutate: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
       get_wishlist_budget: {

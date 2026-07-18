@@ -4,21 +4,38 @@ import { useCallback, useEffect, useState } from "react";
 import { Ban } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { fetchNoContactActive } from "@/lib/no-contact";
+import {
+  clearExpiredNoContact,
+  fetchNoContactActive,
+} from "@/lib/no-contact";
+import { WorkEndCountdown } from "@/components/status/work-end-countdown";
 import { cn } from "@/lib/utils";
 
 /** Locks slave UI (read-only browse) while Queen status is No contact. */
 export function NoContactLock({ children }: { children: React.ReactNode }) {
   const { isSlave, profile, loading } = useAuth();
   const [active, setActive] = useState(false);
+  const [endsAt, setEndsAt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!isSlave || !profile) {
       setActive(false);
+      setEndsAt(null);
       return;
     }
     const supabase = createClient();
-    setActive(await fetchNoContactActive(supabase));
+    await clearExpiredNoContact(supabase);
+    const isActive = await fetchNoContactActive(supabase);
+    setActive(isActive);
+    if (!isActive) {
+      setEndsAt(null);
+      return;
+    }
+    const { data } = await supabase.rpc("get_queen_status");
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { no_contact_ends_at?: string | null }
+      | undefined;
+    setEndsAt(row?.no_contact_ends_at ?? null);
   }, [isSlave, profile]);
 
   useEffect(() => {
@@ -48,6 +65,8 @@ export function NoContactLock({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const endMs = endsAt ? new Date(endsAt).getTime() : null;
+
   return (
     <div className="space-y-4">
       <div
@@ -61,7 +80,7 @@ export function NoContactLock({ children }: { children: React.ReactNode }) {
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-500/40 bg-red-950/50">
             <Ban className="h-5 w-5 text-red-400" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-[0.2em] text-red-400/80">
               No contact
             </p>
@@ -70,8 +89,20 @@ export function NoContactLock({ children }: { children: React.ReactNode }) {
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Queen has set No contact. Browse only — all actions are locked
-              until she changes status.
+              {endMs ? " until the timer ends." : " until she changes status."}
             </p>
+            {endMs ? (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-red-300/70">
+                  Ends in
+                </p>
+                <WorkEndCountdown
+                  endAtMs={endMs}
+                  compact
+                  onComplete={() => void load()}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

@@ -21,8 +21,25 @@ import type { WorkingUntilInfo } from "@/lib/queen-work-schedule";
 import { QueenWorkScheduleDialog } from "@/components/status/queen-work-schedule";
 import { WorkEndCountdown } from "@/components/status/work-end-countdown";
 import { notifyPush } from "@/lib/push-client";
+import {
+  NO_CONTACT_DURATION_PRESETS,
+  clearExpiredNoContact,
+  formatNoContactDuration,
+  noContactEndsAtIso,
+  resolveNoContactMinutes,
+} from "@/lib/no-contact";
 import { cn } from "@/lib/utils";
 import { formatRelative } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const NO_CONTACT_PUSH_TAG = "no-contact";
 
@@ -93,17 +110,29 @@ export function QueenStatusPicker({
   const [workingUntil, setWorkingUntil] = useState<WorkingUntilInfo | null>(
     null
   );
+  const [noContactEndsAt, setNoContactEndsAt] = useState<string | null>(null);
+  const [draftingNoContact, setDraftingNoContact] = useState(false);
+  const [durationPreset, setDurationPreset] = useState("60");
+  const [customDays, setCustomDays] = useState("0");
+  const [customHours, setCustomHours] = useState("1");
+  const [customMinutes, setCustomMinutes] = useState("0");
 
   const reloadStatus = useCallback(async () => {
     if (!profile || !isQueen) return;
     const supabase = createClient();
     const { data } = await supabase
       .from("user_status")
-      .select("availability")
+      .select("availability, no_contact_ends_at")
       .eq("user_id", profile.id)
       .maybeSingle();
     const a = data?.availability as QueenAvailability | null | undefined;
     if (a) setValue(a);
+    setNoContactEndsAt(
+      a === "no_contact"
+        ? ((data?.no_contact_ends_at as string | null | undefined) ?? null)
+        : null
+    );
+    if (a !== "no_contact") setDraftingNoContact(false);
   }, [profile, isQueen]);
 
   useEffect(() => {
@@ -142,18 +171,48 @@ export function QueenStatusPicker({
     }
   }, [profile, reloadStatus, onUpdated]);
 
+  const onNoContactTimerEnd = useCallback(async () => {
+    if (!profile) return;
+    const supabase = createClient();
+    try {
+      const cleared = await clearExpiredNoContact(supabase);
+      await reloadStatus();
+      onUpdated?.();
+      if (cleared > 0) {
+        void notifyPush({
+          title: "No contact lifted",
+          body: "The timed No contact period ended. You may engage.",
+          url: "/dashboard",
+          target: "slave",
+          kind: "no_contact_lifted",
+          tag: NO_CONTACT_PUSH_TAG,
+          renotify: true,
+        });
+      }
+    } catch {
+      // best-effort
+    }
+  }, [profile, reloadStatus, onUpdated]);
+
   if (!isQueen) return null;
 
-  const save = async (next: QueenAvailability) => {
-    if (!profile || next === value) return;
+  const save = async (
+    next: QueenAvailability,
+    opts?: { noContactEndsAt?: string | null; durationMinutes?: number | null }
+  ) => {
+    if (!profile) return;
+    if (next !== "no_contact" && next === value) return;
     const prev = value;
     setSaving(true);
-    setValue(next);
+    if (next !== "no_contact") setValue(next);
     const supabase = createClient();
+    const endsAt =
+      next === "no_contact" ? (opts?.noContactEndsAt ?? null) : null;
     const { error } = await supabase.from("user_status").upsert({
       user_id: profile.id,
       availability: next,
       availability_source: "manual",
+      no_contact_ends_at: endsAt,
       updated_at: new Date().toISOString(),
     });
     setSaving(false);
@@ -162,13 +221,24 @@ export function QueenStatusPicker({
       toast.error("Could not update status");
       return;
     }
-    toast.success(`Status: ${availabilityMeta(next).label}`);
+    setValue(next);
+    setNoContactEndsAt(endsAt);
+    setDraftingNoContact(false);
+    const durationLabel =
+      next === "no_contact"
+        ? formatNoContactDuration(opts?.durationMinutes ?? null)
+        : "";
+    toast.success(
+      next === "no_contact"
+        ? `No contact ${durationLabel}`
+        : `Status: ${availabilityMeta(next).label}`
+    );
     onUpdated?.();
 
-    if (next === "no_contact" && prev !== "no_contact") {
+    if (next === "no_contact") {
       void notifyPush({
         title: "No contact",
-        body: "Queen set No contact. You cannot change or add anything until she releases it.",
+        body: `Queen set No contact ${durationLabel}. You cannot change or add anything.`,
         url: "/dashboard",
         target: "slave",
         kind: "no_contact",
@@ -176,7 +246,7 @@ export function QueenStatusPicker({
         requireInteraction: true,
         renotify: true,
       });
-    } else if (prev === "no_contact" && next !== "no_contact") {
+    } else if (prev === "no_contact") {
       void notifyPush({
         title: "No contact lifted",
         body: `Queen is ${availabilityMeta(next).label.toLowerCase()} again. You may engage.`,
@@ -188,6 +258,46 @@ export function QueenStatusPicker({
       });
     }
   };
+
+  const applyNoContact = async () => {
+    const minutes = resolveNoContactMinutes({
+      preset: durationPreset,
+      customDays,
+      customHours,
+      customMinutes,
+    });
+    if (durationPreset === "custom" && minutes == null) {
+      toast.error("Enter a custom duration greater than zero");
+      return;
+    }
+    if (
+      durationPreset !== "indefinite" &&
+      durationPreset !== "0" &&
+      durationPreset !== "custom" &&
+      minutes == null
+    ) {
+      toast.error("Choose how long No contact lasts");
+      return;
+    }
+    await save("no_contact", {
+      noContactEndsAt: noContactEndsAtIso(minutes),
+      durationMinutes: minutes,
+    });
+  };
+
+  const pickStatus = (next: QueenAvailability) => {
+    if (next === "no_contact") {
+      setDraftingNoContact(true);
+      return;
+    }
+    setDraftingNoContact(false);
+    void save(next);
+  };
+
+  const showNoContactPanel = draftingNoContact || value === "no_contact";
+  const noContactEndMs = noContactEndsAt
+    ? new Date(noContactEndsAt).getTime()
+    : null;
 
   return (
     <div
@@ -214,13 +324,16 @@ export function QueenStatusPicker({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {QUEEN_AVAILABILITY.map((opt) => {
               const Icon = opt.icon;
-              const active = value === opt.value;
+              const active =
+                opt.value === "no_contact"
+                  ? value === "no_contact" || draftingNoContact
+                  : value === opt.value && !draftingNoContact;
               return (
                 <button
                   key={opt.value}
                   type="button"
                   disabled={saving}
-                  onClick={() => void save(opt.value)}
+                  onClick={() => pickStatus(opt.value)}
                   className={cn(
                     "flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-all",
                     active
@@ -234,6 +347,110 @@ export function QueenStatusPicker({
               );
             })}
           </div>
+
+          {showNoContactPanel ? (
+            <div className="mt-3 space-y-3 rounded-lg border border-red-500/30 bg-red-950/20 px-3 py-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-red-300/80">
+                  No contact duration
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Choose any length — or leave it on until you lift it.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-ivory/80">How long</Label>
+                <Select
+                  value={durationPreset}
+                  onValueChange={setDurationPreset}
+                >
+                  <SelectTrigger className="border-red-500/25 bg-void/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NO_CONTACT_DURATION_PRESETS.map((p) => (
+                      <SelectItem
+                        key={p.label}
+                        value={
+                          p.minutes === -1
+                            ? "custom"
+                            : p.minutes === 0
+                              ? "indefinite"
+                              : String(p.minutes)
+                        }
+                      >
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {durationPreset === "custom" ? (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Days</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={customDays}
+                      onChange={(e) => setCustomDays(e.target.value)}
+                      className="border-red-500/25 bg-void/60"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Hours</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={customHours}
+                      onChange={(e) => setCustomHours(e.target.value)}
+                      className="border-red-500/25 bg-void/60"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Mins</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={customMinutes}
+                      onChange={(e) => setCustomMinutes(e.target.value)}
+                      className="border-red-500/25 bg-void/60"
+                    />
+                  </div>
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                disabled={saving}
+                onClick={() => void applyNoContact()}
+                className="w-full bg-red-500 text-ivory hover:bg-red-400"
+              >
+                {saving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {value === "no_contact"
+                  ? "Update No contact timer"
+                  : "Start No contact"}
+              </Button>
+              {value === "no_contact" && noContactEndMs ? (
+                <div className="space-y-1.5 border-t border-red-500/20 pt-3">
+                  <p className="text-[10px] uppercase tracking-wider text-red-300/80">
+                    Ends in
+                  </p>
+                  <WorkEndCountdown
+                    endAtMs={noContactEndMs}
+                    compact
+                    onComplete={() => void onNoContactTimerEnd()}
+                  />
+                </div>
+              ) : value === "no_contact" ? (
+                <p className="text-xs text-red-200/80">
+                  Active until you lift it.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           {value === "working" && workingUntil ? (
             <div className="mt-3 space-y-1.5 rounded-lg border border-gold/15 bg-void/40 px-3 py-2.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -283,6 +500,7 @@ export function QueenStatusDisplay({
   const [workingUntil, setWorkingUntil] = useState<WorkingUntilInfo | null>(
     null
   );
+  const [noContactEndsAt, setNoContactEndsAt] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [, setTick] = useState(0);
 
@@ -303,6 +521,7 @@ export function QueenStatusDisplay({
     let cancelled = false;
 
     const load = async () => {
+      await clearExpiredNoContact(supabase);
       const { data, error } = await supabase.rpc("get_queen_status");
       if (cancelled) return;
 
@@ -314,6 +533,7 @@ export function QueenStatusDisplay({
               availability: QueenAvailability | null;
               updated_at: string | null;
               last_active_at: string | null;
+              no_contact_ends_at?: string | null;
             }
           | undefined;
         if (row?.queen_id) {
@@ -321,6 +541,11 @@ export function QueenStatusDisplay({
           setAvailability(row.availability ?? "available");
           setUpdatedAt(row.updated_at);
           setLastActiveAt(row.last_active_at);
+          setNoContactEndsAt(
+            row.availability === "no_contact"
+              ? (row.no_contact_ends_at ?? null)
+              : null
+          );
           return;
         }
       }
@@ -341,17 +566,22 @@ export function QueenStatusDisplay({
 
       const { data: status } = await supabase
         .from("user_status")
-        .select("availability, updated_at, last_active_at")
+        .select("availability, updated_at, last_active_at, no_contact_ends_at")
         .eq("user_id", id)
         .maybeSingle();
       if (cancelled) return;
-      setAvailability(
+      const nextAvailability =
         (status?.availability as QueenAvailability | null | undefined) ??
-          "available"
-      );
+        "available";
+      setAvailability(nextAvailability);
       setUpdatedAt((status?.updated_at as string | null | undefined) ?? null);
       setLastActiveAt(
         (status?.last_active_at as string | null | undefined) ?? null
+      );
+      setNoContactEndsAt(
+        nextAvailability === "no_contact"
+          ? ((status?.no_contact_ends_at as string | null | undefined) ?? null)
+          : null
       );
     };
 
@@ -406,17 +636,22 @@ export function QueenStatusDisplay({
       await applyQueenWorkSchedules(supabase);
       const { data: status } = await supabase
         .from("user_status")
-        .select("availability, updated_at, last_active_at")
+        .select("availability, updated_at, last_active_at, no_contact_ends_at")
         .eq("user_id", queenId)
         .maybeSingle();
       if (status) {
-        setAvailability(
+        const next =
           (status.availability as QueenAvailability | null | undefined) ??
-            "available"
-        );
+          "available";
+        setAvailability(next);
         setUpdatedAt((status.updated_at as string | null | undefined) ?? null);
         setLastActiveAt(
           (status.last_active_at as string | null | undefined) ?? null
+        );
+        setNoContactEndsAt(
+          next === "no_contact"
+            ? ((status.no_contact_ends_at as string | null | undefined) ?? null)
+            : null
         );
       }
       setWorkingUntil(null);
@@ -425,9 +660,43 @@ export function QueenStatusDisplay({
     }
   }, [queenId]);
 
+  const onNoContactTimerEnd = useCallback(async () => {
+    const supabase = createClient();
+    try {
+      await clearExpiredNoContact(supabase);
+      const { data, error } = await supabase.rpc("get_queen_status");
+      if (!error && data) {
+        const row = (Array.isArray(data) ? data[0] : data) as
+          | {
+              availability: QueenAvailability | null;
+              updated_at: string | null;
+              last_active_at: string | null;
+              no_contact_ends_at?: string | null;
+            }
+          | undefined;
+        if (row) {
+          setAvailability(row.availability ?? "available");
+          setUpdatedAt(row.updated_at);
+          setLastActiveAt(row.last_active_at);
+          setNoContactEndsAt(
+            row.availability === "no_contact"
+              ? (row.no_contact_ends_at ?? null)
+              : null
+          );
+        }
+      }
+    } catch {
+      // best-effort
+    }
+  }, []);
+
   const displayMeta = availabilityMeta(availability ?? "available");
   const DisplayIcon = displayMeta.icon;
   const isWorking = availability === "working";
+  const isNoContact = availability === "no_contact";
+  const noContactEndMs = noContactEndsAt
+    ? new Date(noContactEndsAt).getTime()
+    : null;
   const showScheduleLink = availability === "available" || isWorking;
 
   const cardClassName = cn(
@@ -460,6 +729,24 @@ export function QueenStatusDisplay({
             <p className="text-xs opacity-80">
               {username} is working until {workingUntil.label}
             </p>
+          </div>
+        ) : isNoContact ? (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs opacity-80">{displayMeta.hint}</p>
+            {noContactEndMs ? (
+              <>
+                <p className="text-[10px] uppercase tracking-wider opacity-70">
+                  Ends in
+                </p>
+                <WorkEndCountdown
+                  endAtMs={noContactEndMs}
+                  compact
+                  onComplete={() => void onNoContactTimerEnd()}
+                />
+              </>
+            ) : (
+              <p className="text-xs opacity-80">Until Queen lifts it.</p>
+            )}
           </div>
         ) : (
           <p className="text-xs opacity-80">{displayMeta.hint}</p>

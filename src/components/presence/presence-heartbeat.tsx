@@ -4,6 +4,7 @@ import { useCallback, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { applyQueenWorkSchedules } from "@/lib/queen-work-schedule";
+import { clearExpiredNoContact } from "@/lib/no-contact";
 
 const INTERVAL_MS = 60_000;
 
@@ -19,6 +20,11 @@ export function PresenceHeartbeat() {
       await applyQueenWorkSchedules(supabase);
     } catch {
       // schedule apply is best-effort until migration is live
+    }
+    try {
+      await clearExpiredNoContact(supabase);
+    } catch {
+      // timed no-contact clear is best-effort
     }
   }, [user]);
 
