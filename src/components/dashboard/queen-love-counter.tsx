@@ -29,12 +29,21 @@ function formatWait(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function formatAverage(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 export function QueenLoveCounter({ className, compact = false }: Props) {
   const { profile, isSlave, isQueen } = useAuth();
   const [state, setState] = useState<QueenLoveState>({
     count: 0,
     lastIncrementAt: null,
     nextAllowedAt: null,
+    dayDate: null,
+    dailyAverage: 0,
+    daysTracked: 0,
+    timezone: "Asia/Taipei",
   });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -102,7 +111,7 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
     const supabase = createClient();
     try {
       setState(await resetQueenLove(supabase));
-      toast.success("Love counter reset");
+      toast.success("Today’s love counter reset");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not reset");
     } finally {
@@ -120,12 +129,16 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
       >
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Queen love
+            Queen love · today
           </p>
           <Heart className="size-3.5 shrink-0 fill-rose-400/80 text-rose-300" />
         </div>
         <p className="mt-1.5 font-heading text-2xl tabular-nums text-rose-200 sm:text-3xl">
           {loading ? "…" : state.count}
+        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Avg {loading ? "…" : formatAverage(state.dailyAverage)}/day
+          {state.daysTracked > 0 ? ` · ${state.daysTracked}d` : ""}
         </p>
         {isSlave ? (
           <Button
@@ -156,7 +169,7 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
             ) : (
               <RotateCcw className="mr-1.5 size-3.5" />
             )}
-            Reset
+            Reset today
           </Button>
         ) : null}
       </div>
@@ -173,13 +186,13 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Queen love
+            Queen love · today
           </p>
           <p className="font-heading text-lg text-ivory">Hearts for Queen</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {isSlave
-              ? "Tap the heart — once every 5 minutes."
-              : "How many times D has sent you love."}
+              ? "Tap the heart — once every 5 minutes. Resets at midnight Taipei."
+              : "Today’s hearts. Resets at midnight on D’s day (Taipei)."}
           </p>
         </div>
         <Heart className="size-5 shrink-0 fill-rose-400/80 text-rose-300" />
@@ -187,6 +200,18 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
 
       <p className="mt-3 font-heading text-4xl tabular-nums text-rose-200">
         {loading ? "…" : state.count}
+      </p>
+      <p className="mt-1 text-sm text-ivory/80">
+        Daily average{" "}
+        <span className="tabular-nums text-rose-200">
+          {loading ? "…" : formatAverage(state.dailyAverage)}
+        </span>
+        {state.daysTracked > 0 ? (
+          <span className="text-muted-foreground">
+            {" "}
+            · {state.daysTracked} day{state.daysTracked === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -218,7 +243,7 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
             ) : (
               <RotateCcw className="mr-2 size-4" />
             )}
-            Reset counter
+            Reset today
           </Button>
         ) : null}
       </div>

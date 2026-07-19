@@ -2197,6 +2197,24 @@ export type Database = {
           },
         ]
       }
+      queen_love_days: {
+        Row: {
+          day_date: string
+          heart_count: number
+          closed_at: string
+        }
+        Insert: {
+          day_date: string
+          heart_count?: number
+          closed_at?: string
+        }
+        Update: {
+          day_date?: string
+          heart_count?: number
+          closed_at?: string
+        }
+        Relationships: []
+      }
       denial_ledger: {
         Row: {
           id: number
@@ -2623,6 +2641,12 @@ export type Database = {
       is_no_contact_active: { Args: never; Returns: boolean }
       clear_expired_no_contact: { Args: never; Returns: number }
       get_slave_write_lock: { Args: never; Returns: Json }
+      get_queen_love: { Args: never; Returns: Json }
+      ensure_queen_love_day_rollover: { Args: never; Returns: undefined }
+      slave_calendar_date: {
+        Args: { p_ts?: string }
+        Returns: string
+      }
       increment_queen_love: { Args: never; Returns: Json }
       reset_queen_love: { Args: never; Returns: Json }
       denial_balance_clear: { Args: never; Returns: boolean }

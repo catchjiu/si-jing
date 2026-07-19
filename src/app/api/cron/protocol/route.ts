@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     }),
     supabase.rpc("apply_queen_work_schedules"),
     supabase.rpc("clear_expired_no_contact"),
+    supabase.rpc("ensure_queen_love_day_rollover"),
   ]);
 
   const clearedCount = Number(noContactCleared ?? 0);
