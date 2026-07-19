@@ -282,9 +282,18 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
       return
     }
 
+    if (values.youtube_url?.trim() && !isValidYouTubeUrl(values.youtube_url)) {
+      toast.error("Enter a valid YouTube URL, or clear it")
+      return
+    }
+
+    const hasMedia = files.length > 0 || Boolean(values.youtube_url?.trim())
+
     if (
       !window.confirm(
-        "Mark this task as failed and send your apology to Queen?"
+        hasMedia
+          ? "Mark this task as failed and send your apology with media to Queen?"
+          : "Mark this task as failed and send your apology to Queen?"
       )
     ) {
       return
@@ -293,8 +302,8 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
     await createSubmission({
       mode: "failed",
       submissionText: formatRoleSpeech(apology, profile?.role),
-      youtubeUrl: null,
-      withMedia: false,
+      youtubeUrl: values.youtube_url,
+      withMedia: hasMedia,
       taskStatus: "failed",
     })
   }
@@ -449,8 +458,8 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
           Task Failed
         </Button>
         <p className="text-center text-xs text-[color:var(--white,#f5f5f5)]/40">
-          Task Complete needs no media. Task Failed requires an apology in the
-          notes — Queen will review.
+          Task Failed requires an apology in the notes — you can also attach a
+          picture or video. Queen will review.
         </p>
       </div>
     </form>
