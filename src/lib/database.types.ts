@@ -2193,16 +2193,22 @@ export type Database = {
           key: string
           reset_at: string
           reset_by: string | null
+          count: number
+          last_increment_at: string | null
         }
         Insert: {
           key: string
           reset_at?: string
           reset_by?: string | null
+          count?: number
+          last_increment_at?: string | null
         }
         Update: {
           key?: string
           reset_at?: string
           reset_by?: string | null
+          count?: number
+          last_increment_at?: string | null
         }
         Relationships: [
           {
@@ -2549,6 +2555,8 @@ export type Database = {
       is_no_contact_active: { Args: never; Returns: boolean }
       clear_expired_no_contact: { Args: never; Returns: number }
       get_slave_write_lock: { Args: never; Returns: Json }
+      increment_queen_love: { Args: never; Returns: Json }
+      reset_queen_love: { Args: never; Returns: Json }
       assert_slave_can_mutate: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
       get_wishlist_budget: {

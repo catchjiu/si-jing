@@ -41,6 +41,8 @@ import { StreakMilestonesPanel } from "@/components/streaks/streak-milestones-pa
 import { DashboardActivityPanel } from "@/components/dashboard/dashboard-activity-panel"
 import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
+import { ConductPanel } from "@/components/dashboard/conduct-panel"
+import { QueenLoveCounter } from "@/components/dashboard/queen-love-counter"
 import type { ActivityItem } from "@/lib/activity"
 
 interface QueenDashboardProps {
@@ -218,6 +220,11 @@ export function QueenDashboard({
       <QueenStatusPicker />
 
       <QueenCyclePanel />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ConductPanel />
+        <QueenLoveCounter />
+      </div>
 
       <PartnerLocalCard placeId="slave" />
 
