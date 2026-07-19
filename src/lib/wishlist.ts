@@ -79,4 +79,21 @@ export async function markWishlistArrived(
   };
 }
 
+export async function rateWishlistGift(
+  supabase: Supabase,
+  itemId: string,
+  rating: number
+): Promise<{ id: string; queen_rating: number; queen_rated_at: string }> {
+  const { data, error } = await supabase.rpc("rate_wishlist_gift", {
+    p_item_id: itemId,
+    p_rating: rating,
+  });
+  if (error) throw error;
+  return data as {
+    id: string;
+    queen_rating: number;
+    queen_rated_at: string;
+  };
+}
+
 export { WISHLIST_WEEKLY_USD_LIMIT, WISHLIST_WEEKLY_ITEM_LIMIT } from "@/lib/wishlist-budget";

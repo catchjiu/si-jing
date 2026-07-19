@@ -19,9 +19,11 @@ import {
   WISHLIST_STATUS_LABELS,
   isWishlistSecretForQueen,
   markWishlistArrived,
+  rateWishlistGift,
   wishlistRevealButtonLabel,
   wishlistStatusClass,
 } from "@/lib/wishlist";
+import { GiftRatingStars } from "@/components/wishlist/gift-rating-stars";
 import {
   parseUsdInput,
   hasRecordedPurchasePrice,
@@ -87,6 +89,7 @@ export function WishlistGallery({
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [arrivingId, setArrivingId] = useState<string | null>(null);
+  const [ratingBusy, setRatingBusy] = useState(false);
   const [fulfillmentNotes, setFulfillmentNotes] = useState("");
   const [statusDraft, setStatusDraft] = useState<WishlistStatus>("new");
   const [purchasePrice, setPurchasePrice] = useState("");
@@ -154,6 +157,36 @@ export function WishlistGallery({
       .eq("id", item.id);
     if (error) return;
     onChanged?.();
+  };
+
+  const canRateGift = (item: WishlistItemWithSignedUrl) =>
+    isSlaveGift &&
+    (item.status === "revealed" || item.arrived_at != null);
+
+  const rateGift = async (item: WishlistItemWithSignedUrl, stars: number) => {
+    if (!isQueen || !canRateGift(item)) return;
+    setRatingBusy(true);
+    const supabase = createClient();
+    try {
+      const result = await rateWishlistGift(supabase, item.id, stars);
+      setActive((prev) =>
+        prev?.id === item.id
+          ? {
+              ...prev,
+              queen_rating: result.queen_rating,
+              queen_rated_at: result.queen_rated_at,
+            }
+          : prev
+      );
+      toast.success(`Rated ${stars} star${stars === 1 ? "" : "s"}`);
+      onChanged?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not save rating"
+      );
+    } finally {
+      setRatingBusy(false);
+    }
   };
 
   const saveFulfillment = async () => {
@@ -459,6 +492,14 @@ export function WishlistGallery({
                     )}
                   </div>
                 )}
+                {canRateGift(item) && (
+                  <GiftRatingStars
+                    rating={item.queen_rating}
+                    size="sm"
+                    showEmptyHint
+                    className="pt-0.5"
+                  />
+                )}
                 {item.purchase_price_usd != null &&
                   item.purchase_price_usd > 0 && (
                     <p className="text-xs text-gold/90">
@@ -570,6 +611,23 @@ export function WishlistGallery({
                       </span>
                     )}
                   </div>
+                  {canRateGift(active) && (
+                    <div className="space-y-1.5">
+                      <Label>
+                        {isQueen ? "Your rating" : "Queen’s rating"}
+                      </Label>
+                      <GiftRatingStars
+                        rating={active.queen_rating}
+                        onRate={
+                          isQueen
+                            ? (stars) => void rateGift(active, stars)
+                            : undefined
+                        }
+                        disabled={ratingBusy}
+                        showEmptyHint
+                      />
+                    </div>
+                  )}
                   {active.fulfillment_notes && (
                     <p className="text-sm text-ivory/80 whitespace-pre-wrap">
                       <RoleSpeech

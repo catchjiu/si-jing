@@ -92,6 +92,9 @@ export type WishlistItem = {
   purchase_price_usd?: number | null;
   purchased_at?: string | null;
   arrived_at?: string | null;
+  /** Queen's 1–5 star rating for revealed gifts. */
+  queen_rating?: number | null;
+  queen_rated_at?: string | null;
   /** True when Queen cannot view gift details yet. */
   is_secret?: boolean;
 };

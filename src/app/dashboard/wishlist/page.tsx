@@ -11,6 +11,10 @@ import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping
 import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
 import { fetchWishlistItems, isWishlistGiftBought } from "@/lib/wishlist";
+import {
+  formatGiftRatingAverage,
+  GiftRatingStars,
+} from "@/components/wishlist/gift-rating-stars";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { WishlistItem, WishlistItemWithSignedUrl } from "@/lib/types";
 
@@ -82,6 +86,10 @@ export default function WishlistPage() {
   const giftsBoughtItems = useMemo(
     () => items.filter((item) => isWishlistGiftBought(item)),
     [items]
+  );
+  const giftsBoughtRating = useMemo(
+    () => formatGiftRatingAverage(giftsBoughtItems),
+    [giftsBoughtItems]
   );
 
   const onDeleted = (id: string) => {
@@ -203,6 +211,23 @@ export default function WishlistPage() {
         <p className="text-sm text-muted-foreground">
           Arrived and collected — fully visible.
         </p>
+        {giftsBoughtRating && giftsBoughtItems.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <GiftRatingStars
+              rating={
+                giftsBoughtRating.ratedCount > 0
+                  ? Math.round(giftsBoughtRating.average)
+                  : null
+              }
+              size="md"
+            />
+            <p className="text-sm text-ivory/90">
+              {giftsBoughtRating.ratedCount > 0
+                ? `${giftsBoughtRating.average.toFixed(1)} / 5 · ${giftsBoughtRating.ratedCount} of ${giftsBoughtRating.total} rated`
+                : "No ratings yet"}
+            </p>
+          </div>
+        )}
         {loading && giftsBoughtItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
