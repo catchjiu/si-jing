@@ -31,7 +31,7 @@ type ConductContextValue = {
 const ConductContext = createContext<ConductContextValue | null>(null);
 
 export function ConductProvider({ children }: { children: ReactNode }) {
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, isSlave, loading: authLoading } = useAuth();
   const [level, setLevel] = useState<ConductLevel>(4);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +81,8 @@ export function ConductProvider({ children }: { children: ReactNode }) {
     };
   }, [profile, reload]);
 
-  const blursMedia = conductBlursMedia(level);
+  // Bad boy blur only affects the slave — Queen always sees pictures clearly.
+  const blursMedia = isSlave && conductBlursMedia(level);
 
   const value = useMemo(
     () => ({

@@ -15,7 +15,7 @@ export const CONDUCT_STEPS: {
   {
     level: 0,
     label: "Bad boy",
-    hint: "All pictures are blurred until he earns better",
+    hint: "His pictures are blurred until he earns better",
   },
   {
     level: 1,

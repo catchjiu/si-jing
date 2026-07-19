@@ -39,7 +39,7 @@ export function ConductPanel({ className }: Props) {
       setDraft(null);
       toast.success(
         next === 0
-          ? "Bad boy — all pictures are blurred"
+          ? "Bad boy — his pictures are blurred"
           : `Conduct: ${conductMeta(next).label}`
       );
     } catch (err) {
@@ -82,8 +82,8 @@ export function ConductPanel({ className }: Props) {
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {isQueen
-              ? "Set his standing. Bad boy blurs every picture on the site."
-              : "Queen’s verdict on how you’re behaving."}
+              ? "Set his standing. Bad boy blurs his pictures — Yours stay clear."
+              : "Queen’s verdict on how you’re behaving. Bad boy blurs pictures for you."}
           </p>
         </div>
         <ShieldAlert
