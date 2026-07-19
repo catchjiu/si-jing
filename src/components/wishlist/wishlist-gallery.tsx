@@ -90,6 +90,7 @@ export function WishlistGallery({
   const [statusBusy, setStatusBusy] = useState(false);
   const [arrivingId, setArrivingId] = useState<string | null>(null);
   const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingCommentDraft, setRatingCommentDraft] = useState("");
   const [fulfillmentNotes, setFulfillmentNotes] = useState("");
   const [statusDraft, setStatusDraft] = useState<WishlistStatus>("new");
   const [purchasePrice, setPurchasePrice] = useState("");
@@ -99,6 +100,7 @@ export function WishlistGallery({
     setActive(item);
     setStatusDraft(item.status ?? "new");
     setFulfillmentNotes(item.fulfillment_notes ?? "");
+    setRatingCommentDraft(item.queen_rating_comment ?? "");
     setPurchasePrice(
       item.purchase_price_usd != null ? String(item.purchase_price_usd) : ""
     );
@@ -163,26 +165,68 @@ export function WishlistGallery({
     isSlaveGift &&
     (item.status === "revealed" || item.arrived_at != null);
 
+  const applyRatingResult = (
+    itemId: string,
+    result: {
+      queen_rating: number | null;
+      queen_rated_at: string | null;
+      queen_rating_comment: string | null;
+    }
+  ) => {
+    setActive((prev) =>
+      prev?.id === itemId
+        ? {
+            ...prev,
+            queen_rating: result.queen_rating,
+            queen_rated_at: result.queen_rated_at,
+            queen_rating_comment: result.queen_rating_comment,
+          }
+        : prev
+    );
+    setRatingCommentDraft(result.queen_rating_comment ?? "");
+  };
+
   const rateGift = async (item: WishlistItemWithSignedUrl, stars: number) => {
     if (!isQueen || !canRateGift(item)) return;
     setRatingBusy(true);
     const supabase = createClient();
     try {
-      const result = await rateWishlistGift(supabase, item.id, stars);
-      setActive((prev) =>
-        prev?.id === item.id
-          ? {
-              ...prev,
-              queen_rating: result.queen_rating,
-              queen_rated_at: result.queen_rated_at,
-            }
-          : prev
-      );
+      const result = await rateWishlistGift(supabase, item.id, {
+        rating: stars,
+        comment: ratingCommentDraft,
+      });
+      applyRatingResult(item.id, result);
       toast.success(`Rated ${stars} star${stars === 1 ? "" : "s"}`);
       onChanged?.();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not save rating"
+      );
+    } finally {
+      setRatingBusy(false);
+    }
+  };
+
+  const saveRatingComment = async (item: WishlistItemWithSignedUrl) => {
+    if (!isQueen || !canRateGift(item)) return;
+    const trimmed = ratingCommentDraft.trim();
+    if (trimmed.length > 200) {
+      toast.error("Comment must be 200 characters or fewer");
+      return;
+    }
+    setRatingBusy(true);
+    const supabase = createClient();
+    try {
+      const result = await rateWishlistGift(supabase, item.id, {
+        rating: item.queen_rating ?? undefined,
+        comment: trimmed,
+      });
+      applyRatingResult(item.id, result);
+      toast.success(trimmed ? "Comment saved" : "Comment cleared");
+      onChanged?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not save comment"
       );
     } finally {
       setRatingBusy(false);
@@ -493,12 +537,18 @@ export function WishlistGallery({
                   </div>
                 )}
                 {canRateGift(item) && (
-                  <GiftRatingStars
-                    rating={item.queen_rating}
-                    size="sm"
-                    showEmptyHint
-                    className="pt-0.5"
-                  />
+                  <div className="space-y-1 pt-0.5">
+                    <GiftRatingStars
+                      rating={item.queen_rating}
+                      size="sm"
+                      showEmptyHint
+                    />
+                    {item.queen_rating_comment ? (
+                      <p className="line-clamp-2 text-xs italic text-ivory/75">
+                        “{item.queen_rating_comment}”
+                      </p>
+                    ) : null}
+                  </div>
                 )}
                 {item.purchase_price_usd != null &&
                   item.purchase_price_usd > 0 && (
@@ -612,20 +662,69 @@ export function WishlistGallery({
                     )}
                   </div>
                   {canRateGift(active) && (
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <Label>
                         {isQueen ? "Your rating" : "Queen’s rating"}
                       </Label>
-                      <GiftRatingStars
-                        rating={active.queen_rating}
-                        onRate={
-                          isQueen
-                            ? (stars) => void rateGift(active, stars)
-                            : undefined
-                        }
-                        disabled={ratingBusy}
-                        showEmptyHint
-                      />
+                      <div className="flex flex-wrap items-start gap-3">
+                        <GiftRatingStars
+                          rating={active.queen_rating}
+                          onRate={
+                            isQueen
+                              ? (stars) => void rateGift(active, stars)
+                              : undefined
+                          }
+                          disabled={ratingBusy}
+                          showEmptyHint
+                        />
+                        {!isQueen && active.queen_rating_comment ? (
+                          <p className="min-w-0 flex-1 text-sm italic text-ivory/85">
+                            “{active.queen_rating_comment}”
+                          </p>
+                        ) : null}
+                      </div>
+                      {isQueen ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="gift-rating-comment">
+                            Short note for D
+                          </Label>
+                          <Textarea
+                            id="gift-rating-comment"
+                            value={ratingCommentDraft}
+                            onChange={(e) =>
+                              setRatingCommentDraft(e.target.value)
+                            }
+                            maxLength={200}
+                            rows={2}
+                            placeholder="What to buy more/less of next time…"
+                            className="border-gold/20 bg-void/60 text-sm"
+                            disabled={ratingBusy}
+                          />
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] text-muted-foreground">
+                              {ratingCommentDraft.trim().length}/200 · shown next
+                              to the stars
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-gold/30"
+                              disabled={
+                                ratingBusy ||
+                                ratingCommentDraft.trim() ===
+                                  (active.queen_rating_comment ?? "").trim()
+                              }
+                              onClick={() => void saveRatingComment(active)}
+                            >
+                              {ratingBusy ? (
+                                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                              ) : null}
+                              Save note
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                   {active.fulfillment_notes && (

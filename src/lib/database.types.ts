@@ -353,6 +353,7 @@ export type Database = {
           arrived_at: string | null
           queen_rating: number | null
           queen_rated_at: string | null
+          queen_rating_comment: string | null
           updated_at: string
         }
         Insert: {
@@ -377,6 +378,7 @@ export type Database = {
           arrived_at?: string | null
           queen_rating?: number | null
           queen_rated_at?: string | null
+          queen_rating_comment?: string | null
           updated_at?: string
         }
         Update: {
@@ -401,6 +403,7 @@ export type Database = {
           arrived_at?: string | null
           queen_rating?: number | null
           queen_rated_at?: string | null
+          queen_rating_comment?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2578,7 +2581,11 @@ export type Database = {
         Returns: Json
       }
       rate_wishlist_gift: {
-        Args: { p_item_id: string; p_rating: number }
+        Args: {
+          p_item_id: string
+          p_rating?: number
+          p_comment?: string
+        }
         Returns: Json
       }
       record_wishlist_purchase: {

@@ -95,6 +95,8 @@ export type WishlistItem = {
   /** Queen's 1–5 star rating for revealed gifts. */
   queen_rating?: number | null;
   queen_rated_at?: string | null;
+  /** Short Queen feedback next to the star rating. */
+  queen_rating_comment?: string | null;
   /** True when Queen cannot view gift details yet. */
   is_secret?: boolean;
 };

@@ -82,17 +82,33 @@ export async function markWishlistArrived(
 export async function rateWishlistGift(
   supabase: Supabase,
   itemId: string,
-  rating: number
-): Promise<{ id: string; queen_rating: number; queen_rated_at: string }> {
-  const { data, error } = await supabase.rpc("rate_wishlist_gift", {
-    p_item_id: itemId,
-    p_rating: rating,
-  });
+  options: {
+    rating?: number | null;
+    /** Pass a string to set/clear; omit to leave unchanged. */
+    comment?: string | null;
+  }
+): Promise<{
+  id: string;
+  queen_rating: number | null;
+  queen_rated_at: string | null;
+  queen_rating_comment: string | null;
+}> {
+  const args: {
+    p_item_id: string;
+    p_rating?: number;
+    p_comment?: string;
+  } = { p_item_id: itemId };
+  if (options.rating != null) args.p_rating = options.rating;
+  if (options.comment !== undefined) {
+    args.p_comment = options.comment ?? "";
+  }
+  const { data, error } = await supabase.rpc("rate_wishlist_gift", args);
   if (error) throw error;
   return data as {
     id: string;
-    queen_rating: number;
-    queen_rated_at: string;
+    queen_rating: number | null;
+    queen_rated_at: string | null;
+    queen_rating_comment: string | null;
   };
 }
 
