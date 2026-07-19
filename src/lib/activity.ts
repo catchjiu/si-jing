@@ -367,6 +367,15 @@ export async function fetchRecentActivity(
           href: `/dashboard/task/${t.id}`,
           kind: "task_submitted",
         });
+      } else if (t.status === "failed") {
+        pushItem(items, {
+          id: `task-fail-${t.id}`,
+          at: t.updated_at as string,
+          title: "D failed a task",
+          body: t.title as string,
+          href: `/dashboard/task/${t.id}`,
+          kind: "task_failed",
+        });
       }
     }
 

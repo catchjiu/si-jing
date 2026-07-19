@@ -7,7 +7,8 @@ export type TaskStatus =
   | "in_progress"
   | "submitted"
   | "approved"
-  | "rejected";
+  | "rejected"
+  | "failed";
 
 export type SubmissionStatus = "pending" | "approved" | "rejected";
 

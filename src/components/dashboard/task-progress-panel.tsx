@@ -22,6 +22,7 @@ function sortByActivity(tasks: Task[]): Task[] {
   const priority: Record<Task["status"], number> = {
     in_progress: 0,
     submitted: 1,
+    failed: 1,
     pending: 2,
     rejected: 3,
     approved: 4,
@@ -43,6 +44,9 @@ function progressHint(task: Task): string | null {
   }
   if (task.status === "submitted") {
     return `Finished ${formatRelative(task.updated_at)} · awaiting review`;
+  }
+  if (task.status === "failed") {
+    return `Failed ${formatRelative(task.updated_at)} · apology sent`;
   }
   if (task.status === "approved") {
     return `Completed ${formatRelative(task.updated_at)}`;

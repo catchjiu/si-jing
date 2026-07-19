@@ -52,7 +52,7 @@ export async function deleteSubmission(
       .eq("id", submission.task_id)
       .single();
 
-    if (task && ["submitted", "rejected"].includes(task.status)) {
+    if (task && ["submitted", "rejected", "failed"].includes(task.status)) {
       const nextStatus = task.started_at ? "in_progress" : "pending";
       await supabase
         .from("tasks")

@@ -25,6 +25,7 @@ const STATUS_OPTIONS: { value: TaskStatus | "all"; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "in_progress", label: "In Progress" },
   { value: "submitted", label: "Submitted" },
+  { value: "failed", label: "Failed" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
 ]

@@ -86,6 +86,7 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   submitted: "Submitted",
   approved: "Approved",
   rejected: "Rejected",
+  failed: "Failed",
 }
 
 export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
@@ -94,6 +95,7 @@ export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
   submitted: "bg-blue-500/15 text-blue-300 border-blue-500/40",
   approved: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
   rejected: "bg-red-500/15 text-red-300 border-red-500/40",
+  failed: "bg-red-500/20 text-red-200 border-red-500/50",
 }
 
 export const SUBMISSION_STATUS_LABELS: Record<SubmissionStatus, string> = {

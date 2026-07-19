@@ -5,7 +5,15 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { CheckCircle2, Film, ImagePlus, Loader2, Upload, X } from "lucide-react"
+import {
+  CheckCircle2,
+  Film,
+  ImagePlus,
+  Loader2,
+  Upload,
+  X,
+  XCircle,
+} from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
@@ -14,11 +22,13 @@ import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress"
 import { resolveImageLocation } from "@/lib/location"
 import { presignAndUpload } from "@/lib/storage/client"
 import { formatRoleSpeech } from "@/lib/role-speech"
+import { notifyPush } from "@/lib/push-client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import type { TaskStatus } from "@/lib/types"
 
 const submissionSchema = z.object({
   submission_text: z.string().max(2000).optional(),
@@ -46,7 +56,9 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
   const { profile } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [dragActive, setDragActive] = useState(false)
-  const [submitting, setSubmitting] = useState<"proof" | "complete" | null>(null)
+  const [submitting, setSubmitting] = useState<
+    "proof" | "complete" | "failed" | null
+  >(null)
 
   const {
     register,
@@ -94,10 +106,11 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
   }
 
   async function createSubmission(options: {
-    mode: "proof" | "complete"
+    mode: "proof" | "complete" | "failed"
     submissionText: string | null
     youtubeUrl?: string | null
     withMedia: boolean
+    taskStatus: TaskStatus
   }) {
     if (!profile) {
       toast.error("You must be logged in")
@@ -188,16 +201,33 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
       const { error: taskError } = await supabase
         .from("tasks")
-        .update({ status: "submitted", updated_at: new Date().toISOString() })
+        .update({
+          status: options.taskStatus,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", taskId)
 
       if (taskError) throw taskError
 
-      toast.success(
-        options.mode === "complete"
-          ? "Marked complete — awaiting Queen's review"
-          : "Submission sent for review"
-      )
+      if (options.mode === "failed") {
+        toast.success("Task marked failed — apology sent to Queen")
+        void notifyPush({
+          title: "Task failed",
+          body: (options.submissionText || "D admitted failure and sent an apology.").slice(
+            0,
+            120
+          ),
+          url: `/dashboard/task/${taskId}`,
+          target: "queen",
+          kind: "task_failed",
+        })
+      } else {
+        toast.success(
+          options.mode === "complete"
+            ? "Marked complete — awaiting Queen's review"
+            : "Submission sent for review"
+        )
+      }
       setFiles([])
       onSuccess?.()
     } catch (err) {
@@ -221,6 +251,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
         : null,
       youtubeUrl: values.youtube_url,
       withMedia: true,
+      taskStatus: "submitted",
     })
   }
 
@@ -239,6 +270,32 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
       ),
       youtubeUrl: null,
       withMedia: false,
+      taskStatus: "submitted",
+    })
+  }
+
+  async function onMarkFailed() {
+    const values = getValues()
+    const apology = values.submission_text?.trim()
+    if (!apology || apology.length < 8) {
+      toast.error("Write an apology before marking the task failed")
+      return
+    }
+
+    if (
+      !window.confirm(
+        "Mark this task as failed and send your apology to Queen?"
+      )
+    ) {
+      return
+    }
+
+    await createSubmission({
+      mode: "failed",
+      submissionText: formatRoleSpeech(apology, profile?.role),
+      youtubeUrl: null,
+      withMedia: false,
+      taskStatus: "failed",
     })
   }
 
@@ -251,11 +308,11 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
       )}
     >
       <div className="space-y-1.5">
-        <Label htmlFor="submission_text">Caption / Notes</Label>
+        <Label htmlFor="submission_text">Caption / Notes / Apology</Label>
         <Textarea
           id="submission_text"
           {...register("submission_text")}
-          placeholder="Describe your submission..."
+          placeholder="Describe your submission — or write your apology if you failed..."
           rows={3}
           className="border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--black,#0a0a0a)]"
         />
@@ -377,9 +434,23 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
           )}
           Task Complete
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={submitting !== null}
+          onClick={() => void onMarkFailed()}
+          className="w-full border-red-500/40 text-red-300 hover:bg-red-500/10"
+        >
+          {submitting === "failed" ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <XCircle className="mr-2 size-4" />
+          )}
+          Task Failed
+        </Button>
         <p className="text-center text-xs text-[color:var(--white,#f5f5f5)]/40">
-          Use Task Complete when no images or video are needed — still awaits
-          Queen&apos;s review
+          Task Complete needs no media. Task Failed requires an apology in the
+          notes — Queen will review.
         </p>
       </div>
     </form>

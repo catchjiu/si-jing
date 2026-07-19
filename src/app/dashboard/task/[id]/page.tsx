@@ -76,7 +76,7 @@ export default async function TaskDetailPage({
   const isQueen = profile.role === "queen";
   const isAssignee = task.assigned_to === profile.id;
   const canSubmit =
-    isAssignee && !["approved"].includes(task.status);
+    isAssignee && !["approved", "failed"].includes(task.status);
 
   return (
     <div className="space-y-8">

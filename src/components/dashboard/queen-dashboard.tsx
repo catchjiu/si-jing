@@ -456,7 +456,9 @@ export function QueenDashboard({
               <ul className="space-y-2">
                 {activeTasks.map((task) => {
                   const slaveActed =
-                    task.status === "in_progress" || task.status === "submitted"
+                    task.status === "in_progress" ||
+                    task.status === "submitted" ||
+                    task.status === "failed"
                   return (
                   <li key={task.id}>
                     <Link
@@ -479,6 +481,14 @@ export function QueenDashboard({
                               className="border-gold/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-gold"
                             >
                               Awaiting review
+                            </Badge>
+                          )}
+                          {task.status === "failed" && (
+                            <Badge
+                              variant="outline"
+                              className="border-red-500/50 px-1.5 py-0 text-[9px] uppercase tracking-wider text-red-300"
+                            >
+                              Failed · apology
                             </Badge>
                           )}
                           {task.status === "in_progress" && (

@@ -50,7 +50,7 @@ export default function ProfilePage() {
         total: tasks.length,
         approved: tasks.filter((t) => t.status === "approved").length,
         pending: tasks.filter((t) =>
-          ["pending", "in_progress", "submitted"].includes(t.status)
+          ["pending", "in_progress", "submitted", "failed"].includes(t.status)
         ).length,
       });
     };

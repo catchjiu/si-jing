@@ -210,7 +210,7 @@ export default async function DashboardPage() {
   const { done: todayDone, total: todayTotal } = dayProgress(todayTasks);
   const completed = myTasks.filter((t) => t.status === "approved").length;
   const active = myTasks.filter(
-    (t) => !["approved", "rejected"].includes(t.status)
+    (t) => !["approved", "rejected", "failed"].includes(t.status)
   ).length;
 
   const myAcks = acks.filter((a) => a.user_id === profile.id);

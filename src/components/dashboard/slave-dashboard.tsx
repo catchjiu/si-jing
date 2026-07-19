@@ -76,7 +76,7 @@ export function SlaveDashboard({
     activePunishments ??
     (activeContactRestriction ? [activeContactRestriction] : [])
   const activeTasks = tasks.filter(
-    (t) => !["approved", "rejected"].includes(t.status)
+    (t) => !["approved", "rejected", "failed"].includes(t.status)
   )
   const queenVerdicts = tasks
     .filter((t) => t.status === "rejected")
