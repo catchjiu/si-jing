@@ -212,6 +212,7 @@ export type RequestType =
   | "mercy"
   | "reward"
   | "general"
+  | "orgasm"
   | "directive"
   | "question";
 export type RequestStatus = "pending" | "approved" | "denied" | "withdrawn";

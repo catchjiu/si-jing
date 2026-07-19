@@ -8,8 +8,18 @@ import { useAuth } from "@/contexts/auth-context";
 import type { RequestType } from "@/lib/types";
 import type { CapturedVoice } from "@/lib/voice";
 import { uploadVoiceNote } from "@/lib/voice";
-import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
+import {
+  desireColor,
+  desireLabel,
+  PETITION_TYPES,
+  REQUEST_TYPE_LABELS,
+} from "@/lib/requests";
 import { hasPunishmentEffect } from "@/lib/punishments";
+import {
+  fetchDenialLedger,
+  formatDenialBlockReason,
+  type DenialLedger,
+} from "@/lib/denial";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
@@ -29,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Link from "next/link";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -56,8 +67,11 @@ export function RequestForm({
   const [dragActive, setDragActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [contactBlocked, setContactBlocked] = useState(false);
+  const [denialLedger, setDenialLedger] = useState<DenialLedger | null>(null);
 
   const label = useMemo(() => desireLabel(desire), [desire]);
+  const orgasmBlocked =
+    type === "orgasm" && denialLedger != null && !denialLedger.can_request_orgasm;
 
   const setImage = useCallback(
     (next: File | null) => {
@@ -85,6 +99,10 @@ export function RequestForm({
   useEffect(() => {
     if (!isSlave || !profile) return;
     void hasPunishmentEffect("contact", profile.id).then(setContactBlocked);
+    const supabase = createClient();
+    void fetchDenialLedger(supabase)
+      .then(setDenialLedger)
+      .catch(() => setDenialLedger(null));
   }, [isSlave, profile]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -96,6 +114,22 @@ export function RequestForm({
     if (contactBlocked) {
       toast.error("Contact is restricted — you cannot send requests");
       return;
+    }
+    if (type === "orgasm") {
+      const supabase = createClient();
+      try {
+        const ledger = await fetchDenialLedger(supabase);
+        setDenialLedger(ledger);
+        if (!ledger.can_request_orgasm) {
+          toast.error(formatDenialBlockReason(ledger));
+          return;
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Could not check denial ledger"
+        );
+        return;
+      }
     }
     if (!title.trim()) {
       toast.error("Give your request a title");
@@ -266,13 +300,25 @@ export function RequestForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(REQUEST_TYPE_LABELS) as RequestType[]).map((key) => (
+            {PETITION_TYPES.map((key) => (
               <SelectItem key={key} value={key}>
                 {REQUEST_TYPE_LABELS[key]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {orgasmBlocked && denialLedger ? (
+          <p className="text-xs text-red-300">
+            {formatDenialBlockReason(denialLedger)}.{" "}
+            <Link href="/dashboard/denial" className="underline text-gold">
+              Open Denial ledger
+            </Link>
+          </p>
+        ) : type === "orgasm" ? (
+          <p className="text-xs text-muted-foreground">
+            Ask only when your edge debt and denial days are clear.
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -281,10 +327,15 @@ export function RequestForm({
           id="request-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Permission to speak… a small mercy…"
+          placeholder={
+            type === "orgasm"
+              ? "Permission to cum…"
+              : "Permission to speak… a small mercy…"
+          }
           className="border-gold/20 bg-void/60"
           required
           maxLength={120}
+          disabled={orgasmBlocked}
         />
       </div>
 
@@ -393,7 +444,7 @@ export function RequestForm({
 
       <Button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || orgasmBlocked}
         className="w-full bg-gold text-void hover:bg-gold-muted"
       >
         {submitting ? (

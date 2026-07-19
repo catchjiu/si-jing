@@ -2197,6 +2197,65 @@ export type Database = {
           },
         ]
       }
+      denial_ledger: {
+        Row: {
+          id: number
+          edges_remaining: number
+          denial_ends_at: string | null
+          queen_note: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          edges_remaining?: number
+          denial_ends_at?: string | null
+          queen_note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          edges_remaining?: number
+          denial_ends_at?: string | null
+          queen_note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      edge_logs: {
+        Row: {
+          id: string
+          logged_by: string
+          image_path: string
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          logged_by: string
+          image_path: string
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          logged_by?: string
+          image_path?: string
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edge_logs_logged_by_fkey"
+            columns: ["logged_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pair_counters: {
         Row: {
           key: string
@@ -2566,6 +2625,25 @@ export type Database = {
       get_slave_write_lock: { Args: never; Returns: Json }
       increment_queen_love: { Args: never; Returns: Json }
       reset_queen_love: { Args: never; Returns: Json }
+      denial_balance_clear: { Args: never; Returns: boolean }
+      can_request_orgasm: { Args: never; Returns: boolean }
+      get_denial_ledger: { Args: never; Returns: Json }
+      queen_add_edge_debt: {
+        Args: { p_edges: number; p_note?: string | null }
+        Returns: Json
+      }
+      queen_add_denial_days: {
+        Args: { p_days: number; p_note?: string | null }
+        Returns: Json
+      }
+      queen_clear_denial_ledger: {
+        Args: { p_clear_edges?: boolean; p_clear_days?: boolean }
+        Returns: Json
+      }
+      slave_log_edge: {
+        Args: { p_image_path: string; p_note?: string | null }
+        Returns: Json
+      }
       assert_slave_can_mutate: { Args: never; Returns: undefined }
       get_attention_budget: { Args: never; Returns: Record<string, unknown> }
       get_wishlist_budget: {
