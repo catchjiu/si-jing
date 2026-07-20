@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
@@ -42,7 +42,7 @@ async function withSignedUrls(
   );
 }
 
-export default function WishlistPage() {
+function WishlistPageInner() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const focusItemId = searchParams.get("item");
@@ -262,5 +262,13 @@ export default function WishlistPage() {
         )}
       </section>
     </div>
+  );
+}
+
+export default function WishlistPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <WishlistPageInner />
+    </Suspense>
   );
 }
