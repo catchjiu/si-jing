@@ -10,6 +10,7 @@ import { WishlistGallery } from "@/components/wishlist/wishlist-gallery";
 import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping-address";
 import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
+import { WishlistApartmentFundPanel } from "@/components/wishlist/wishlist-apartment-fund-panel";
 import { fetchWishlistItems, isWishlistGiftBought } from "@/lib/wishlist";
 import {
   formatGiftRatingAverage,
@@ -124,6 +125,8 @@ export default function WishlistPage() {
             : "Her taste to study, gift ideas, and gifts you’ve bought for Queen"}
         </p>
       </div>
+
+      <WishlistApartmentFundPanel />
 
       <WishlistShippingAddress />
 
