@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import {
@@ -70,6 +70,8 @@ interface WishlistGalleryProps {
   onEdit?: (item: WishlistItemWithSignedUrl) => void;
   onChanged?: () => void;
   onBudgetChange?: () => void;
+  focusItemId?: string | null;
+  focusCommentId?: string | null;
   className?: string;
 }
 
@@ -80,6 +82,8 @@ export function WishlistGallery({
   onEdit,
   onChanged,
   onBudgetChange,
+  focusItemId = null,
+  focusCommentId = null,
   className,
 }: WishlistGalleryProps) {
   const { isQueen, isSlave, profile } = useAuth();
@@ -108,6 +112,13 @@ export function WishlistGallery({
       void markSeen(item);
     }
   };
+
+  useEffect(() => {
+    if (!focusItemId) return;
+    const match = items.find((i) => i.id === focusItemId);
+    if (!match || active?.id === match.id) return;
+    openItem(match);
+  }, [focusItemId, items, active?.id, isQueen, isSlave, isSlaveGift]);
 
   const markArrived = async (item: WishlistItemWithSignedUrl) => {
     if (!isQueen) return;
@@ -857,6 +868,9 @@ export function WishlistGallery({
                 <WishlistCommentThread
                   wishlistId={active.id}
                   wishlistTitle={active.title}
+                  highlightCommentId={
+                    focusItemId === active.id ? focusCommentId : null
+                  }
                 />
 
                 {(isQueen || (isSlave && isSlaveGift && active?.created_by === profile?.id)) &&

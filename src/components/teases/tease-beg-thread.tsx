@@ -11,7 +11,11 @@ import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
-import { inboxAnchors, highlightMessageElement } from "@/lib/inbox-deep-links";
+import {
+  inboxAnchors,
+  highlightMessageElement,
+  teasePageHref,
+} from "@/lib/inbox-deep-links";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -159,7 +163,9 @@ export function TeaseBegThread({
     void notifyPush({
       title: isSlave ? "D is begging" : "Queen replied on a tease",
       body: text.slice(0, 120),
-      url: "/dashboard/inbox",
+      url: teasePageHref(teaseId, {
+        commentId: inserted?.id ?? undefined,
+      }),
       target: isSlave ? "queen" : "slave",
       kind: "tease",
     });

@@ -3,6 +3,9 @@ import type { MessageAttachmentType } from "@/lib/inbox";
 export const inboxAnchors = {
   tease: (teaseId: string) => `tease:${teaseId}`,
   teaseComment: (messageId: string) => `tease_comment:${messageId}`,
+  wishlist: (itemId: string) => `wishlist:${itemId}`,
+  wishlistComment: (itemId: string, messageId: string) =>
+    `wishlist_comment:${itemId}:${messageId}`,
   worshipGallery: () => "worship_gallery",
   worshipEntry: (entryId: string) => `worship_entry:${entryId}`,
   worshipGalleryComment: (messageId: string) =>
@@ -10,6 +13,24 @@ export const inboxAnchors = {
   worshipPhotoComment: (entryId: string, messageId: string) =>
     `worship_photo_comment:${entryId}:${messageId}`,
 } as const;
+
+export function teasePageHref(
+  teaseId: string,
+  opts?: { commentId?: string | null }
+): string {
+  const params = new URLSearchParams({ tease: teaseId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  return `/dashboard/teases?${params.toString()}`;
+}
+
+export function wishlistPageHref(
+  itemId: string,
+  opts?: { commentId?: string | null }
+): string {
+  const params = new URLSearchParams({ item: itemId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  return `/dashboard/wishlist?${params.toString()}`;
+}
 
 export function messageAttachmentHref(opts: {
   type: MessageAttachmentType;
@@ -26,7 +47,7 @@ export function messageAttachmentHref(opts: {
   if (type === "request") return `/dashboard/requests`;
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
-  if (type === "wishlist") return `/dashboard/wishlist`;
+  if (type === "wishlist") return wishlistDeepLink(id, anchor);
   if (type === "worship") return worshipDeepLink(id, anchor);
   if (type === "shop") return `/dashboard/shop`;
   if (type === "worship_assignment") return `/dashboard/worship`;
@@ -34,11 +55,26 @@ export function messageAttachmentHref(opts: {
 }
 
 function teaseDeepLink(teaseId: string, anchor?: string | null): string {
-  const params = new URLSearchParams({ tease: teaseId });
   if (anchor?.startsWith("tease_comment:")) {
-    params.set("comment", anchor.slice("tease_comment:".length));
+    return teasePageHref(teaseId, {
+      commentId: anchor.slice("tease_comment:".length),
+    });
   }
-  return `/dashboard/teases?${params.toString()}`;
+  return teasePageHref(teaseId);
+}
+
+function wishlistDeepLink(itemId: string, anchor?: string | null): string {
+  if (anchor?.startsWith("wishlist_comment:")) {
+    const rest = anchor.slice("wishlist_comment:".length);
+    const [item, comment] = rest.split(":");
+    if (item && comment) {
+      return wishlistPageHref(item, { commentId: comment });
+    }
+  }
+  if (anchor?.startsWith("wishlist:")) {
+    return wishlistPageHref(anchor.slice("wishlist:".length));
+  }
+  return wishlistPageHref(itemId);
 }
 
 function worshipDeepLink(galleryId: string, anchor?: string | null): string {

@@ -8,6 +8,10 @@ import { useAuth } from "@/contexts/auth-context";
 import type { VoiceEntityType } from "@/lib/types";
 import type { CapturedVoice } from "@/lib/voice";
 import { uploadVoiceNote } from "@/lib/voice";
+import {
+  teasePageHref,
+  wishlistPageHref,
+} from "@/lib/inbox-deep-links";
 import { pickRecorderMimeType } from "@/lib/voice-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -166,11 +170,13 @@ export function VoiceRecorder({
                 ? "New voice on a date"
                 : "New voice message",
           url:
-            entityType === "tease"
-              ? "/dashboard/teases"
-              : entityType === "date"
-                ? "/dashboard/dates"
-                : "/dashboard",
+            entityType === "tease" && entityId
+              ? teasePageHref(entityId)
+              : entityType === "wishlist" && entityId
+                ? wishlistPageHref(entityId)
+                : entityType === "date"
+                  ? "/dashboard/dates"
+                  : "/dashboard",
           target,
         })
       );

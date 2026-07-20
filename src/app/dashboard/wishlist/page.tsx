@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -43,6 +44,9 @@ async function withSignedUrls(
 
 export default function WishlistPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const focusItemId = searchParams.get("item");
+  const focusCommentId = searchParams.get("comment");
   const [items, setItems] = useState<WishlistItemWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingQueen, setEditingQueen] =
@@ -170,6 +174,8 @@ export default function WishlistPage() {
             onDeleted={onDeleted}
             onChanged={load}
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
+            focusItemId={focusItemId}
+            focusCommentId={focusCommentId}
             onEdit={
               isQueen
                 ? (item) => {
@@ -195,6 +201,8 @@ export default function WishlistPage() {
             onDeleted={onDeleted}
             onChanged={load}
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
+            focusItemId={focusItemId}
+            focusCommentId={focusCommentId}
             onEdit={
               isSlave
                 ? (item) => {
@@ -240,6 +248,8 @@ export default function WishlistPage() {
             onDeleted={onDeleted}
             onChanged={load}
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
+            focusItemId={focusItemId}
+            focusCommentId={focusCommentId}
             onEdit={
               isSlave
                 ? (item) => {

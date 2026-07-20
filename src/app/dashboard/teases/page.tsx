@@ -14,6 +14,7 @@ import { hasPunishmentEffect } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
+import { teasePageHref } from "@/lib/inbox-deep-links";
 import {
   isTeaseReactionCaptureSupported,
   pickVideoRecorderMimeType,
@@ -387,7 +388,7 @@ function TeasesPageInner() {
           notifyPush({
             title: "New tease",
             body: summary,
-            url: "/dashboard/inbox",
+            url: teasePageHref(created.id),
             target: "slave",
             kind: "tease",
           })
@@ -486,7 +487,7 @@ function TeasesPageInner() {
         notifyPush({
           title: "New tease",
           body: tease.title || "Queen sent a tease again",
-          url: "/dashboard/inbox",
+          url: teasePageHref(created.id),
           target: "slave",
           kind: "tease",
         })
@@ -563,7 +564,7 @@ function TeasesPageInner() {
         notifyPush({
           title: "Tease revealed",
           body: tease.title || "Queen revealed a tease",
-          url: "/dashboard/teases",
+          url: teasePageHref(tease.id),
           target: "slave",
           kind: "tease",
         })
@@ -664,7 +665,7 @@ function TeasesPageInner() {
             mediaKind === "video"
               ? `D watched again (+1 view) — reaction cam sent`
               : `D looked ${metric}s — reaction cam sent`,
-          url: "/dashboard/teases",
+          url: teasePageHref(teaseId),
           target: "queen",
           kind: "tease",
         })
@@ -896,7 +897,7 @@ function TeasesPageInner() {
       notifyPush({
         title: "Tease reaction from D",
         body: `${tease.title || "Tease"} · ${clamped}% wrecked`,
-        url: "/dashboard/teases",
+        url: teasePageHref(tease.id),
         target: "queen",
         kind: "tease",
       })
@@ -939,7 +940,7 @@ function TeasesPageInner() {
       notifyPush({
         title: "Tease capture alert",
         body: `${tease?.title || "Tease"} · D may have tried to capture`,
-        url: "/dashboard/teases",
+        url: teasePageHref(id),
         target: "queen",
         kind: "tease_capture",
       })
@@ -1697,9 +1698,7 @@ function TeasesPageInner() {
                     teaseId={t.id}
                     teaseTitle={t.title}
                     mediaKind={t.media_kind ?? "image"}
-                    defaultOpen={
-                      focusTeaseId === t.id && Boolean(focusCommentId)
-                    }
+                    defaultOpen={focusTeaseId === t.id}
                     highlightCommentId={
                       focusTeaseId === t.id ? focusCommentId : null
                     }

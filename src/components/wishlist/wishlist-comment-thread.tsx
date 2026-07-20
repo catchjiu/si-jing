@@ -12,6 +12,11 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
+import {
+  highlightMessageElement,
+  inboxAnchors,
+  wishlistPageHref,
+} from "@/lib/inbox-deep-links";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,12 +42,14 @@ type WishlistMessage = {
 interface WishlistCommentThreadProps {
   wishlistId: string;
   wishlistTitle?: string | null;
+  highlightCommentId?: string | null;
   className?: string;
 }
 
 export function WishlistCommentThread({
   wishlistId,
   wishlistTitle,
+  highlightCommentId = null,
   className,
 }: WishlistCommentThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -137,6 +144,14 @@ export function WishlistCommentThread({
     };
   }, [preview]);
 
+  useEffect(() => {
+    if (!highlightCommentId || loading) return;
+    const timer = window.setTimeout(() => {
+      highlightMessageElement(highlightCommentId);
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [highlightCommentId, loading, messages.length]);
+
   const canSend = Boolean(draft.trim() || file);
 
   const removeComment = async (message: WishlistMessage) => {
@@ -191,12 +206,16 @@ export function WishlistCommentThread({
         ? formatRoleSpeech(draft.trim(), profile.role)
         : null;
 
-      const { error } = await supabase.from("wishlist_messages").insert({
-        wishlist_id: wishlistId,
-        author_id: profile.id,
-        content: text,
-        image_path: imagePath,
-      });
+      const { data: inserted, error } = await supabase
+        .from("wishlist_messages")
+        .insert({
+          wishlist_id: wishlistId,
+          author_id: profile.id,
+          content: text,
+          image_path: imagePath,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
       const notifyBody = text || (imagePath ? "Sent a photo" : "");
@@ -209,11 +228,16 @@ export function WishlistCommentThread({
         content: notifyBody,
         attachmentType: "wishlist",
         attachmentId: wishlistId,
+        attachmentAnchor: inserted?.id
+          ? inboxAnchors.wishlistComment(wishlistId, inserted.id)
+          : inboxAnchors.wishlist(wishlistId),
       });
       void notifyPush({
         title: isSlave ? "Comment on wishlist" : "Queen commented on wishlist",
         body: notifyBody.slice(0, 120),
-        url: "/dashboard/wishlist",
+        url: wishlistPageHref(wishlistId, {
+          commentId: inserted?.id ?? undefined,
+        }),
         target: isSlave ? "queen" : "slave",
       });
     } catch (err) {
@@ -242,6 +266,7 @@ export function WishlistCommentThread({
             return (
               <li
                 key={m.id}
+                id={`inbox-focus-${m.id}`}
                 className={cn(
                   "rounded-lg border px-3 py-2",
                   mine

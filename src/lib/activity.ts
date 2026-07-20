@@ -1,5 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserRole } from "@/lib/types";
+import {
+  attachmentHref,
+  type MessageAttachmentType,
+} from "@/lib/inbox";
+import {
+  inboxAnchors,
+  messageAttachmentHref,
+  teasePageHref,
+  wishlistPageHref,
+} from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
   id: string;
@@ -109,19 +119,52 @@ function voiceNoteHref(
   entityId: string | null | undefined
 ): string {
   if (entityType === "date") return "/dashboard/dates";
-  if (entityType === "tease") return "/dashboard/teases";
+  if (entityType === "tease" && entityId) return teasePageHref(entityId);
   if (entityType === "reward") return "/dashboard/rewards";
   if (entityType === "journal") return "/dashboard/journal";
   if (entityType === "request") return "/dashboard/requests";
-  if (entityType === "wishlist") return "/dashboard/wishlist";
-  if (entityType === "worship") return "/dashboard/worship";
+  if (entityType === "wishlist" && entityId) return wishlistPageHref(entityId);
   if (entityType === "worship_gallery" && entityId) {
     return `/dashboard/worship/${entityId}`;
   }
+  if (entityType === "worship") return "/dashboard/worship";
   if (entityType === "submission" && entityId) {
     return `/dashboard/submissions/${entityId}`;
   }
   return "/dashboard";
+}
+
+function worshipCommentActivityHref(m: {
+  id: string;
+  worship_id?: string | null;
+  entry?: { gallery_id?: string } | null;
+}): string {
+  const galleryId = m.entry?.gallery_id;
+  if (!galleryId) return "/dashboard/worship";
+  const entryId = m.worship_id as string | undefined;
+  return messageAttachmentHref({
+    type: "worship",
+    id: galleryId,
+    anchor:
+      entryId != null
+        ? inboxAnchors.worshipPhotoComment(entryId, m.id as string)
+        : null,
+  });
+}
+
+function directMessageActivityHref(dm: {
+  attachment_type: string | null;
+  attachment_id: string | null;
+  attachment_anchor?: string | null;
+}): string {
+  const type = dm.attachment_type as MessageAttachmentType | null;
+  const id = dm.attachment_id as string | null;
+  if (type && id) {
+    return attachmentHref(type, id, dm.attachment_anchor ?? null);
+  }
+  if (type === "punishment") return "/dashboard/punishments";
+  if (type === "date") return "/dashboard/dates";
+  return "/dashboard/inbox";
 }
 
 export async function fetchRecentActivity(
@@ -326,7 +369,7 @@ export async function fetchRecentActivity(
       supabase
         .from("direct_messages")
         .select(
-          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, sender:users!sender_id(id, role, username)"
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, attachment_anchor, sender:users!sender_id(id, role, username)"
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
@@ -480,7 +523,7 @@ export async function fetchRecentActivity(
         title: "Gift idea · D",
         // Titles stay secret until Arrived/Reveal (RLS also hides unrevealed rows).
         body: "D suggested a gift for you",
-        href: "/dashboard/wishlist",
+        href: wishlistPageHref(w.id as string),
         kind: "wishlist_gift_add",
       });
     }
@@ -498,7 +541,7 @@ export async function fetchRecentActivity(
           at: w.seen_at as string,
           title: "Wishlist item seen · D",
           body: title,
-          href: "/dashboard/wishlist",
+          href: wishlistPageHref(w.id as string),
           kind: "wishlist_seen",
         });
       }
@@ -509,7 +552,7 @@ export async function fetchRecentActivity(
           at,
           title: "Note on wishlist · D",
           body: `${title.slice(0, 40)} — ${notes.slice(0, 80)}`,
-          href: "/dashboard/wishlist",
+          href: wishlistPageHref(w.id as string),
           kind: "wishlist_note",
         });
       }
@@ -520,7 +563,7 @@ export async function fetchRecentActivity(
           at,
           title: `Wishlist ${status} · D`,
           body: title,
-          href: "/dashboard/wishlist",
+          href: wishlistPageHref(w.id as string),
           kind: "wishlist_status",
         });
       }
@@ -538,7 +581,9 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content,
         where: "wishlist",
-        href: "/dashboard/wishlist",
+        href: wishlistPageHref(m.wishlist_id as string, {
+          commentId: m.id as string,
+        }),
         kind: "wishlist_comment",
         context: item?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -563,7 +608,13 @@ export async function fetchRecentActivity(
         at: w.created_at as string,
         title: "Worship photo · D",
         body: (w.title as string) || "A new photo of you",
-        href: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
+        href: galleryId
+          ? messageAttachmentHref({
+              type: "worship",
+              id: galleryId,
+              anchor: inboxAnchors.worshipEntry(w.id as string),
+            })
+          : "/dashboard/worship",
         kind: "worship_add",
       });
     }
@@ -575,9 +626,11 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content: m.content as string,
         where: "worship",
-        href: entry?.gallery_id
-          ? `/dashboard/worship/${entry.gallery_id}`
-          : "/dashboard/worship",
+        href: worshipCommentActivityHref({
+          id: m.id as string,
+          worship_id: m.worship_id as string,
+          entry: m.entry as { gallery_id?: string } | null,
+        }),
         kind: "worship_comment",
         context: entry?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -594,18 +647,11 @@ export async function fetchRecentActivity(
       ) {
         continue;
       }
-      const href =
-        attachmentType === "punishment"
-          ? "/dashboard/punishments"
-          : attachmentType === "date"
-            ? "/dashboard/dates"
-            : attachmentType === "wishlist"
-              ? "/dashboard/wishlist"
-              : attachmentType === "worship"
-                ? dm.attachment_id
-                  ? `/dashboard/worship/${dm.attachment_id as string}`
-                  : "/dashboard/worship"
-              : "/dashboard/inbox";
+      const href = directMessageActivityHref({
+        attachment_type: attachmentType,
+        attachment_id: dm.attachment_id as string | null,
+        attachment_anchor: dm.attachment_anchor as string | null,
+      });
       if (dm.voice_path) {
         pushItem(items, {
           id: `inbox-voice-${dm.id}`,
@@ -667,7 +713,7 @@ export async function fetchRecentActivity(
           at: t.screenshot_flagged_at as string,
           title: "Tease capture alert",
           body: (t.title as string) || "D may have left mid-view",
-          href: "/dashboard/teases",
+          href: teasePageHref(t.id as string),
           kind: "tease_capture",
         });
       }
@@ -677,7 +723,7 @@ export async function fetchRecentActivity(
           at: t.viewed_at as string,
           title: "Tease viewed",
           body: (t.title as string) || "D opened a tease",
-          href: "/dashboard/teases",
+          href: teasePageHref(t.id as string),
           kind: "tease_viewed",
         });
       }
@@ -692,7 +738,7 @@ export async function fetchRecentActivity(
         at: cap.created_at as string,
         title: "Reaction video on tease · D",
         body: tease?.title ?? "D viewed a tease on camera",
-        href: "/dashboard/teases",
+        href: teasePageHref(cap.tease_id as string),
         kind: "tease_reaction_video",
       });
     }
@@ -729,7 +775,7 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content: m.content as string,
         where: "tease",
-        href: "/dashboard/teases",
+        href: teasePageHref(m.tease_id as string, { commentId: m.id as string }),
         kind: "tease_comment",
         context: tease?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -954,7 +1000,7 @@ export async function fetchRecentActivity(
       supabase
         .from("direct_messages")
         .select(
-          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, sender:users!sender_id(id, role, username)"
+          "id, content, created_at, sender_id, voice_path, media_type, attachment_type, attachment_id, attachment_anchor, sender:users!sender_id(id, role, username)"
         )
         .neq("sender_id", profile.id)
         .is("deleted_at", null)
@@ -1152,7 +1198,7 @@ export async function fetchRecentActivity(
         at: w.created_at as string,
         where: "wishlist",
         body: (w.title as string) || "Something she wants",
-        href: "/dashboard/wishlist",
+        href: wishlistPageHref(w.id as string),
         kind: "wishlist_add",
         author: creator ?? { id: w.created_by as string, role: "queen" },
       });
@@ -1170,7 +1216,9 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content,
         where: "wishlist",
-        href: "/dashboard/wishlist",
+        href: wishlistPageHref(m.wishlist_id as string, {
+          commentId: m.id as string,
+        }),
         kind: "wishlist_comment",
         context: item?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -1198,7 +1246,13 @@ export async function fetchRecentActivity(
           at: w.viewed_at as string,
           title: "Queen viewed your photo",
           body: (w.title as string) || "Your offering",
-          href: galleryId ? `/dashboard/worship/${galleryId}` : "/dashboard/worship",
+          href: galleryId
+            ? messageAttachmentHref({
+                type: "worship",
+                id: galleryId,
+                anchor: inboxAnchors.worshipEntry(w.id as string),
+              })
+            : "/dashboard/worship",
           kind: "worship_viewed",
         });
       }
@@ -1211,9 +1265,11 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content: m.content as string,
         where: "worship",
-        href: entry?.gallery_id
-          ? `/dashboard/worship/${entry.gallery_id}`
-          : "/dashboard/worship",
+        href: worshipCommentActivityHref({
+          id: m.id as string,
+          worship_id: m.worship_id as string,
+          entry: m.entry as { gallery_id?: string } | null,
+        }),
         kind: "worship_comment",
         context: entry?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
@@ -1230,18 +1286,11 @@ export async function fetchRecentActivity(
       ) {
         continue;
       }
-      const href =
-        attachmentType === "punishment"
-          ? "/dashboard/punishments"
-          : attachmentType === "date"
-            ? "/dashboard/dates"
-            : attachmentType === "wishlist"
-              ? "/dashboard/wishlist"
-              : attachmentType === "worship"
-                ? dm.attachment_id
-                  ? `/dashboard/worship/${dm.attachment_id as string}`
-                  : "/dashboard/worship"
-              : "/dashboard/inbox";
+      const href = directMessageActivityHref({
+        attachment_type: attachmentType,
+        attachment_id: dm.attachment_id as string | null,
+        attachment_anchor: dm.attachment_anchor as string | null,
+      });
       if (dm.voice_path) {
         pushItem(items, {
           id: `inbox-voice-${dm.id}`,
@@ -1282,7 +1331,7 @@ export async function fetchRecentActivity(
           at: t.unblurred_at as string,
           title: "Tease revealed",
           body: (t.title as string) || "Queen revealed a tease",
-          href: "/dashboard/teases",
+          href: teasePageHref(t.id as string),
           kind: "tease_revealed",
         });
       } else {
@@ -1291,7 +1340,7 @@ export async function fetchRecentActivity(
           at: t.created_at as string,
           title: "New tease",
           body: (t.title as string) || "Something waiting for you",
-          href: "/dashboard/teases",
+          href: teasePageHref(t.id as string),
           kind: "tease_new",
         });
       }
@@ -1326,7 +1375,7 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content: m.content as string,
         where: "tease",
-        href: "/dashboard/teases",
+        href: teasePageHref(m.tease_id as string, { commentId: m.id as string }),
         kind: "tease_comment",
         context: tease?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
