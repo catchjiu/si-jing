@@ -10,6 +10,7 @@ import {
   HandHeart,
   Heart,
   ListTodo,
+  Lock,
   Sparkles,
   Store,
   Sparkle,
@@ -42,6 +43,7 @@ const ICONS: Record<
   worship: Crown,
   shop: Store,
   worship_assignment: Sparkle,
+  denial: Lock,
 };
 
 export function MessageCard({

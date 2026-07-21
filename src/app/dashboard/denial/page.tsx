@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { Lock } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { DenialLedgerPanel } from "@/components/denial/denial-ledger-panel";
@@ -26,7 +27,13 @@ export default function DenialPage() {
               : "Edge debt and denial ledger."}
         </p>
       </div>
-      <DenialLedgerPanel />
+      <Suspense
+        fallback={
+          <p className="text-sm text-muted-foreground">Loading ledger…</p>
+        }
+      >
+        <DenialLedgerPanel />
+      </Suspense>
     </div>
   );
 }

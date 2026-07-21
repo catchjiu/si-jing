@@ -114,18 +114,23 @@ export async function addEdgeLogComment(
   supabase: Supabase,
   edgeLogId: string,
   content: string
-): Promise<void> {
+): Promise<string> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not signed in");
 
-  const { error } = await supabase.from("edge_log_comments").insert({
-    edge_log_id: edgeLogId,
-    author_id: user.id,
-    content,
-  });
+  const { data, error } = await supabase
+    .from("edge_log_comments")
+    .insert({
+      edge_log_id: edgeLogId,
+      author_id: user.id,
+      content,
+    })
+    .select("id")
+    .single();
   if (error) throw error;
+  return data.id as string;
 }
 
 export async function slaveLogEdge(

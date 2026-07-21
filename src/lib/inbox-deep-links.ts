@@ -12,7 +12,21 @@ export const inboxAnchors = {
     `worship_gallery_comment:${messageId}`,
   worshipPhotoComment: (entryId: string, messageId: string) =>
     `worship_photo_comment:${entryId}:${messageId}`,
+  denialEdge: (edgeLogId: string) => `denial_edge:${edgeLogId}`,
+  denialComment: (edgeLogId: string, commentId: string) =>
+    `denial_comment:${edgeLogId}:${commentId}`,
 } as const;
+
+export function denialPageHref(opts?: {
+  edgeLogId?: string | null;
+  commentId?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  if (opts?.edgeLogId) params.set("edge", opts.edgeLogId);
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  const qs = params.toString();
+  return qs ? `/dashboard/denial?${qs}` : "/dashboard/denial";
+}
 
 export function teasePageHref(
   teaseId: string,
@@ -51,7 +65,24 @@ export function messageAttachmentHref(opts: {
   if (type === "worship") return worshipDeepLink(id, anchor);
   if (type === "shop") return `/dashboard/shop`;
   if (type === "worship_assignment") return `/dashboard/worship`;
+  if (type === "denial") return denialDeepLink(id, anchor);
   return `/dashboard/inbox`;
+}
+
+function denialDeepLink(edgeLogId: string, anchor?: string | null): string {
+  if (anchor?.startsWith("denial_comment:")) {
+    const rest = anchor.slice("denial_comment:".length);
+    const [edge, comment] = rest.split(":");
+    if (edge && comment) {
+      return denialPageHref({ edgeLogId: edge, commentId: comment });
+    }
+  }
+  if (anchor?.startsWith("denial_edge:")) {
+    return denialPageHref({
+      edgeLogId: anchor.slice("denial_edge:".length),
+    });
+  }
+  return denialPageHref({ edgeLogId });
 }
 
 function teaseDeepLink(teaseId: string, anchor?: string | null): string {

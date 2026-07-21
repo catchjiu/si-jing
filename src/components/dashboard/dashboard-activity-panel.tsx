@@ -15,6 +15,7 @@ import {
   HandHeart,
   Heart,
   ImageIcon,
+  Lock,
   MessageSquare,
   Mic,
   Sparkles,
@@ -93,6 +94,8 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   inbox_message: MessageSquare,
   inbox_voice: Mic,
   apartment_fund: Building2,
+  denial_edge: Lock,
+  denial_comment: MessageSquare,
 };
 
 function iconForKind(kind: string) {

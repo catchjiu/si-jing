@@ -257,7 +257,8 @@ export type MessageAttachmentType =
   | "wishlist"
   | "worship"
   | "shop"
-  | "worship_assignment";
+  | "worship_assignment"
+  | "denial";
 export type MessageMediaType = "image" | "video";
 
 export type DirectMessage = {

@@ -131,6 +131,13 @@ function alertCategory(n: AppNotification): string {
   ) {
     return "reward";
   }
+  if (
+    haystack.includes("denial") ||
+    haystack.includes("edge logged") ||
+    haystack.includes("/dashboard/denial")
+  ) {
+    return "other";
+  }
   return "other";
 }
 

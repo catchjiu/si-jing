@@ -10,6 +10,7 @@ import {
   messageAttachmentHref,
   teasePageHref,
   wishlistPageHref,
+  denialPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -89,6 +90,7 @@ const COMMENT_ATTACHMENT_TYPES = new Set([
   "punishment",
   "wishlist",
   "worship",
+  "denial",
 ]);
 
 function pushOtherPartyAdd(
@@ -211,6 +213,8 @@ export async function fetchRecentActivity(
       datePosts,
       teaseViewCaptures,
       apartmentFundEntries,
+      edgeLogs,
+      edgeLogComments,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -399,6 +403,21 @@ export async function fetchRecentActivity(
             .order("created_at", { ascending: false })
             .limit(FETCH_LIMIT)
         : Promise.resolve({ data: [] }),
+      slaveId
+        ? supabase
+            .from("edge_logs")
+            .select("id, note, created_at, logged_by")
+            .eq("logged_by", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("edge_log_comments")
+        .select(
+          "id, content, created_at, edge_log_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
     ]);
 
     for (const t of slaveTasks.data ?? []) {
@@ -768,6 +787,33 @@ export async function fetchRecentActivity(
       });
     }
 
+    for (const log of edgeLogs.data ?? []) {
+      const note = (log.note as string | null)?.trim();
+      pushItem(items, {
+        id: `denial-edge-${log.id}`,
+        at: log.created_at as string,
+        title: "Edge logged · D",
+        body: note || "New edge proof submitted",
+        href: denialPageHref({ edgeLogId: log.id as string }),
+        kind: "denial_edge",
+      });
+    }
+
+    for (const c of edgeLogComments.data ?? []) {
+      pushOtherPartyComment(items, profile, {
+        id: `denial-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "denial",
+        href: denialPageHref({
+          edgeLogId: c.edge_log_id as string,
+          commentId: c.id as string,
+        }),
+        kind: "denial_comment",
+        author: c.author as { id?: string; role?: string } | null,
+      });
+    }
+
     for (const r of rewards.data ?? []) {
       if (r.viewed_at) {
         pushItem(items, {
@@ -912,6 +958,7 @@ export async function fetchRecentActivity(
       worshipGalleries,
       worshipEntries,
       worshipMessages,
+      edgeLogCommentsSlave,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -1072,6 +1119,13 @@ export async function fetchRecentActivity(
         .from("worship_messages")
         .select(
           "id, content, created_at, worship_id, author_id, author:users!author_id(id, role, username), entry:worship_entries(title, gallery_id)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("edge_log_comments")
+        .select(
+          "id, content, created_at, edge_log_id, author_id, author:users!author_id(id, role, username)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1298,6 +1352,21 @@ export async function fetchRecentActivity(
         kind: "worship_comment",
         context: entry?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const c of edgeLogCommentsSlave.data ?? []) {
+      pushOtherPartyComment(items, profile, {
+        id: `denial-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "denial",
+        href: denialPageHref({
+          edgeLogId: c.edge_log_id as string,
+          commentId: c.id as string,
+        }),
+        kind: "denial_comment",
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 

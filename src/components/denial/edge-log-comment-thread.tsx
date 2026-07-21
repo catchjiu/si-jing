@@ -8,11 +8,17 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { notifyPush } from "@/lib/push-client";
+import { postToTopicThread } from "@/lib/inbox";
 import {
   addEdgeLogComment,
   fetchEdgeLogComments,
   type EdgeLogComment,
 } from "@/lib/denial";
+import {
+  denialPageHref,
+  highlightMessageElement,
+  inboxAnchors,
+} from "@/lib/inbox-deep-links";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,11 +26,13 @@ import { RoleSpeech } from "@/components/ui/role-speech";
 
 type EdgeLogCommentThreadProps = {
   edgeLogId: string;
+  highlightCommentId?: string | null;
   className?: string;
 };
 
 export function EdgeLogCommentThread({
   edgeLogId,
+  highlightCommentId = null,
   className,
 }: EdgeLogCommentThreadProps) {
   const { profile, isQueen, isSlave } = useAuth();
@@ -68,22 +76,39 @@ export function EdgeLogCommentThread({
     };
   }, [edgeLogId, load]);
 
+  useEffect(() => {
+    if (!highlightCommentId || loading) return;
+    const t = window.setTimeout(() => {
+      highlightMessageElement(highlightCommentId);
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [highlightCommentId, loading, messages.length]);
+
   const send = async () => {
     if (!profile || !draft.trim() || !canComment) return;
     setSending(true);
     const supabase = createClient();
     const text = formatRoleSpeech(draft.trim(), profile.role);
     try {
-      await addEdgeLogComment(supabase, edgeLogId, text);
+      const commentId = await addEdgeLogComment(supabase, edgeLogId, text);
       setDraft("");
       void load();
+      void postToTopicThread(supabase, {
+        topic: "general",
+        senderId: profile.id,
+        content: text,
+        attachmentType: "denial",
+        attachmentId: edgeLogId,
+        attachmentAnchor: inboxAnchors.denialComment(edgeLogId, commentId),
+      });
       void notifyPush({
         title: isQueen
-          ? "Queen commented on an edge log"
-          : "D commented on an edge log",
+          ? "Queen commented on denial"
+          : "Comment on denial · D",
         body: text.slice(0, 120),
-        url: "/dashboard/denial",
+        url: denialPageHref({ edgeLogId, commentId }),
         target: isQueen ? "slave" : "queen",
+        kind: "denial",
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not post comment");
@@ -108,6 +133,7 @@ export function EdgeLogCommentThread({
             return (
               <li
                 key={m.id}
+                id={`inbox-focus-${m.id}`}
                 className={cn(
                   "rounded-md px-2 py-1.5 text-xs",
                   author?.role === "queen"

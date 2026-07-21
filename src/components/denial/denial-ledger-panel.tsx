@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ImagePlus,
@@ -31,6 +32,8 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { postToTopicThread } from "@/lib/inbox";
+import { denialPageHref, inboxAnchors } from "@/lib/inbox-deep-links";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +48,9 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export function DenialLedgerPanel() {
   const { isQueen, isSlave, profile } = useAuth();
+  const searchParams = useSearchParams();
+  const highlightEdgeId = searchParams.get("edge");
+  const highlightCommentId = searchParams.get("comment");
   const [ledger, setLedger] = useState<DenialLedger | null>(null);
   const [logs, setLogs] = useState<EdgeLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,10 +110,40 @@ export function DenialLedgerPanel() {
         }
       )
       .subscribe();
+    const logsChannel = supabase
+      .channel("edge_logs")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "edge_logs" },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
     return () => {
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(logsChannel);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (loading || !highlightEdgeId) return;
+    const t = window.setTimeout(() => {
+      if (highlightCommentId) return;
+      const el = document.getElementById(`inbox-focus-edge-${highlightEdgeId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.classList.add("ring-2", "ring-gold/50", "ring-offset-2", "ring-offset-void");
+      window.setTimeout(() => {
+        el?.classList.remove(
+          "ring-2",
+          "ring-gold/50",
+          "ring-offset-2",
+          "ring-offset-void"
+        );
+      }, 3200);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [loading, logs.length, highlightEdgeId, highlightCommentId]);
 
   const daysLeft = useMemo(
     () => denialDaysRemaining(ledger?.denial_ends_at),
@@ -276,14 +312,23 @@ export function DenialLedgerPanel() {
       toast.success(
         `Edge logged · ${result.ledger.edges_remaining} remaining`
       );
+      void postToTopicThread(supabase, {
+        topic: "general",
+        senderId: profile.id,
+        content: note ?? "Logged an edge with photo proof",
+        attachmentType: "denial",
+        attachmentId: result.logId,
+        attachmentAnchor: inboxAnchors.denialEdge(result.logId),
+      });
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Edge logged",
           body: `${result.ledger.edges_remaining} edge${
             result.ledger.edges_remaining === 1 ? "" : "s"
           } still owed`,
-          url: "/dashboard/denial",
+          url: denialPageHref({ edgeLogId: result.logId }),
           target: "queen",
+          kind: "denial",
         })
       );
       await load();
@@ -518,6 +563,7 @@ export function DenialLedgerPanel() {
             {logs.map((log) => (
               <div
                 key={log.id}
+                id={`inbox-focus-edge-${log.id}`}
                 className="overflow-hidden rounded-xl border border-gold/15 bg-charcoal/80"
               >
                 <div className="relative aspect-[4/5] bg-void">
@@ -548,7 +594,12 @@ export function DenialLedgerPanel() {
                   {log.note ? (
                     <p className="text-sm text-ivory/85">{log.note}</p>
                   ) : null}
-                  <EdgeLogCommentThread edgeLogId={log.id} />
+                  <EdgeLogCommentThread
+                    edgeLogId={log.id}
+                    highlightCommentId={
+                      highlightEdgeId === log.id ? highlightCommentId : null
+                    }
+                  />
                 </div>
               </div>
             ))}

@@ -27,7 +27,8 @@ export type MessageAttachmentType =
   | "wishlist"
   | "worship"
   | "shop"
-  | "worship_assignment";
+  | "worship_assignment"
+  | "denial";
 
 export type MessageMediaType = "image" | "video";
 
@@ -570,6 +571,7 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     worship: "Worship",
     shop: "Shop",
     worship_assignment: "Worship assignment",
+    denial: "Denial",
   };
   return labels[type];
 }
