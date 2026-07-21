@@ -1133,6 +1133,35 @@ export type Database = {
           },
         ]
       }
+      queen_apartment_fund_entries: {
+        Row: {
+          id: string
+          user_id: string
+          amount_ntd: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          amount_ntd: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          amount_ntd?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queen_apartment_fund_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queen_dates: {
         Row: {
           id: string

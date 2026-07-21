@@ -40,6 +40,7 @@ import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import { ConductPanel } from "@/components/dashboard/conduct-panel"
 import { QueenLoveCounter } from "@/components/dashboard/queen-love-counter"
+import { ApartmentFundPanel } from "@/components/dashboard/apartment-fund-panel"
 import type { ActivityItem } from "@/lib/activity"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -144,6 +145,8 @@ export function SlaveDashboard({
       <QueenReturnsCountdown />
 
       <AttentionBudgetPanel />
+
+      <ApartmentFundPanel />
 
       <MoodPicker />
 

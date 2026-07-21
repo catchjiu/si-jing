@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { formatNtd } from "@/lib/apartment-fund";
 import type { UserRole } from "@/lib/types";
 import {
   attachmentHref,
@@ -209,6 +210,7 @@ export async function fetchRecentActivity(
       directMessages,
       datePosts,
       teaseViewCaptures,
+      apartmentFundEntries,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -389,6 +391,14 @@ export async function fetchRecentActivity(
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
+      slaveId
+        ? supabase
+            .from("queen_apartment_fund_entries")
+            .select("id, amount_ntd, created_at, user_id")
+            .eq("user_id", slaveId)
+            .order("created_at", { ascending: false })
+            .limit(FETCH_LIMIT)
+        : Promise.resolve({ data: [] }),
     ]);
 
     for (const t of slaveTasks.data ?? []) {
@@ -740,6 +750,18 @@ export async function fetchRecentActivity(
         body: tease?.title ?? "D viewed a tease on camera",
         href: teasePageHref(cap.tease_id as string),
         kind: "tease_reaction_video",
+      });
+    }
+
+    for (const row of apartmentFundEntries.data ?? []) {
+      const amount = Number(row.amount_ntd ?? 0);
+      pushItem(items, {
+        id: `apartment-fund-${row.id}`,
+        at: row.created_at as string,
+        title: "Apartment fund deposit · D",
+        body: amount > 0 ? `Added ${formatNtd(amount)}` : "Added to apartment fund",
+        href: "/dashboard",
+        kind: "apartment_fund",
       });
     }
 

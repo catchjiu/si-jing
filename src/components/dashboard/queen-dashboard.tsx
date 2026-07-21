@@ -43,6 +43,7 @@ import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import { ConductPanel } from "@/components/dashboard/conduct-panel"
 import { QueenLoveCounter } from "@/components/dashboard/queen-love-counter"
+import { ApartmentFundPanel } from "@/components/dashboard/apartment-fund-panel"
 import type { ActivityItem } from "@/lib/activity"
 
 interface QueenDashboardProps {
@@ -234,6 +235,8 @@ export function QueenDashboard({
         <SlavePresence slaveId={slaveId} />
         <AttentionBudgetPanel />
       </div>
+
+      <ApartmentFundPanel />
 
       {slaveStatus && (
         <MoodDisplay

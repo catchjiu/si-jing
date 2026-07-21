@@ -6,6 +6,7 @@ import {
   AlarmClock,
   Ban,
   BellRing,
+  Building2,
   CheckCircle2,
   BookOpen,
   ClipboardList,
@@ -91,6 +92,7 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   worship_viewed: Crown,
   inbox_message: MessageSquare,
   inbox_voice: Mic,
+  apartment_fund: Building2,
 };
 
 function iconForKind(kind: string) {
