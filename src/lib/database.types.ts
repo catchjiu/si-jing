@@ -2272,7 +2272,46 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [        ]
+      }
+      edge_log_comments: {
+        Row: {
+          id: string
+          edge_log_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          edge_log_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          edge_log_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edge_log_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "edge_log_comments_edge_log_id_fkey"
+            columns: ["edge_log_id"]
+            isOneToOne: false
+            referencedRelation: "edge_logs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       edge_logs: {
         Row: {
@@ -2694,6 +2733,10 @@ export type Database = {
       }
       queen_clear_denial_ledger: {
         Args: { p_clear_edges?: boolean; p_clear_days?: boolean }
+        Returns: Json
+      }
+      queen_set_denial_note: {
+        Args: { p_note?: string | null }
         Returns: Json
       }
       slave_log_edge: {

@@ -77,6 +77,57 @@ export async function queenClearDenialLedger(
   return normalizeLedger((data ?? {}) as Record<string, unknown>);
 }
 
+export async function queenSetDenialNote(
+  supabase: Supabase,
+  note: string | null
+): Promise<DenialLedger> {
+  const { data, error } = await supabase.rpc("queen_set_denial_note", {
+    p_note: note?.trim() || null,
+  });
+  if (error) throw error;
+  return normalizeLedger((data ?? {}) as Record<string, unknown>);
+}
+
+export type EdgeLogComment = {
+  id: string;
+  edge_log_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author?: { id: string; username: string; role: string } | null;
+};
+
+export async function fetchEdgeLogComments(
+  supabase: Supabase,
+  edgeLogId: string
+): Promise<EdgeLogComment[]> {
+  const { data, error } = await supabase
+    .from("edge_log_comments")
+    .select("id, edge_log_id, author_id, content, created_at, author:users!author_id(id, username, role)")
+    .eq("edge_log_id", edgeLogId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as EdgeLogComment[];
+}
+
+export async function addEdgeLogComment(
+  supabase: Supabase,
+  edgeLogId: string,
+  content: string
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { error } = await supabase.from("edge_log_comments").insert({
+    edge_log_id: edgeLogId,
+    author_id: user.id,
+    content,
+  });
+  if (error) throw error;
+}
+
 export async function slaveLogEdge(
   supabase: Supabase,
   imagePath: string,

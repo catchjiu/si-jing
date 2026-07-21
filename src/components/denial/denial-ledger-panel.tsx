@@ -21,6 +21,7 @@ import {
   queenAddDenialDays,
   queenAddEdgeDebt,
   queenClearDenialLedger,
+  queenSetDenialNote,
   slaveLogEdge,
   type DenialLedger,
   type EdgeLog,
@@ -37,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { EdgeLogCommentThread } from "@/components/denial/edge-log-comment-thread";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -183,6 +185,29 @@ export function DenialLedgerPanel() {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not add days");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveQueenNote = async () => {
+    if (!isQueen) return;
+    setBusy(true);
+    const supabase = createClient();
+    try {
+      const next = await queenSetDenialNote(supabase, queenNote);
+      setLedger(next);
+      toast.success("Note saved");
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: "Queen updated denial note",
+          body: queenNote.trim().slice(0, 120) || "See Denial page",
+          url: "/dashboard/denial",
+          target: "slave",
+        })
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save note");
     } finally {
       setBusy(false);
     }
@@ -339,6 +364,16 @@ export function DenialLedgerPanel() {
               placeholder="Why he’s locked / what you expect…"
               className="border-gold/20 bg-void/60"
             />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              className="border-gold/30 text-gold"
+              onClick={() => void saveQueenNote()}
+            >
+              Save note
+            </Button>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -513,6 +548,7 @@ export function DenialLedgerPanel() {
                   {log.note ? (
                     <p className="text-sm text-ivory/85">{log.note}</p>
                   ) : null}
+                  <EdgeLogCommentThread edgeLogId={log.id} />
                 </div>
               </div>
             ))}
