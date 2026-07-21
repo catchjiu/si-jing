@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { formatNtd } from "@/lib/apartment-fund";
+import { formatApartmentFundDepositBody } from "@/lib/apartment-fund";
 import type { UserRole } from "@/lib/types";
 import {
   attachmentHref,
@@ -394,7 +394,7 @@ export async function fetchRecentActivity(
       slaveId
         ? supabase
             .from("queen_apartment_fund_entries")
-            .select("id, amount_ntd, created_at, user_id")
+            .select("id, amount_ntd, note, created_at, user_id")
             .eq("user_id", slaveId)
             .order("created_at", { ascending: false })
             .limit(FETCH_LIMIT)
@@ -759,7 +759,10 @@ export async function fetchRecentActivity(
         id: `apartment-fund-${row.id}`,
         at: row.created_at as string,
         title: "Apartment fund deposit · D",
-        body: amount > 0 ? `Added ${formatNtd(amount)}` : "Added to apartment fund",
+        body: formatApartmentFundDepositBody(
+          amount,
+          row.note as string | null | undefined
+        ),
         href: "/dashboard",
         kind: "apartment_fund",
       });

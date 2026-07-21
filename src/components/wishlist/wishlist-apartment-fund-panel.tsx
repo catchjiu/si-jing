@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type WishlistApartmentFundPanelProps = {
   className?: string;
@@ -31,6 +32,7 @@ export function WishlistApartmentFundPanel({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [amountInput, setAmountInput] = useState("");
+  const [noteInput, setNoteInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   const totalNtd = useMemo(() => sumApartmentFundNtd(entries), [entries]);
@@ -70,9 +72,11 @@ export function WishlistApartmentFundPanel({
       const row = await addQueenApartmentFundEntry(supabase, {
         userId: profile.id,
         amountNtd: amount,
+        note: noteInput,
       });
       setEntries((prev) => [row, ...prev]);
       setAmountInput("");
+      setNoteInput("");
       toast.success("Added to Queen's apartment fund");
     } catch (err) {
       toast.error(
@@ -148,33 +152,48 @@ export function WishlistApartmentFundPanel({
 
       {isSlave ? (
         <form
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
             void submitEntry();
           }}
         >
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="apartment-fund-amount">Add amount (NTD)</Label>
-            <Input
-              id="apartment-fund-amount"
-              type="text"
-              inputMode="decimal"
-              placeholder="e.g. 5000"
-              value={amountInput}
-              onChange={(e) => setAmountInput(e.target.value)}
-              className="border-gold/20 bg-void/60"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-1.5">
+              <Label htmlFor="apartment-fund-amount">Add amount (NTD)</Label>
+              <Input
+                id="apartment-fund-amount"
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. 5000"
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                className="border-gold/20 bg-void/60"
+                disabled={saving}
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={saving}
+              className="bg-gold text-void hover:bg-gold-muted sm:shrink-0"
+            >
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add to fund
+            </Button>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="apartment-fund-note">Note (optional)</Label>
+            <Textarea
+              id="apartment-fund-note"
+              rows={2}
+              maxLength={200}
+              placeholder="What this deposit is for"
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              className="border-gold/20 bg-void/60 resize-none"
               disabled={saving}
             />
           </div>
-          <Button
-            type="submit"
-            disabled={saving}
-            className="bg-gold text-void hover:bg-gold-muted sm:shrink-0"
-          >
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Add to fund
-          </Button>
         </form>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -195,11 +214,16 @@ export function WishlistApartmentFundPanel({
             {entries.map((row) => (
               <li
                 key={row.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-gold/10 bg-void/40 px-3 py-2 text-sm"
+                className="flex items-start justify-between gap-3 rounded-lg border border-gold/10 bg-void/40 px-3 py-2 text-sm"
               >
-                <p className="text-muted-foreground tabular-nums">
-                  {format(new Date(row.created_at), "MMM d, yyyy")}
-                </p>
+                <div className="min-w-0">
+                  <p className="text-muted-foreground tabular-nums">
+                    {format(new Date(row.created_at), "MMM d, yyyy")}
+                  </p>
+                  {row.note ? (
+                    <p className="mt-0.5 text-xs text-ivory/90">{row.note}</p>
+                  ) : null}
+                </div>
                 <p className="shrink-0 font-medium tabular-nums text-gold">
                   {formatNtd(row.amount_ntd)}
                 </p>

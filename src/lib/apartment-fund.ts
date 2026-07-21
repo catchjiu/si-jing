@@ -6,8 +6,18 @@ export type ApartmentFundEntry = {
   id: string;
   user_id: string;
   amount_ntd: number;
+  note: string | null;
   created_at: string;
 };
+
+export function formatApartmentFundDepositBody(
+  amountNtd: number,
+  note?: string | null
+): string {
+  const amount = amountNtd > 0 ? `Added ${formatNtd(amountNtd)}` : "Added to apartment fund";
+  const trimmed = note?.trim();
+  return trimmed ? `${amount} · ${trimmed}` : amount;
+}
 
 export function formatNtd(amount: number): string {
   return new Intl.NumberFormat("zh-TW", {
@@ -31,7 +41,7 @@ export async function listApartmentFundEntries(
 ): Promise<ApartmentFundEntry[]> {
   const { data, error } = await supabase
     .from("queen_apartment_fund_entries")
-    .select("id, user_id, amount_ntd, created_at")
+    .select("id, user_id, amount_ntd, note, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -39,6 +49,7 @@ export async function listApartmentFundEntries(
     id: row.id as string,
     user_id: row.user_id as string,
     amount_ntd: Number(row.amount_ntd),
+    note: (row.note as string | null) ?? null,
     created_at: row.created_at as string,
   }));
 }
@@ -58,7 +69,8 @@ export async function getApartmentFundTotal(
 
 export async function addApartmentFundDeposit(
   supabase: Supabase,
-  amountNtd: number
+  amountNtd: number,
+  note?: string | null
 ): Promise<ApartmentFundEntry> {
   const {
     data: { user },
@@ -70,14 +82,16 @@ export async function addApartmentFundDeposit(
     .insert({
       user_id: user.id,
       amount_ntd: amountNtd,
+      note: note?.trim() || null,
     })
-    .select("id, user_id, amount_ntd, created_at")
+    .select("id, user_id, amount_ntd, note, created_at")
     .single();
   if (error) throw error;
   return {
     id: data.id as string,
     user_id: data.user_id as string,
     amount_ntd: Number(data.amount_ntd),
+    note: (data.note as string | null) ?? null,
     created_at: data.created_at as string,
   };
 }

@@ -6,6 +6,7 @@ export type QueenApartmentFundEntry = {
   id: string;
   user_id: string;
   amount_ntd: number;
+  note: string | null;
   created_at: string;
 };
 
@@ -34,27 +35,33 @@ export async function listQueenApartmentFundEntries(
 ): Promise<QueenApartmentFundEntry[]> {
   const { data, error } = await supabase
     .from("queen_apartment_fund_entries")
-    .select("id, user_id, amount_ntd, created_at")
+    .select("id, user_id, amount_ntd, note, created_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((row) => ({
     ...row,
     amount_ntd: Number(row.amount_ntd),
+    note: (row.note as string | null) ?? null,
   }));
 }
 
 export async function addQueenApartmentFundEntry(
   supabase: Supabase,
-  opts: { userId: string; amountNtd: number }
+  opts: { userId: string; amountNtd: number; note?: string | null }
 ): Promise<QueenApartmentFundEntry> {
   const { data, error } = await supabase
     .from("queen_apartment_fund_entries")
-    .insert({ user_id: opts.userId, amount_ntd: opts.amountNtd })
-    .select("id, user_id, amount_ntd, created_at")
+    .insert({
+      user_id: opts.userId,
+      amount_ntd: opts.amountNtd,
+      note: opts.note?.trim() || null,
+    })
+    .select("id, user_id, amount_ntd, note, created_at")
     .single();
   if (error) throw error;
   return {
     ...data,
     amount_ntd: Number(data.amount_ntd),
+    note: (data.note as string | null) ?? null,
   };
 }
