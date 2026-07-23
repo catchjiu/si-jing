@@ -33,6 +33,7 @@ interface WorshipGalleryProps {
   galleryId: string;
   initialEntryId?: string | null;
   highlightPhotoCommentId?: string | null;
+  highlightVoiceId?: string | null;
   onDeleted?: (id: string) => void;
   onEdit?: (entry: WorshipEntryWithSignedUrl) => void;
   onChanged?: () => void;
@@ -45,6 +46,7 @@ export function WorshipGallery({
   galleryId,
   initialEntryId = null,
   highlightPhotoCommentId = null,
+  highlightVoiceId = null,
   onDeleted,
   onEdit,
   onChanged,
@@ -283,6 +285,9 @@ export function WorshipGallery({
                   worshipTitle={active.title}
                   entryImagePath={active.image_path}
                   highlightCommentId={highlightPhotoCommentId}
+                  highlightVoiceId={
+                    active.id === initialEntryId ? highlightVoiceId : null
+                  }
                 />
 
                 {(onEdit || canDelete) && (

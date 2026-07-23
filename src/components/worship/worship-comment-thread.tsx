@@ -42,6 +42,7 @@ interface WorshipCommentThreadProps {
   /** Parent worship entry photo — kept with text-only comments for Evidence preview. */
   entryImagePath?: string | null;
   highlightCommentId?: string | null;
+  highlightVoiceId?: string | null;
   className?: string;
 }
 
@@ -51,6 +52,7 @@ export function WorshipCommentThread({
   worshipTitle,
   entryImagePath = null,
   highlightCommentId = null,
+  highlightVoiceId = null,
   className,
 }: WorshipCommentThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -434,7 +436,9 @@ export function WorshipCommentThread({
       <VoiceNotes
         entityType="worship"
         entityId={worshipId}
+        worshipGalleryId={galleryId}
         compact
+        highlightVoiceId={highlightVoiceId}
         mirrorToInbox={{
           topic: "worship",
           attachmentType: "worship",

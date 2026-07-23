@@ -124,6 +124,7 @@ function TeasesPageInner() {
   const searchParams = useSearchParams();
   const focusTeaseId = searchParams.get("tease");
   const focusCommentId = searchParams.get("comment");
+  const focusVoiceId = searchParams.get("voice");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<TeaseWithSignedUrl[]>([]);
   const hasItemsRef = useRef(false);
@@ -1701,6 +1702,9 @@ function TeasesPageInner() {
                     defaultOpen={focusTeaseId === t.id}
                     highlightCommentId={
                       focusTeaseId === t.id ? focusCommentId : null
+                    }
+                    highlightVoiceId={
+                      focusTeaseId === t.id ? focusVoiceId : null
                     }
                   />
                 </div>

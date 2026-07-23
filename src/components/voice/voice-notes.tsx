@@ -15,6 +15,7 @@ import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-but
 import type { MessageAttachmentType, InboxTopic } from "@/lib/inbox";
 import { inboxConversationHref, notifyWorshipThread, postToTopicThread } from "@/lib/inbox";
 import { notifyPush } from "@/lib/push-client";
+import { highlightMessageElement } from "@/lib/inbox-deep-links";
 import { Button } from "@/components/ui/button";
 
 type VoiceNoteWithAuthor = VoiceNote & {
@@ -37,6 +38,9 @@ interface VoiceNotesProps {
     attachmentType: MessageAttachmentType;
     attachmentId: string;
   };
+  /** Required for worship entry voices so alerts open the right gallery photo. */
+  worshipGalleryId?: string;
+  highlightVoiceId?: string | null;
 }
 
 export function VoiceNotes({
@@ -48,6 +52,8 @@ export function VoiceNotes({
   allowEvidencePin = false,
   evidenceTitle,
   mirrorToInbox,
+  worshipGalleryId,
+  highlightVoiceId = null,
 }: VoiceNotesProps) {
   const { profile, isQueen, isSlave } = useAuth();
   const [notes, setNotes] = useState<VoiceNoteWithAuthor[]>([]);
@@ -99,6 +105,14 @@ export function VoiceNotes({
     };
   }, [entityType, entityId, load]);
 
+  useEffect(() => {
+    if (!highlightVoiceId || loading) return;
+    const timer = window.setTimeout(() => {
+      highlightMessageElement(highlightVoiceId);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [highlightVoiceId, loading, notes.length]);
+
   const remove = async (note: VoiceNoteWithAuthor) => {
     const supabase = createClient();
     await removeObject({ bucket: "voice", path: note.file_path });
@@ -135,6 +149,7 @@ export function VoiceNotes({
             return (
               <li
                 key={note.id}
+                id={`inbox-focus-${note.id}`}
                 className="rounded-xl border border-gold/10 bg-charcoal/70 p-3 sm:p-4"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -184,6 +199,7 @@ export function VoiceNotes({
       <VoiceRecorder
         entityType={entityType}
         entityId={entityId}
+        worshipGalleryId={worshipGalleryId}
         onUploaded={() => {
           void load();
           if (mirrorToInbox && profile) {

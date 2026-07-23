@@ -12,13 +12,17 @@ export function LazyDateDetails({
   dateTitle,
   canPost,
   onPosted,
+  defaultOpen = false,
+  highlightVoiceId = null,
 }: {
   dateId: string;
   dateTitle?: string | null;
   canPost: boolean;
   onPosted?: () => void;
+  defaultOpen?: boolean;
+  highlightVoiceId?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   if (!open) {
     return (
@@ -47,6 +51,7 @@ export function LazyDateDetails({
         entityType="date"
         entityId={dateId}
         compact
+        highlightVoiceId={highlightVoiceId}
         title="Voice"
         allowEvidencePin
         evidenceTitle={dateTitle ? `Date · ${dateTitle}` : "Date voice"}

@@ -39,6 +39,7 @@ interface WorshipGalleryCommentThreadProps {
   galleryId: string;
   galleryTopic?: string | null;
   highlightCommentId?: string | null;
+  highlightVoiceId?: string | null;
   className?: string;
 }
 
@@ -46,6 +47,7 @@ export function WorshipGalleryCommentThread({
   galleryId,
   galleryTopic,
   highlightCommentId = null,
+  highlightVoiceId = null,
   className,
 }: WorshipGalleryCommentThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -424,6 +426,7 @@ export function WorshipGalleryCommentThread({
         entityType="worship_gallery"
         entityId={galleryId}
         compact
+        highlightVoiceId={highlightVoiceId}
         mirrorToInbox={{
           topic: "worship",
           attachmentType: "worship",

@@ -43,6 +43,7 @@ interface WishlistCommentThreadProps {
   wishlistId: string;
   wishlistTitle?: string | null;
   highlightCommentId?: string | null;
+  highlightVoiceId?: string | null;
   className?: string;
 }
 
@@ -50,6 +51,7 @@ export function WishlistCommentThread({
   wishlistId,
   wishlistTitle,
   highlightCommentId = null,
+  highlightVoiceId = null,
   className,
 }: WishlistCommentThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -416,6 +418,7 @@ export function WishlistCommentThread({
         entityType="wishlist"
         entityId={wishlistId}
         compact
+        highlightVoiceId={highlightVoiceId}
         title={
           isSlave
             ? "Voice comment"

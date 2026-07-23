@@ -200,13 +200,14 @@ export function RequestForm({
       let voicePath: string | null = null;
       let voiceDurationMs: number | null = null;
       if (voice && request?.id) {
-        voicePath = await uploadVoiceNote(supabase, {
+        const uploaded = await uploadVoiceNote(supabase, {
           userId: profile.id,
           entityType: "request",
           entityId: request.id,
           blob: voice.blob,
           durationMs: voice.durationMs,
         });
+        voicePath = uploaded.path;
         voiceDurationMs = voice.durationMs;
       }
 

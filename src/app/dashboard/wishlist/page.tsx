@@ -47,6 +47,7 @@ function WishlistPageInner() {
   const searchParams = useSearchParams();
   const focusItemId = searchParams.get("item");
   const focusCommentId = searchParams.get("comment");
+  const focusVoiceId = searchParams.get("voice");
   const [items, setItems] = useState<WishlistItemWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingQueen, setEditingQueen] =
@@ -176,6 +177,7 @@ function WishlistPageInner() {
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
             focusItemId={focusItemId}
             focusCommentId={focusCommentId}
+            focusVoiceId={focusVoiceId}
             onEdit={
               isQueen
                 ? (item) => {
@@ -203,6 +205,7 @@ function WishlistPageInner() {
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
             focusItemId={focusItemId}
             focusCommentId={focusCommentId}
+            focusVoiceId={focusVoiceId}
             onEdit={
               isSlave
                 ? (item) => {
@@ -250,6 +253,7 @@ function WishlistPageInner() {
             onBudgetChange={() => setBudgetRefresh((n) => n + 1)}
             focusItemId={focusItemId}
             focusCommentId={focusCommentId}
+            focusVoiceId={focusVoiceId}
             onEdit={
               isSlave
                 ? (item) => {

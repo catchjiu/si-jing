@@ -11,6 +11,7 @@ import {
   teasePageHref,
   wishlistPageHref,
   denialPageHref,
+  voiceNotePageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -117,24 +118,33 @@ function pushOtherPartyAdd(
   });
 }
 
-function voiceNoteHref(
-  entityType: string,
-  entityId: string | null | undefined
-): string {
-  if (entityType === "date") return "/dashboard/dates";
-  if (entityType === "tease" && entityId) return teasePageHref(entityId);
-  if (entityType === "reward") return "/dashboard/rewards";
-  if (entityType === "journal") return "/dashboard/journal";
-  if (entityType === "request") return "/dashboard/requests";
-  if (entityType === "wishlist" && entityId) return wishlistPageHref(entityId);
-  if (entityType === "worship_gallery" && entityId) {
-    return `/dashboard/worship/${entityId}`;
+async function resolveWorshipGalleryByEntryId(
+  supabase: SupabaseClient,
+  voiceRows: Array<{ entity_type?: string | null; entity_id?: string | null }>,
+  worshipEntriesData: Array<{ id?: string; gallery_id?: string }>
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (const row of worshipEntriesData) {
+    if (row.id && row.gallery_id) map.set(row.id, row.gallery_id);
   }
-  if (entityType === "worship") return "/dashboard/worship";
-  if (entityType === "submission" && entityId) {
-    return `/dashboard/submissions/${entityId}`;
+  const missing = [
+    ...new Set(
+      voiceRows
+        .filter((v) => v.entity_type === "worship" && v.entity_id)
+        .map((v) => v.entity_id as string)
+        .filter((id) => !map.has(id))
+    ),
+  ];
+  if (missing.length > 0) {
+    const { data } = await supabase
+      .from("worship_entries")
+      .select("id, gallery_id")
+      .in("id", missing);
+    for (const row of data ?? []) {
+      map.set(row.id as string, row.gallery_id as string);
+    }
   }
-  return "/dashboard";
+  return map;
 }
 
 function worshipCommentActivityHref(m: {
@@ -892,12 +902,25 @@ export async function fetchRecentActivity(
       }
     }
 
+    const worshipGalleryByEntryId = await resolveWorshipGalleryByEntryId(
+      supabase,
+      voiceNotes.data ?? [],
+      worshipEntries.data ?? []
+    );
+
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string; id?: string } | null;
       if (!isFromOtherParty(author, profile)) continue;
-      const href = voiceNoteHref(
+      const href = voiceNotePageHref(
         v.entity_type as string,
-        v.entity_id as string | undefined
+        v.entity_id as string | undefined,
+        {
+          voiceId: v.id as string,
+          galleryId:
+            v.entity_type === "worship"
+              ? worshipGalleryByEntryId.get(v.entity_id as string) ?? null
+              : null,
+        }
       );
       pushItem(items, {
         id: `voice-${v.id}`,
@@ -1512,12 +1535,25 @@ export async function fetchRecentActivity(
       }
     }
 
+    const worshipGalleryByEntryId = await resolveWorshipGalleryByEntryId(
+      supabase,
+      voiceNotes.data ?? [],
+      worshipEntries.data ?? []
+    );
+
     for (const v of voiceNotes.data ?? []) {
       const author = v.author as { role?: string; username?: string; id?: string } | null;
       if (!isFromOtherParty(author, profile)) continue;
-      const href = voiceNoteHref(
+      const href = voiceNotePageHref(
         v.entity_type as string,
-        v.entity_id as string | undefined
+        v.entity_id as string | undefined,
+        {
+          voiceId: v.id as string,
+          galleryId:
+            v.entity_type === "worship"
+              ? worshipGalleryByEntryId.get(v.entity_id as string) ?? null
+              : null,
+        }
       );
       pushItem(items, {
         id: `voice-${v.id}`,

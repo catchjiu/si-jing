@@ -8,6 +8,11 @@ export type CapturedVoice = {
   durationMs: number;
 };
 
+export type UploadedVoiceNote = {
+  id: string;
+  path: string;
+};
+
 export async function uploadVoiceNote(
   _supabase: ReturnType<typeof createClient> | unknown,
   opts: {
@@ -17,7 +22,7 @@ export async function uploadVoiceNote(
     blob: Blob;
     durationMs: number | null;
   }
-) {
+): Promise<UploadedVoiceNote> {
   const { userId, entityType, entityId, durationMs } = opts;
   const blob = await normalizeVoiceBlob(opts.blob);
   const mime = blob.type || "audio/wav";
@@ -33,14 +38,18 @@ export async function uploadVoiceNote(
   });
 
   const supabase = createClient();
-  const { error: insertError } = await supabase.from("voice_notes").insert({
-    created_by: userId,
-    entity_type: entityType,
-    entity_id: entityId,
-    file_path: path,
-    duration_ms: durationMs,
-  });
+  const { data, error: insertError } = await supabase
+    .from("voice_notes")
+    .insert({
+      created_by: userId,
+      entity_type: entityType,
+      entity_id: entityId,
+      file_path: path,
+      duration_ms: durationMs,
+    })
+    .select("id")
+    .single();
   if (insertError) throw insertError;
 
-  return path;
+  return { id: data.id as string, path };
 }

@@ -28,22 +28,95 @@ export function denialPageHref(opts?: {
   return qs ? `/dashboard/denial?${qs}` : "/dashboard/denial";
 }
 
-export function teasePageHref(
-  teaseId: string,
-  opts?: { commentId?: string | null }
-): string {
-  const params = new URLSearchParams({ tease: teaseId });
-  if (opts?.commentId) params.set("comment", opts.commentId);
-  return `/dashboard/teases?${params.toString()}`;
-}
-
 export function wishlistPageHref(
   itemId: string,
-  opts?: { commentId?: string | null }
+  opts?: { commentId?: string | null; voiceId?: string | null }
 ): string {
   const params = new URLSearchParams({ item: itemId });
   if (opts?.commentId) params.set("comment", opts.commentId);
+  if (opts?.voiceId) params.set("voice", opts.voiceId);
   return `/dashboard/wishlist?${params.toString()}`;
+}
+
+export function teasePageHref(
+  teaseId: string,
+  opts?: { commentId?: string | null; voiceId?: string | null }
+): string {
+  const params = new URLSearchParams({ tease: teaseId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  if (opts?.voiceId) params.set("voice", opts.voiceId);
+  return `/dashboard/teases?${params.toString()}`;
+}
+
+export function datePageHref(
+  dateId: string,
+  opts?: { voiceId?: string | null }
+): string {
+  const params = new URLSearchParams({ date: dateId });
+  if (opts?.voiceId) params.set("voice", opts.voiceId);
+  return `/dashboard/dates?${params.toString()}`;
+}
+
+export function withVoiceParam(url: string, voiceId?: string | null): string {
+  if (!voiceId) return url;
+  const [base, qs] = url.split("?");
+  const params = new URLSearchParams(qs ?? "");
+  params.set("voice", voiceId);
+  const next = params.toString();
+  return next ? `${base}?${next}` : `${base}?voice=${voiceId}`;
+}
+
+export function voiceNotePageHref(
+  entityType: string,
+  entityId: string | null | undefined,
+  opts?: { voiceId?: string | null; galleryId?: string | null }
+): string {
+  const voiceId = opts?.voiceId;
+  if (!entityId) return withVoiceParam("/dashboard", voiceId);
+
+  switch (entityType) {
+    case "tease":
+      return teasePageHref(entityId, { voiceId });
+    case "wishlist":
+      return wishlistPageHref(entityId, { voiceId });
+    case "worship":
+      if (opts?.galleryId) {
+        return withVoiceParam(
+          messageAttachmentHref({
+            type: "worship",
+            id: opts.galleryId,
+            anchor: inboxAnchors.worshipEntry(entityId),
+          }),
+          voiceId
+        );
+      }
+      return withVoiceParam("/dashboard/worship", voiceId);
+    case "worship_gallery":
+      return withVoiceParam(
+        messageAttachmentHref({
+          type: "worship",
+          id: entityId,
+          anchor: inboxAnchors.worshipGallery(),
+        }),
+        voiceId
+      );
+    case "date":
+      return datePageHref(entityId, { voiceId });
+    case "task":
+      return withVoiceParam(`/dashboard/task/${entityId}`, voiceId);
+    case "submission":
+      return withVoiceParam(`/dashboard/submissions/${entityId}`, voiceId);
+    case "reward":
+      return withVoiceParam("/dashboard/rewards", voiceId);
+    case "request":
+      return withVoiceParam("/dashboard/requests", voiceId);
+    case "journal":
+      return withVoiceParam("/dashboard/journal", voiceId);
+    case "check_in":
+      return withVoiceParam("/dashboard/check-ins", voiceId);
+    default:
+      return withVoiceParam("/dashboard", voiceId);
+  }
 }
 
 export function messageAttachmentHref(opts: {

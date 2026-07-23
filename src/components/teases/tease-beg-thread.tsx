@@ -36,6 +36,7 @@ interface TeaseBegThreadProps {
   teaseTitle?: string | null;
   mediaKind?: TeaseMediaKind;
   highlightCommentId?: string | null;
+  highlightVoiceId?: string | null;
   className?: string;
 }
 
@@ -44,6 +45,7 @@ export function TeaseBegThread({
   teaseTitle,
   mediaKind = "image",
   highlightCommentId = null,
+  highlightVoiceId = null,
   className,
 }: TeaseBegThreadProps) {
   const { profile, isSlave, isQueen } = useAuth();
@@ -270,6 +272,7 @@ export function TeaseBegThread({
         entityType="tease"
         entityId={teaseId}
         compact
+        highlightVoiceId={highlightVoiceId}
         title={isSlave ? "Voice beg" : `Voice on ${teaseTitle || "tease"}`}
         allowEvidencePin
         evidenceTitle={

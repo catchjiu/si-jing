@@ -52,6 +52,7 @@ function WorshipGalleryPageInner() {
   const focusGalleryCommentId = searchParams.get("galleryComment");
   const focusPhotoCommentId = searchParams.get("photoComment");
   const focusCommentsSection = searchParams.get("section") === "comments";
+  const focusVoiceId = searchParams.get("voice");
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const [gallery, setGallery] = useState<WorshipGalleryTopic | null>(null);
   const [entries, setEntries] = useState<WorshipEntryWithSignedUrl[]>([]);
@@ -229,6 +230,7 @@ function WorshipGalleryPageInner() {
           galleryId={gallery.id}
           initialEntryId={focusEntryId}
           highlightPhotoCommentId={focusPhotoCommentId}
+          highlightVoiceId={focusVoiceId}
           onDeleted={onDeleted}
           onChanged={load}
           onViewed={onViewed}
@@ -253,6 +255,7 @@ function WorshipGalleryPageInner() {
           galleryId={gallery.id}
           galleryTopic={gallery.topic}
           highlightCommentId={focusGalleryCommentId}
+          highlightVoiceId={focusVoiceId}
         />
       </section>
     </div>

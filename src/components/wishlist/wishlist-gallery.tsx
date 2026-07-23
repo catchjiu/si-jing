@@ -72,6 +72,7 @@ interface WishlistGalleryProps {
   onBudgetChange?: () => void;
   focusItemId?: string | null;
   focusCommentId?: string | null;
+  focusVoiceId?: string | null;
   className?: string;
 }
 
@@ -84,6 +85,7 @@ export function WishlistGallery({
   onBudgetChange,
   focusItemId = null,
   focusCommentId = null,
+  focusVoiceId = null,
   className,
 }: WishlistGalleryProps) {
   const { isQueen, isSlave, profile } = useAuth();
@@ -870,6 +872,9 @@ export function WishlistGallery({
                   wishlistTitle={active.title}
                   highlightCommentId={
                     focusItemId === active.id ? focusCommentId : null
+                  }
+                  highlightVoiceId={
+                    focusItemId === active.id ? focusVoiceId : null
                   }
                 />
 

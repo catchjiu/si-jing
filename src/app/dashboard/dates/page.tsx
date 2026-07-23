@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   CalendarHeart,
@@ -44,6 +45,17 @@ function levelsFromDate(d: QueenDate): LevelsDraft {
 }
 
 export default function DatesPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <DatesPageInner />
+    </Suspense>
+  );
+}
+
+function DatesPageInner() {
+  const searchParams = useSearchParams();
+  const focusDateId = searchParams.get("date");
+  const focusVoiceId = searchParams.get("voice");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<QueenDate[]>([]);
   const [recipient, setRecipient] = useState<Profile | null>(null);
@@ -91,6 +103,16 @@ export default function DatesPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!focusDateId || loading) return;
+    const el = document.getElementById(`date-${focusDateId}`);
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [focusDateId, loading, items.length]);
 
   useEffect(() => {
     if (!isQueen) return;
@@ -334,6 +356,7 @@ export default function DatesPage() {
             return (
               <article
                 key={d.id}
+                id={`date-${d.id}`}
                 className="space-y-4 rounded-xl border border-gold/15 bg-charcoal/80 p-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -510,6 +533,10 @@ export default function DatesPage() {
                   dateTitle={d.title}
                   canPost={!!isSlave || !!isQueen}
                   onPosted={() => void load()}
+                  defaultOpen={focusDateId === d.id}
+                  highlightVoiceId={
+                    focusDateId === d.id ? focusVoiceId : null
+                  }
                 />
               </article>
             );

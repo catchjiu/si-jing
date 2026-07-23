@@ -8,10 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { VoiceEntityType } from "@/lib/types";
 import type { CapturedVoice } from "@/lib/voice";
 import { uploadVoiceNote } from "@/lib/voice";
-import {
-  teasePageHref,
-  wishlistPageHref,
-} from "@/lib/inbox-deep-links";
+import { voiceNotePageHref } from "@/lib/inbox-deep-links";
 import { pickRecorderMimeType } from "@/lib/voice-format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +23,7 @@ function formatMs(ms: number) {
 interface VoiceRecorderProps {
   entityType?: VoiceEntityType;
   entityId?: string;
+  worshipGalleryId?: string;
   onUploaded?: () => void;
   /** Record only — parent uploads later (e.g. with a new reward). */
   captureOnly?: boolean;
@@ -37,6 +35,7 @@ interface VoiceRecorderProps {
 export function VoiceRecorder({
   entityType,
   entityId,
+  worshipGalleryId,
   onUploaded,
   captureOnly = false,
   onCaptured,
@@ -145,7 +144,7 @@ export function VoiceRecorder({
     const supabase = createClient();
 
     try {
-      await uploadVoiceNote(supabase, {
+      const uploaded = await uploadVoiceNote(supabase, {
         userId: profile.id,
         entityType,
         entityId,
@@ -168,15 +167,16 @@ export function VoiceRecorder({
               ? "New voice on a tease"
               : entityType === "date"
                 ? "New voice on a date"
-                : "New voice message",
-          url:
-            entityType === "tease" && entityId
-              ? teasePageHref(entityId)
-              : entityType === "wishlist" && entityId
-                ? wishlistPageHref(entityId)
-                : entityType === "date"
-                  ? "/dashboard/dates"
-                  : "/dashboard",
+                : entityType === "wishlist"
+                  ? "New voice on wishlist"
+                  : entityType === "worship" || entityType === "worship_gallery"
+                    ? "New voice on worship"
+                    : "New voice message",
+          url: voiceNotePageHref(entityType, entityId, {
+            voiceId: uploaded.id,
+            galleryId:
+              entityType === "worship" ? worshipGalleryId ?? null : null,
+          }),
           target,
         })
       );
