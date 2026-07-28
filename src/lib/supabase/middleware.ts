@@ -1,9 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  getBypassCookieOptions,
   hasMaintenanceBypass,
   isMaintenanceAllowedPath,
   isMaintenanceMode,
+  isValidBypassCookie,
+  MAINTENANCE_BYPASS_COOKIE,
 } from "@/lib/maintenance";
 import { supabaseCookieOptions } from "@/lib/supabase/cookie-options";
 
@@ -11,13 +14,25 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const path = request.nextUrl.pathname;
-  const maintenanceActive =
-    isMaintenanceMode() && !hasMaintenanceBypass(request);
+  const rawBypass = request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value;
+  const hasBypass = hasMaintenanceBypass(request);
+  const maintenanceActive = isMaintenanceMode() && !hasBypass;
+
+  // Drop stale unlock cookies (e.g. after MAINTENANCE_BYPASS_VERSION bump).
+  const clearStaleBypass = (response: NextResponse) => {
+    if (rawBypass && !isValidBypassCookie(rawBypass)) {
+      response.cookies.set(MAINTENANCE_BYPASS_COOKIE, "", {
+        ...getBypassCookieOptions(),
+        maxAge: 0,
+      });
+    }
+    return response;
+  };
 
   if (maintenanceActive && !isMaintenanceAllowedPath(path)) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return clearStaleBypass(NextResponse.redirect(url));
   }
 
   const supabase = createServerClient(
@@ -56,20 +71,20 @@ export async function updateSession(request: NextRequest) {
   const isAuthCallback = path.startsWith("/auth/callback");
 
   if (maintenanceActive) {
-    return supabaseResponse;
+    return clearStaleBypass(supabaseResponse);
   }
 
   if (!userId && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    return clearStaleBypass(NextResponse.redirect(url));
   }
 
   if (userId && isAuthPage && !isAuthCallback) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return clearStaleBypass(NextResponse.redirect(url));
   }
 
-  return supabaseResponse;
+  return clearStaleBypass(supabaseResponse);
 }

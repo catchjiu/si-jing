@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getBypassCookieOptions,
+  getExpectedBypassValue,
   isMaintenanceMode,
   isMaintenanceUnlockSecretValid,
   MAINTENANCE_BYPASS_COOKIE,
@@ -24,6 +25,10 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(MAINTENANCE_BYPASS_COOKIE, "1", getBypassCookieOptions());
+  response.cookies.set(
+    MAINTENANCE_BYPASS_COOKIE,
+    getExpectedBypassValue(),
+    getBypassCookieOptions()
+  );
   return response;
 }

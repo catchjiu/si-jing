@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
 
 export const MAINTENANCE_BYPASS_COOKIE = "qs_maintenance_bypass";
@@ -14,8 +14,32 @@ export function isMaintenanceMode(): boolean {
   return value === "true" || value === "1" || value === "yes";
 }
 
+/**
+ * Cookie value for a valid unlock. Bump MAINTENANCE_BYPASS_VERSION (or change
+ * MAINTENANCE_UNLOCK_SECRET) to invalidate every device that already unlocked.
+ */
+export function getExpectedBypassValue(): string {
+  const secret = process.env.MAINTENANCE_UNLOCK_SECRET ?? "";
+  const version = process.env.MAINTENANCE_BYPASS_VERSION?.trim() || "2";
+  return createHash("sha256")
+    .update(`qs-bypass:${version}:${secret}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export function isValidBypassCookie(value: string | undefined): boolean {
+  if (!value) return false;
+  const expected = getExpectedBypassValue();
+  const a = Buffer.from(value);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export function hasMaintenanceBypass(request: NextRequest): boolean {
-  return request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value === "1";
+  return isValidBypassCookie(
+    request.cookies.get(MAINTENANCE_BYPASS_COOKIE)?.value
+  );
 }
 
 export function getBypassCookieOptions() {
