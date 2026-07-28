@@ -11,7 +11,6 @@ import {
 } from "@/lib/tease-views";
 import type { TeaseMediaKind } from "@/lib/types";
 import { useTeaseCaptureGuard } from "@/hooks/use-tease-capture-guard";
-import { TeaseCaptureWatermark } from "@/components/teases/tease-capture-watermark";
 
 type TeaseSessionViewerProps = {
   mediaUrl: string;
@@ -227,7 +226,6 @@ export function TeaseSessionViewer({
             onContextMenu={(e) => e.preventDefault()}
           />
         )}
-        {!blanked && <TeaseCaptureWatermark />}
       </div>
     </div>
   );

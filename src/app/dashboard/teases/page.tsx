@@ -31,7 +31,6 @@ import {
   teaseWatchMetric,
 } from "@/lib/tease-views";
 import { TeaseSessionViewer } from "@/components/teases/protected-tease-viewer";
-import { TeaseCaptureWatermark } from "@/components/teases/tease-capture-watermark";
 import { useTeaseCaptureGuard } from "@/hooks/use-tease-capture-guard";
 import { TeaseReactionCameraPip } from "@/components/teases/tease-reaction-camera-pip";
 import { LazyTeaseThread } from "@/components/teases/lazy-tease-thread";
@@ -1356,7 +1355,6 @@ function TeasesPageInner() {
                               : "Veiled tease"}
                         </p>
                       </div>
-                      <TeaseCaptureWatermark />
                     </>
                   ) : t.signedUrl && slaveShowsBlurredPreview ? (
                     <>
