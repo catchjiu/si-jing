@@ -35,6 +35,15 @@ export function isWishlistGiftBought(
   return item.item_kind === "slave_gift" && item.status === "revealed";
 }
 
+/** Sum purchase prices for revealed slave gifts only. */
+export function sumRevealedGiftSpendUsd(
+  items: Pick<WishlistItem, "item_kind" | "status" | "purchase_price_usd">[]
+): number {
+  return items
+    .filter((item) => isWishlistGiftBought(item))
+    .reduce((sum, item) => sum + (item.purchase_price_usd ?? 0), 0);
+}
+
 export function isWishlistSecretForQueen(
   item: Pick<WishlistItem, "item_kind" | "arrived_at" | "is_secret">,
   isQueen: boolean

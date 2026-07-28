@@ -12,7 +12,12 @@ import { WishlistShippingAddress } from "@/components/wishlist/wishlist-shipping
 import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
 import { WishlistApartmentFundPanel } from "@/components/wishlist/wishlist-apartment-fund-panel";
-import { fetchWishlistItems, isWishlistGiftBought } from "@/lib/wishlist";
+import { WishlistTotalSpentPanel } from "@/components/wishlist/wishlist-total-spent-panel";
+import {
+  fetchWishlistItems,
+  isWishlistGiftBought,
+  sumRevealedGiftSpendUsd,
+} from "@/lib/wishlist";
 import {
   formatGiftRatingAverage,
   GiftRatingStars,
@@ -97,6 +102,10 @@ function WishlistPageInner() {
     () => formatGiftRatingAverage(giftsBoughtItems),
     [giftsBoughtItems]
   );
+  const totalSpentOnQueenUsd = useMemo(
+    () => sumRevealedGiftSpendUsd(items),
+    [items]
+  );
 
   const onDeleted = (id: string) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
@@ -132,6 +141,11 @@ function WishlistPageInner() {
       </div>
 
       <WishlistApartmentFundPanel />
+
+      <WishlistTotalSpentPanel
+        totalUsd={totalSpentOnQueenUsd}
+        giftCount={giftsBoughtItems.length}
+      />
 
       <WishlistShippingAddress />
 
