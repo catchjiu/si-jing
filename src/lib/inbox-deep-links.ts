@@ -57,6 +57,22 @@ export function datePageHref(
   return `/dashboard/dates?${params.toString()}`;
 }
 
+export function rewardPageHref(rewardId: string): string {
+  return `/dashboard/rewards?reward=${encodeURIComponent(rewardId)}`;
+}
+
+export function requestPageHref(requestId: string): string {
+  return `/dashboard/requests?request=${encodeURIComponent(requestId)}`;
+}
+
+export function worshipEntryPageHref(
+  galleryId: string,
+  entryId: string
+): string {
+  const params = new URLSearchParams({ entry: entryId });
+  return `/dashboard/worship/${galleryId}?${params.toString()}`;
+}
+
 export function withVoiceParam(url: string, voiceId?: string | null): string {
   if (!voiceId) return url;
   const [base, qs] = url.split("?");
@@ -107,9 +123,9 @@ export function voiceNotePageHref(
     case "submission":
       return withVoiceParam(`/dashboard/submissions/${entityId}`, voiceId);
     case "reward":
-      return withVoiceParam("/dashboard/rewards", voiceId);
+      return withVoiceParam(rewardPageHref(entityId), voiceId);
     case "request":
-      return withVoiceParam("/dashboard/requests", voiceId);
+      return withVoiceParam(requestPageHref(entityId), voiceId);
     case "journal":
       return withVoiceParam("/dashboard/journal", voiceId);
     case "check_in":
@@ -130,8 +146,8 @@ export function messageAttachmentHref(opts: {
   if (type === "submission") return `/dashboard/submissions/${id}`;
   if (type === "tease") return teaseDeepLink(id, anchor);
   if (type === "punishment") return `/dashboard/punishments`;
-  if (type === "reward") return `/dashboard/rewards`;
-  if (type === "request") return `/dashboard/requests`;
+  if (type === "reward") return rewardPageHref(id);
+  if (type === "request") return requestPageHref(id);
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
   if (type === "wishlist") return wishlistDeepLink(id, anchor);

@@ -15,6 +15,7 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { teasePageHref } from "@/lib/inbox-deep-links";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
 import {
   isTeaseReactionCaptureSupported,
   pickVideoRecorderMimeType,
@@ -1434,7 +1435,8 @@ function TeasesPageInner() {
                 </div>
 
                 <div className="space-y-3 p-4">
-                  <div className="space-y-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
                     <p className="font-heading text-ivory">
                       <RoleSpeech text={t.title || "Tease"} role="queen" />
                     </p>
@@ -1466,6 +1468,11 @@ function TeasesPageInner() {
                           ? " · viewed"
                           : ""}
                     </p>
+                    </div>
+                    <ShareLinkButton
+                      path={teasePageHref(t.id)}
+                      successMessage="Tease link copied"
+                    />
                   </div>
 
                   {(isQueen || isSlave) && (

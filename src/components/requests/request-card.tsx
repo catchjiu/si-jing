@@ -19,6 +19,8 @@ import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RequestThread } from "@/components/requests/request-thread";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
+import { requestPageHref } from "@/lib/inbox-deep-links";
 
 interface RequestCardProps {
   request: DesireRequest;
@@ -194,6 +196,7 @@ export function RequestCard({
 
   return (
     <article
+      id={`request-${request.id}`}
       className={cn(
         "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
         request.status === "pending" ? "border-gold/25" : "border-gold/10"
@@ -258,24 +261,30 @@ export function RequestCard({
           </p>
         </div>
 
-        {!isDirective && (
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Desire
-            </p>
-            <p
-              className={cn(
-                "font-heading text-3xl tabular-nums",
-                desireColor(request.desire_level)
-              )}
-            >
-              {request.desire_level}
-            </p>
-            <p className={cn("text-xs", desireColor(request.desire_level))}>
-              {desireLabel(request.desire_level)}
-            </p>
-          </div>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <ShareLinkButton
+            path={requestPageHref(request.id)}
+            successMessage="Request link copied"
+          />
+          {!isDirective && (
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Desire
+              </p>
+              <p
+                className={cn(
+                  "font-heading text-3xl tabular-nums",
+                  desireColor(request.desire_level)
+                )}
+              >
+                {request.desire_level}
+              </p>
+              <p className={cn("text-xs", desireColor(request.desire_level))}>
+                {desireLabel(request.desire_level)}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {!isDirective && (

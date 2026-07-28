@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { HandHeart } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -10,8 +11,10 @@ import { RequestCard } from "@/components/requests/request-card";
 import { LocationRequestPanel } from "@/components/location/location-request-panel";
 import type { DesireRequest } from "@/lib/types";
 
-export default function RequestsPage() {
+function RequestsPageInner() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const focusRequestId = searchParams.get("request");
   const [requests, setRequests] = useState<DesireRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,6 +42,23 @@ export default function RequestsPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!focusRequestId || loading) return;
+    const el = document.getElementById(`request-${focusRequestId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-gold/50", "ring-offset-2", "ring-offset-void");
+    const t = window.setTimeout(() => {
+      el.classList.remove(
+        "ring-2",
+        "ring-gold/50",
+        "ring-offset-2",
+        "ring-offset-void"
+      );
+    }, 3200);
+    return () => window.clearTimeout(t);
+  }, [focusRequestId, loading, requests.length]);
 
   const pending = requests.filter((r) => r.status === "pending");
   const history = requests.filter((r) => r.status !== "pending");
@@ -103,5 +123,13 @@ export default function RequestsPage() {
         </section>
       )}
     </div>
+  );
+}
+
+export default function RequestsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <RequestsPageInner />
+    </Suspense>
   );
 }

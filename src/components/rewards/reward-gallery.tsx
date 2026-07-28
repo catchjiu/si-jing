@@ -20,16 +20,20 @@ import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { RewardCommentThread } from "@/components/rewards/reward-comment-thread";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
+import { rewardPageHref } from "@/lib/inbox-deep-links";
 
 interface RewardGalleryProps {
   rewards: RewardWithSignedUrl[];
   onViewed?: (id: string) => void;
+  focusRewardId?: string | null;
   className?: string;
 }
 
 export function RewardGallery({
   rewards,
   onViewed,
+  focusRewardId = null,
   className,
 }: RewardGalleryProps) {
   const { isSlave, profile } = useAuth();
@@ -55,6 +59,13 @@ export function RewardGallery({
     setActive(reward);
     void markViewed(reward);
   };
+
+  useEffect(() => {
+    if (!focusRewardId) return;
+    const match = rewards.find((r) => r.id === focusRewardId);
+    if (!match || active?.id === match.id) return;
+    open(match);
+  }, [focusRewardId, rewards, active?.id]);
 
   if (rewards.length === 0) {
     return (
@@ -151,19 +162,25 @@ export function RewardGallery({
                 )}
               </div>
               <div className="space-y-4 p-5">
-                <DialogHeader>
-                  <DialogTitle className="font-heading text-gold">
-                    <RoleSpeech
-                      text={active.title || "A gift from Queen"}
-                      role="queen"
-                    />
-                  </DialogTitle>
-                  {active.message && (
-                    <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
-                      <RoleSpeech text={active.message} role="queen" />
-                    </DialogDescription>
-                  )}
-                </DialogHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <DialogHeader className="flex-1 space-y-1.5 text-left">
+                    <DialogTitle className="font-heading text-gold">
+                      <RoleSpeech
+                        text={active.title || "A gift from Queen"}
+                        role="queen"
+                      />
+                    </DialogTitle>
+                    {active.message && (
+                      <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
+                        <RoleSpeech text={active.message} role="queen" />
+                      </DialogDescription>
+                    )}
+                  </DialogHeader>
+                  <ShareLinkButton
+                    path={rewardPageHref(active.id)}
+                    successMessage="Reward link copied"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {formatRelative(active.created_at)}
                 </p>

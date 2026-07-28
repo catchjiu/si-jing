@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { EdgeLogCommentThread } from "@/components/denial/edge-log-comment-thread";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -588,9 +589,15 @@ export function DenialLedgerPanel() {
                   )}
                 </div>
                 <div className="space-y-1 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    {formatRelative(log.created_at)}
-                  </p>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {formatRelative(log.created_at)}
+                    </p>
+                    <ShareLinkButton
+                      path={denialPageHref({ edgeLogId: log.id })}
+                      successMessage="Edge log link copied"
+                    />
+                  </div>
                   {log.note ? (
                     <p className="text-sm text-ivory/85">{log.note}</p>
                   ) : null}

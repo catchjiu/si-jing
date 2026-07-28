@@ -27,6 +27,8 @@ import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WorshipCommentThread } from "@/components/worship/worship-comment-thread";
 import { WorshipMedia } from "@/components/worship/worship-media";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
+import { worshipEntryPageHref } from "@/lib/inbox-deep-links";
 
 interface WorshipGalleryProps {
   entries: WorshipEntryWithSignedUrl[];
@@ -237,19 +239,25 @@ export function WorshipGallery({
                 )}
               </div>
               <div className="space-y-4 p-5">
-                <DialogHeader>
-                  <DialogTitle className="font-heading text-gold">
-                    <RoleSpeech
-                      text={active.title || "Worship"}
-                      role="slave"
-                    />
-                  </DialogTitle>
-                  {active.description && (
-                    <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
-                      <RoleSpeech text={active.description} role="slave" />
-                    </DialogDescription>
-                  )}
-                </DialogHeader>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <DialogHeader className="flex-1 space-y-1.5 text-left">
+                    <DialogTitle className="font-heading text-gold">
+                      <RoleSpeech
+                        text={active.title || "Worship"}
+                        role="slave"
+                      />
+                    </DialogTitle>
+                    {active.description && (
+                      <DialogDescription className="text-ivory/80 whitespace-pre-wrap">
+                        <RoleSpeech text={active.description} role="slave" />
+                      </DialogDescription>
+                    )}
+                  </DialogHeader>
+                  <ShareLinkButton
+                    path={worshipEntryPageHref(galleryId, active.id)}
+                    successMessage="Worship link copied"
+                  />
+                </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge

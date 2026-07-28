@@ -15,6 +15,7 @@ import { formatDeadline } from "@/lib/format";
 import type { SubmissionWithRelations } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
 
 export default function SubmissionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,7 +78,13 @@ export default function SubmissionDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-heading text-3xl text-ivory">Submission</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-heading text-3xl text-ivory">Submission</h1>
+            <ShareLinkButton
+              path={`/dashboard/submissions/${submission.id}`}
+              successMessage="Submission link copied"
+            />
+          </div>
           {submission.task && (
             <Link
               href={`/dashboard/task/${submission.task_id}`}

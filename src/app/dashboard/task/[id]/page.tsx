@@ -22,6 +22,7 @@ import {
   TaskBeginButton,
   TaskElapsedDisplay,
 } from "@/components/tasks/task-begin-button";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
 
 export default async function TaskDetailPage({
   params,
@@ -91,9 +92,15 @@ export default async function TaskDetailPage({
       <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-6 md:p-8 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="font-heading text-3xl text-ivory">
-              {formatRoleSpeech(task.title, "queen")}
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-heading text-3xl text-ivory">
+                {formatRoleSpeech(task.title, "queen")}
+              </h1>
+              <ShareLinkButton
+                path={`/dashboard/task/${task.id}`}
+                successMessage="Task link copied"
+              />
+            </div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <StatusBadge status={task.status} />
               {task.difficulty_level && (

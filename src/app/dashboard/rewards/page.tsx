@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Gift } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -25,8 +26,10 @@ async function withSignedUrls(
   );
 }
 
-export default function RewardsPage() {
+function RewardsPageInner() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const focusRewardId = searchParams.get("reward");
   const [rewards, setRewards] = useState<RewardWithSignedUrl[]>([]);
   const [recipient, setRecipient] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,8 +134,20 @@ export default function RewardsPage() {
         <h2 className="font-heading text-xl text-gold">
           {isQueen ? "Sent" : "Received"}
         </h2>
-        <RewardGallery rewards={rewards} onViewed={onViewed} />
+        <RewardGallery
+          rewards={rewards}
+          onViewed={onViewed}
+          focusRewardId={focusRewardId}
+        />
       </section>
     </div>
+  );
+}
+
+export default function RewardsPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+      <RewardsPageInner />
+    </Suspense>
   );
 }
