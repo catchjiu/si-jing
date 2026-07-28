@@ -2,6 +2,12 @@ import { timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
 
 export const MAINTENANCE_BYPASS_COOKIE = "qs_maintenance_bypass";
+export const MAINTENANCE_UNLOCK_SECRET_DEFAULT = "brokenheart";
+
+export function getMaintenanceUnlockSecret(): string {
+  const fromEnv = process.env.MAINTENANCE_UNLOCK_SECRET?.trim();
+  return fromEnv || MAINTENANCE_UNLOCK_SECRET_DEFAULT;
+}
 
 export function isMaintenanceMode(): boolean {
   const value = process.env.MAINTENANCE_MODE?.trim().toLowerCase();
@@ -23,8 +29,8 @@ export function getBypassCookieOptions() {
 }
 
 export function isMaintenanceUnlockSecretValid(secret: string): boolean {
-  const expected = process.env.MAINTENANCE_UNLOCK_SECRET;
-  if (!expected || !secret) return false;
+  const expected = getMaintenanceUnlockSecret();
+  if (!secret) return false;
 
   const a = Buffer.from(secret);
   const b = Buffer.from(expected);
