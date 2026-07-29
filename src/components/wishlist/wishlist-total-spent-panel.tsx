@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Gift } from "lucide-react";
+import { convertUsdToNtd, getUsdToNtdRate } from "@/lib/currency";
+import { formatNtd } from "@/lib/wishlist-apartment-fund";
 import { formatUsdFromCents } from "@/lib/wishlist-budget";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +18,23 @@ export function WishlistTotalSpentPanel({
   giftCount,
   className,
 }: WishlistTotalSpentPanelProps) {
-  const formattedTotal = formatUsdFromCents(Math.round(totalUsd * 100));
+  const [ntdRate, setNtdRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getUsdToNtdRate().then((rate) => {
+      if (!cancelled) setNtdRate(rate);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const totalNtd =
+    ntdRate == null ? null : convertUsdToNtd(totalUsd, ntdRate);
+  const formattedTotal =
+    totalNtd == null ? "…" : formatNtd(totalNtd);
+  const formattedUsd = formatUsdFromCents(Math.round(totalUsd * 100));
   const giftLabel =
     giftCount === 1 ? "1 revealed gift" : `${giftCount} revealed gifts`;
 
@@ -38,7 +57,13 @@ export function WishlistTotalSpentPanel({
             {formattedTotal}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            USD · {giftLabel}
+            NTD · {giftLabel}
+            {totalUsd > 0 && (
+              <span className="text-muted-foreground/80">
+                {" "}
+                · {formattedUsd} USD
+              </span>
+            )}
           </p>
         </div>
       </div>
