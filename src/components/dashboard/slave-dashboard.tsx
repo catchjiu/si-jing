@@ -337,7 +337,11 @@ export function SlaveDashboard({
         <h2 className="mb-3 font-heading text-lg text-gold sm:mb-4 sm:text-xl">
           Schedule
         </h2>
-        <DayAgenda tasks={tasks} activeOnly />
+        <DayAgenda
+          tasks={tasks}
+          activeOnly
+          onTasksChange={() => router.refresh()}
+        />
       </div>
     </div>
   )

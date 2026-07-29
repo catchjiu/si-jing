@@ -106,6 +106,7 @@ export default function TasksPage() {
         <DayAgenda
           tasks={filtered}
           activeOnly={filters.status === "all"}
+          onTasksChange={() => void load()}
         />
       )}
     </div>
