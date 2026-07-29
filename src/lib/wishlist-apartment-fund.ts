@@ -65,3 +65,35 @@ export async function addQueenApartmentFundEntry(
     note: (data.note as string | null) ?? null,
   };
 }
+
+export async function updateQueenApartmentFundEntry(
+  supabase: Supabase,
+  entryId: string,
+  opts: { amountNtd: number; note?: string | null }
+): Promise<QueenApartmentFundEntry> {
+  const { data, error } = await supabase
+    .from("queen_apartment_fund_entries")
+    .update({
+      amount_ntd: opts.amountNtd,
+      note: opts.note?.trim() || null,
+    })
+    .eq("id", entryId)
+    .select("id, user_id, amount_ntd, note, created_at")
+    .single();
+  if (error) throw error;
+  return {
+    ...data,
+    amount_ntd: Number(data.amount_ntd),
+    note: (data.note as string | null) ?? null,
+  };
+}
+
+export function canEditApartmentFundEntry(
+  row: Pick<QueenApartmentFundEntry, "user_id">,
+  opts: { isQueen: boolean; isSlave: boolean; userId?: string | null }
+): boolean {
+  if (opts.isQueen) return true;
+  return Boolean(
+    opts.isSlave && opts.userId && row.user_id === opts.userId
+  );
+}
