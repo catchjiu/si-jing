@@ -2784,6 +2784,14 @@ export type Database = {
         }
         Returns: Json
       }
+      update_queen_apartment_fund_entry: {
+        Args: {
+          p_entry_id: string
+          p_amount_ntd: number
+          p_note?: string | null
+        }
+        Returns: Json
+      }
       list_wishlist_purchases: {
         Args: { p_user_id?: string; p_week_only?: boolean }
         Returns: Json

@@ -71,20 +71,22 @@ export async function updateQueenApartmentFundEntry(
   entryId: string,
   opts: { amountNtd: number; note?: string | null }
 ): Promise<QueenApartmentFundEntry> {
-  const { data, error } = await supabase
-    .from("queen_apartment_fund_entries")
-    .update({
-      amount_ntd: opts.amountNtd,
-      note: opts.note?.trim() || null,
-    })
-    .eq("id", entryId)
-    .select("id, user_id, amount_ntd, note, created_at")
-    .single();
+  const { data, error } = await supabase.rpc("update_queen_apartment_fund_entry", {
+    p_entry_id: entryId,
+    p_amount_ntd: opts.amountNtd,
+    p_note: opts.note?.trim() || null,
+  });
   if (error) throw error;
+  if (!data || typeof data !== "object") {
+    throw new Error("Could not update contribution");
+  }
+  const row = data as Record<string, unknown>;
   return {
-    ...data,
-    amount_ntd: Number(data.amount_ntd),
-    note: (data.note as string | null) ?? null,
+    id: String(row.id),
+    user_id: String(row.user_id),
+    amount_ntd: Number(row.amount_ntd),
+    note: (row.note as string | null) ?? null,
+    created_at: String(row.created_at),
   };
 }
 
