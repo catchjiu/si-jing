@@ -92,9 +92,12 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const cardRef = useRef<HTMLDivElement>(null);
   const startX = useRef(0);
   const startY = useRef(0);
   const pointerId = useRef<number | null>(null);
+  const draggingRef = useRef(false);
+  const offsetRef = useRef(0);
   const moved = useRef(false);
 
   const canDelete = isQueen;
@@ -120,11 +123,23 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     return Math.max(-MAX_SWIPE, Math.min(MAX_SWIPE, next));
   };
 
+  const setDragOffset = (next: number) => {
+    offsetRef.current = next;
+    setOffset(next);
+  };
+
   const resetSwipe = () => {
     pointerId.current = null;
+    draggingRef.current = false;
     setDragging(false);
-    setOffset(0);
+    setDragOffset(0);
     moved.current = false;
+  };
+
+  const releasePointer = (pointer: number) => {
+    if (cardRef.current?.hasPointerCapture(pointer)) {
+      cardRef.current.releasePointerCapture(pointer);
+    }
   };
 
   const runDelete = async () => {
@@ -165,12 +180,13 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     startX.current = e.clientX;
     startY.current = e.clientY;
     moved.current = false;
+    draggingRef.current = true;
     setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (pointerId.current !== e.pointerId || !dragging) return;
+    if (pointerId.current !== e.pointerId || !draggingRef.current) return;
     const dx = e.clientX - startX.current;
     const dy = e.clientY - startY.current;
 
@@ -179,20 +195,21 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     }
 
     if (!moved.current && Math.abs(dy) > Math.abs(dx)) {
+      releasePointer(e.pointerId);
       resetSwipe();
       return;
     }
 
     moved.current = true;
     e.preventDefault();
-    setOffset(clampOffset(dx));
+    setDragOffset(clampOffset(dx));
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (pointerId.current !== e.pointerId) return;
 
-    const dx = offset;
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    const dx = clampOffset(e.clientX - startX.current);
+    releasePointer(e.pointerId);
 
     if (dx >= SWIPE_THRESHOLD && canComplete) {
       resetSwipe();
@@ -214,7 +231,9 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     }
   };
 
-  const onPointerCancel = () => {
+  const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerId.current !== e.pointerId) return;
+    releasePointer(e.pointerId);
     resetSwipe();
   };
 
@@ -242,7 +261,7 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     : 0;
 
   return (
-    <div className="relative overflow-hidden rounded-lg">
+    <div className="relative overflow-hidden overscroll-x-none rounded-lg">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 flex items-stretch"
@@ -269,6 +288,7 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
       </div>
 
       <div
+        ref={cardRef}
         role="button"
         tabIndex={0}
         aria-label={`${task.title}. Swipe right to complete, swipe left to delete.`}
