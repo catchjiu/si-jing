@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -8,7 +8,12 @@ import { toast } from "sonner";
 import { ArrowLeft, Flame, Loader2, Trash2, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { signObjectUrl, removeObject } from "@/lib/storage/client";
+import { downsizeImageIfNeeded } from "@/lib/image-compress";
+import {
+  presignAndUpload,
+  signObjectUrl,
+  removeObject,
+} from "@/lib/storage/client";
 import {
   FLIRT_STATUS_LABELS,
   type FlirtGuy,
@@ -28,6 +33,9 @@ import { FlirtTimeline } from "@/components/flirt/flirt-timeline";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
 export default function FlirtDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -42,6 +50,8 @@ export default function FlirtDetailPage() {
   const [savingInterest, setSavingInterest] = useState(false);
   const [savingHotness, setSavingHotness] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!profile || !guyId) return;
@@ -155,6 +165,63 @@ export default function FlirtDetailPage() {
     toast.success("Hotness saved");
   };
 
+  const uploadPhoto = async (file: File) => {
+    if (!isQueen || !profile || !guy) return;
+    if (!IMAGE_TYPES.includes(file.type)) {
+      toast.error("Use a photo (JPEG, PNG, WebP, or GIF)");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error("Photo too large (max 10 MB)");
+      return;
+    }
+
+    setUploadingPhoto(true);
+    const oldPhotoPath = guy.photo_path;
+    try {
+      const uploadFile = await downsizeImageIfNeeded(file);
+      const ext = uploadFile.name.split(".").pop() || "jpg";
+      const photoPath = await presignAndUpload({
+        bucket: "flirt",
+        file: uploadFile,
+        contentType: uploadFile.type || "image/jpeg",
+        ext,
+        relativePath: `${profile.id}/guys/${Date.now()}.${ext}`,
+      });
+
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("flirt_guys")
+        .update({ photo_path: photoPath })
+        .eq("id", guy.id);
+
+      if (error) throw error;
+
+      if (oldPhotoPath) {
+        await removeObject({ bucket: "flirt", path: oldPhotoPath }).catch(
+          () => undefined
+        );
+      }
+
+      const url = await signObjectUrl({ bucket: "flirt", path: photoPath });
+      setGuy({ ...guy, photo_path: photoPath });
+      setPhotoUrl(url);
+      toast.success("Photo updated");
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Could not upload photo";
+      toast.error(msg);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const onPhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void uploadPhoto(file);
+  };
+
   const deleteGuy = async () => {
     if (!isQueen || !guy) return;
     if (!window.confirm(`Remove ${guy.name} and all entries?`)) return;
@@ -209,7 +276,27 @@ export default function FlirtDetailPage() {
       </Link>
 
       <header className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:text-left">
-        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-gold/30 bg-void/50">
+        <div
+          role={isQueen ? "button" : undefined}
+          tabIndex={isQueen ? 0 : undefined}
+          title={isQueen ? "Double-click to change photo" : undefined}
+          onDoubleClick={() => {
+            if (isQueen && !uploadingPhoto) photoInputRef.current?.click();
+          }}
+          onKeyDown={(e) => {
+            if (
+              isQueen &&
+              !uploadingPhoto &&
+              (e.key === "Enter" || e.key === " ")
+            ) {
+              e.preventDefault();
+              photoInputRef.current?.click();
+            }
+          }}
+          className={`relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-gold/30 bg-void/50${
+            isQueen ? " cursor-pointer hover:border-gold/50" : ""
+          }`}
+        >
           {photoUrl ? (
             <Image
               src={photoUrl}
@@ -227,7 +314,21 @@ export default function FlirtDetailPage() {
               </span>
             </div>
           )}
+          {uploadingPhoto && (
+            <div className="absolute inset-0 flex items-center justify-center bg-void/70">
+              <Loader2 className="h-8 w-8 animate-spin text-gold" />
+            </div>
+          )}
         </div>
+        {isQueen && (
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPhotoSelected}
+          />
+        )}
 
         <div className="min-w-0 flex-1 space-y-3">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
