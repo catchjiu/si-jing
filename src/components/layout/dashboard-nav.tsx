@@ -24,6 +24,7 @@ import {
   Inbox,
   Store,
   Lock,
+  Flame,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -75,6 +76,7 @@ const navLinks = [
   { href: "/dashboard/check-ins", label: "Check-ins", icon: AlarmClock },
   { href: "/dashboard/teases", label: "Teases", icon: Sparkles },
   { href: "/dashboard/dates", label: "Dates", icon: CalendarHeart },
+  { href: "/dashboard/flirt", label: "Flirt", icon: Flame },
   { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
   { href: "/dashboard/shop", label: "Shop", icon: Store },

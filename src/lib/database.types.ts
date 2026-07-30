@@ -1136,6 +1136,105 @@ export type Database = {
           },
         ]
       }
+      flirt_guys: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          name: string
+          photo_path: string | null
+          status: string
+          interest_level: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          name: string
+          photo_path?: string | null
+          status?: string
+          interest_level?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          name?: string
+          photo_path?: string | null
+          status?: string
+          interest_level?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flirt_guys_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flirt_guys_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flirt_entries: {
+        Row: {
+          id: string
+          guy_id: string
+          author_id: string
+          body: string | null
+          media_kind: string
+          file_path: string | null
+          entry_date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          guy_id: string
+          author_id: string
+          body?: string | null
+          media_kind?: string
+          file_path?: string | null
+          entry_date?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          guy_id?: string
+          author_id?: string
+          body?: string | null
+          media_kind?: string
+          file_path?: string | null
+          entry_date?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flirt_entries_guy_id_fkey"
+            columns: ["guy_id"]
+            isOneToOne: false
+            referencedRelation: "flirt_guys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flirt_entries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queen_dates: {
         Row: {
           id: string

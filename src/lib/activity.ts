@@ -982,6 +982,8 @@ export async function fetchRecentActivity(
       worshipEntries,
       worshipMessages,
       edgeLogCommentsSlave,
+      flirtGuys,
+      flirtEntries,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -1149,6 +1151,19 @@ export async function fetchRecentActivity(
         .from("edge_log_comments")
         .select(
           "id, content, created_at, edge_log_id, author_id, author:users!author_id(id, role, username)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("flirt_guys")
+        .select("id, name, status, created_at, assigned_to")
+        .eq("assigned_to", profile.id)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("flirt_entries")
+        .select(
+          "id, body, created_at, guy_id, media_kind, guy:flirt_guys!guy_id(name, assigned_to)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1482,6 +1497,36 @@ export async function fetchRecentActivity(
         body: (d.title as string) || "Queen scheduled a date",
         href: "/dashboard/dates",
         kind: "date_new",
+      });
+    }
+
+    for (const g of flirtGuys.data ?? []) {
+      pushItem(items, {
+        id: `flirt-new-${g.id}`,
+        at: g.created_at as string,
+        title: "New flirt",
+        body: (g.name as string) || "Queen added a flirt",
+        href: `/dashboard/flirt/${g.id}`,
+        kind: "flirt_new",
+      });
+    }
+
+    for (const e of flirtEntries.data ?? []) {
+      const guy = e.guy as {
+        name?: string;
+        assigned_to?: string;
+      } | null;
+      if (guy?.assigned_to && guy.assigned_to !== profile.id) continue;
+      const snippet =
+        (e.body as string | null)?.trim().slice(0, 80) ||
+        (e.media_kind === "image" ? "Photo" : "Update");
+      pushItem(items, {
+        id: `flirt-entry-${e.id}`,
+        at: e.created_at as string,
+        title: "Flirt update",
+        body: guy?.name ? `${guy.name} — ${snippet}` : snippet,
+        href: `/dashboard/flirt/${e.guy_id}`,
+        kind: "flirt_entry",
       });
     }
 

@@ -6,6 +6,7 @@ export const STORAGE_BUCKETS = [
   "wishlist",
   "worship",
   "date_posts",
+  "flirt",
   "voice",
   "messages",
 ] as const;

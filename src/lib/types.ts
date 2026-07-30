@@ -440,6 +440,53 @@ export type QueenDate = {
   created_at: string;
 };
 
+export type FlirtStatus = "looked" | "chatting" | "fucked";
+
+export type FlirtGuy = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  name: string;
+  photo_path: string | null;
+  status: FlirtStatus;
+  interest_level: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FlirtGuyWithSignedUrl = FlirtGuy & {
+  signedUrl?: string;
+};
+
+export type FlirtEntryMediaKind = "text" | "image";
+
+export type FlirtEntry = {
+  id: string;
+  guy_id: string;
+  author_id: string;
+  body: string | null;
+  media_kind: FlirtEntryMediaKind;
+  file_path: string | null;
+  entry_date: string;
+  created_at: string;
+};
+
+export type FlirtEntryWithSignedUrl = FlirtEntry & {
+  signedUrl?: string;
+};
+
+export const FLIRT_STATUS_LABELS: Record<FlirtStatus, string> = {
+  looked: "Looked",
+  chatting: "Chatted/Texting",
+  fucked: "Fucked",
+};
+
+export const FLIRT_STATUSES: FlirtStatus[] = [
+  "looked",
+  "chatting",
+  "fucked",
+];
+
 export type EvidencePinSourceType =
   | "date"
   | "tease"
