@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
   computeCycleInfo,
+  defaultQueenCycleSettings,
   loadQueenCycle,
   saveQueenCycle,
   todayCycleDate,
@@ -178,8 +179,13 @@ export function QueenCyclePanel({ className }: Props) {
           <p className="mt-0.5 text-xs text-muted-foreground">
             {info.is_on_period
               ? "Slave is reminded to be extra nice while you’re on your period."
-              : `Next period around ${info.next_period_start}`}
+              : `Next period ~ ${info.next_period_start} · ${info.days_until_next} day${info.days_until_next === 1 ? "" : "s"} left`}
           </p>
+          {!info.is_on_period && (
+            <p className="mt-1 text-[11px] text-gold/80">
+              Last started {info.last_period_start} · cycle day {info.day_in_cycle}
+            </p>
+          )}
         </div>
       </div>
 
@@ -268,6 +274,27 @@ export function QueenCyclePanel({ className }: Props) {
           }}
         >
           Period started today
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={saving}
+          className="border-gold/30 text-muted-foreground hover:bg-void/50 hover:text-ivory"
+          onClick={() => {
+            if (
+              !window.confirm(
+                "Reset tracker to last period start July 17 (28-day cycle)?"
+              )
+            ) {
+              return;
+            }
+            const next = defaultQueenCycleSettings();
+            setDraft(next);
+            setInfo(computeCycleInfo(next));
+            void save(next, false);
+          }}
+        >
+          Reset to July 17
         </Button>
       </div>
     </div>

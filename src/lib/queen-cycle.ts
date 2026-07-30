@@ -30,6 +30,11 @@ const DEFAULTS: QueenCycleSettings = {
   remind_slave: true,
 };
 
+/** Canonical reset values for the period tracker. */
+export function defaultQueenCycleSettings(): QueenCycleSettings {
+  return { ...DEFAULTS };
+}
+
 function parseYmd(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(Date.UTC(y!, m! - 1, d!));
