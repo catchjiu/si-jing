@@ -13,7 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FlirtStatusSelector } from "@/components/flirt/flirt-status-badge";
-import { FlirtInterestSlider } from "@/components/flirt/flirt-interest-slider";
+import {
+  FlirtHotnessSlider,
+  FlirtInterestSlider,
+} from "@/components/flirt/flirt-interest-slider";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -28,6 +31,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<FlirtStatus>("looked");
   const [interest, setInterest] = useState(50);
+  const [hotness, setHotness] = useState(50);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +91,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
           photo_path: photoPath,
           status,
           interest_level: interest,
+          hotness_level: hotness,
         })
         .select("id")
         .single();
@@ -107,6 +112,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
       setName("");
       setStatus("looked");
       setInterest(50);
+      setHotness(50);
       clearPhoto();
       onCreated(data.id as string);
     } catch (err) {
@@ -146,6 +152,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
       </div>
 
       <FlirtInterestSlider value={interest} onChange={setInterest} />
+      <FlirtHotnessSlider value={hotness} onChange={setHotness} />
 
       <div className="space-y-2">
         <Label>Photo (optional)</Label>

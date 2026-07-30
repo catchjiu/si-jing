@@ -1145,6 +1145,7 @@ export type Database = {
           photo_path: string | null
           status: string
           interest_level: number
+          hotness_level: number
           created_at: string
           updated_at: string
         }
@@ -1156,6 +1157,7 @@ export type Database = {
           photo_path?: string | null
           status?: string
           interest_level?: number
+          hotness_level?: number
           created_at?: string
           updated_at?: string
         }
@@ -1167,6 +1169,7 @@ export type Database = {
           photo_path?: string | null
           status?: string
           interest_level?: number
+          hotness_level?: number
           created_at?: string
           updated_at?: string
         }

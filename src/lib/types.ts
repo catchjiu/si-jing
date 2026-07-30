@@ -450,6 +450,7 @@ export type FlirtGuy = {
   photo_path: string | null;
   status: FlirtStatus;
   interest_level: number;
+  hotness_level: number;
   created_at: string;
   updated_at: string;
 };

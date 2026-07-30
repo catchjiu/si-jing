@@ -8,7 +8,10 @@ import { signObjectUrl } from "@/lib/storage/client";
 import type { FlirtGuy, FlirtGuyWithSignedUrl, FlirtStatus } from "@/lib/types";
 import { FLIRT_STATUS_LABELS, FLIRT_STATUSES } from "@/lib/types";
 import { FlirtStatusBadge } from "@/components/flirt/flirt-status-badge";
-import { FlirtInterestMeter } from "@/components/flirt/flirt-interest-slider";
+import {
+  FlirtHotnessMeter,
+  FlirtInterestMeter,
+} from "@/components/flirt/flirt-interest-slider";
 import { cn } from "@/lib/utils";
 
 async function withSignedUrls(
@@ -106,11 +109,10 @@ export function FlirtGuysGrid({
                 <div className="mt-1">
                   <FlirtStatusBadge status={guy.status} />
                 </div>
-                <FlirtInterestMeter
-                  value={guy.interest_level}
-                  compact
-                  className="mt-2 w-full max-w-[7.5rem]"
-                />
+                <div className="mt-2 w-full max-w-[7.5rem] space-y-1.5">
+                  <FlirtInterestMeter value={guy.interest_level} compact />
+                  <FlirtHotnessMeter value={guy.hotness_level} compact />
+                </div>
               </Link>
             </li>
           ))}

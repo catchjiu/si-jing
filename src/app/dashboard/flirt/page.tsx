@@ -60,7 +60,7 @@ export default function FlirtPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Guys you've flirted with — status, interest, and a dated timeline for D"
+            ? "Guys you've flirted with — status, interest, hotness, and a dated timeline for D"
             : "Guys Queen has flirted with — tap one to see the timeline"}
         </p>
       </div>

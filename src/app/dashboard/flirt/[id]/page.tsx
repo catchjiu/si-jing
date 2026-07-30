@@ -19,6 +19,8 @@ import {
   FlirtStatusSelector,
 } from "@/components/flirt/flirt-status-badge";
 import {
+  FlirtHotnessMeter,
+  FlirtHotnessSlider,
   FlirtInterestMeter,
   FlirtInterestSlider,
 } from "@/components/flirt/flirt-interest-slider";
@@ -35,8 +37,10 @@ export default function FlirtDetailPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [interestDraft, setInterestDraft] = useState(50);
+  const [hotnessDraft, setHotnessDraft] = useState(50);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
+  const [savingHotness, setSavingHotness] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
@@ -54,6 +58,7 @@ export default function FlirtDetailPage() {
     const row = data as FlirtGuy | null;
     setGuy(row);
     setInterestDraft(row?.interest_level ?? 50);
+    setHotnessDraft(row?.hotness_level ?? 50);
     if (row?.photo_path) {
       const url = await signObjectUrl({
         bucket: "flirt",
@@ -121,6 +126,33 @@ export default function FlirtDetailPage() {
       })
     );
     toast.success("Interest saved");
+  };
+
+  const saveHotness = async () => {
+    if (!isQueen || !guy) return;
+    if (hotnessDraft === guy.hotness_level) return;
+    setSavingHotness(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("flirt_guys")
+      .update({ hotness_level: hotnessDraft })
+      .eq("id", guy.id);
+    setSavingHotness(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGuy({ ...guy, hotness_level: hotnessDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Flirt hotness updated",
+        body: `${guy.name}: hotness ${hotnessDraft}%`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "slave",
+        kind: "flirt_hotness",
+      })
+    );
+    toast.success("Hotness saved");
   };
 
   const deleteGuy = async () => {
@@ -223,10 +255,10 @@ export default function FlirtDetailPage() {
           </div>
 
           {isSlave && (
-            <FlirtInterestMeter
-              value={guy.interest_level}
-              className="mx-auto max-w-xs sm:mx-0"
-            />
+            <div className="mx-auto w-full max-w-xs space-y-2 sm:mx-0">
+              <FlirtInterestMeter value={guy.interest_level} />
+              <FlirtHotnessMeter value={guy.hotness_level} />
+            </div>
           )}
 
           {isQueen && (
@@ -257,6 +289,27 @@ export default function FlirtDetailPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     "Save interest"
+                  )}
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <FlirtHotnessSlider
+                  value={hotnessDraft}
+                  onChange={setHotnessDraft}
+                  disabled={savingHotness}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    savingHotness || hotnessDraft === guy.hotness_level
+                  }
+                  onClick={() => void saveHotness()}
+                >
+                  {savingHotness ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save hotness"
                   )}
                 </Button>
               </div>
