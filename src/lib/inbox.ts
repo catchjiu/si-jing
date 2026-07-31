@@ -26,7 +26,6 @@ export type MessageAttachmentType =
   | "submission"
   | "wishlist"
   | "worship"
-  | "shop"
   | "worship_assignment"
   | "denial";
 
@@ -569,7 +568,6 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     submission: "Submission",
     wishlist: "Wishlist",
     worship: "Worship",
-    shop: "Shop",
     worship_assignment: "Worship assignment",
     denial: "Denial",
   };

@@ -22,7 +22,7 @@ import {
   Crown,
   NotebookPen,
   Inbox,
-  Store,
+  Dumbbell,
   Lock,
   Flame,
 } from "lucide-react"
@@ -79,7 +79,7 @@ const navLinks = [
   { href: "/dashboard/flirt", label: "Flirt", icon: Flame },
   { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
-  { href: "/dashboard/shop", label: "Shop", icon: Store },
+  { href: "/dashboard/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/dashboard/wishlist", label: "Wishlist", icon: Heart },
   { href: "/dashboard/worship", label: "Worship", icon: Crown },
   { href: "/dashboard/journal", label: "Journal", icon: NotebookPen },

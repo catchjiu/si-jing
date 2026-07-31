@@ -1,4 +1,5 @@
 import type { Tables } from "@/lib/database.types";
+import type { WorkoutBodyPart } from "@/lib/workout-exercises";
 
 export type UserRole = "queen" | "slave";
 
@@ -256,7 +257,6 @@ export type MessageAttachmentType =
   | "submission"
   | "wishlist"
   | "worship"
-  | "shop"
   | "worship_assignment"
   | "denial";
 export type MessageMediaType = "image" | "video";
@@ -474,6 +474,69 @@ export type FlirtEntry = {
 
 export type FlirtEntryWithSignedUrl = FlirtEntry & {
   signedUrl?: string;
+};
+
+export type { WorkoutBodyPart };
+
+export type BodyRatings = {
+  id: string;
+  rated_by: string;
+  rated_for: string;
+  overall: number;
+  arms: number;
+  shoulders: number;
+  chest: number;
+  abs: number;
+  back: number;
+  butt: number;
+  updated_at: string;
+};
+
+export type WorkoutSession = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  performed_at: string;
+  notes: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  queen_impressed: number | null;
+  queen_note: string | null;
+  queen_reacted_at: string | null;
+  created_at: string;
+};
+
+export type WorkoutSet = {
+  id: string;
+  session_id: string;
+  body_part: WorkoutBodyPart;
+  exercise_name: string;
+  set_number: number;
+  reps: number;
+  weight: number;
+  unit: string;
+  sort_order: number;
+  is_pr: boolean;
+  created_at: string;
+};
+
+export type WorkoutMedia = {
+  id: string;
+  session_id: string;
+  media_kind: "image" | "video";
+  file_path: string;
+  created_at: string;
+};
+
+export type WorkoutWeeklyPic = {
+  id: string;
+  created_by: string;
+  week_start: string;
+  before_path: string | null;
+  after_path: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export const FLIRT_STATUS_LABELS: Record<FlirtStatus, string> = {

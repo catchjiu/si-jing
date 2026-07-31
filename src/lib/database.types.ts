@@ -1136,6 +1136,189 @@ export type Database = {
           },
         ]
       }
+      body_ratings: {
+        Row: {
+          id: string
+          rated_by: string
+          rated_for: string
+          overall: number
+          arms: number
+          shoulders: number
+          chest: number
+          abs: number
+          back: number
+          butt: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          rated_by: string
+          rated_for: string
+          overall?: number
+          arms?: number
+          shoulders?: number
+          chest?: number
+          abs?: number
+          back?: number
+          butt?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          rated_by?: string
+          rated_for?: string
+          overall?: number
+          arms?: number
+          shoulders?: number
+          chest?: number
+          abs?: number
+          back?: number
+          butt?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workout_sessions: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          performed_at: string
+          notes: string | null
+          started_at: string | null
+          ended_at: string | null
+          queen_impressed: number | null
+          queen_note: string | null
+          queen_reacted_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          performed_at?: string
+          notes?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          queen_impressed?: number | null
+          queen_note?: string | null
+          queen_reacted_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          performed_at?: string
+          notes?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          queen_impressed?: number | null
+          queen_note?: string | null
+          queen_reacted_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      workout_sets: {
+        Row: {
+          id: string
+          session_id: string
+          body_part: string
+          exercise_name: string
+          set_number: number
+          reps: number
+          weight: number
+          unit: string
+          sort_order: number
+          is_pr: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          body_part: string
+          exercise_name: string
+          set_number?: number
+          reps?: number
+          weight?: number
+          unit?: string
+          sort_order?: number
+          is_pr?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          body_part?: string
+          exercise_name?: string
+          set_number?: number
+          reps?: number
+          weight?: number
+          unit?: string
+          sort_order?: number
+          is_pr?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      workout_media: {
+        Row: {
+          id: string
+          session_id: string
+          media_kind: string
+          file_path: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          media_kind: string
+          file_path: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          media_kind?: string
+          file_path?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      workout_weekly_pics: {
+        Row: {
+          id: string
+          created_by: string
+          week_start: string
+          before_path: string | null
+          after_path: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          week_start: string
+          before_path?: string | null
+          after_path?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          week_start?: string
+          before_path?: string | null
+          after_path?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       flirt_guys: {
         Row: {
           id: string
@@ -2578,97 +2761,6 @@ export type Database = {
           },
         ]
       }
-      shop_items: {
-        Row: {
-          id: string
-          created_by: string
-          title: string
-          description: string | null
-          price: number
-          image_path: string | null
-          is_active: boolean
-          sort_order: number
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          created_by: string
-          title: string
-          description?: string | null
-          price: number
-          image_path?: string | null
-          is_active?: boolean
-          sort_order?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          created_by?: string
-          title?: string
-          description?: string | null
-          price?: number
-          image_path?: string | null
-          is_active?: boolean
-          sort_order?: number
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shop_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      shop_purchases: {
-        Row: {
-          id: string
-          item_id: string
-          purchased_by: string
-          price_paid: number
-          status: string
-          queen_note: string | null
-          ledger_id: string | null
-          created_at: string
-          fulfilled_at: string | null
-        }
-        Insert: {
-          id?: string
-          item_id: string
-          purchased_by: string
-          price_paid: number
-          status?: string
-          queen_note?: string | null
-          ledger_id?: string | null
-          created_at?: string
-          fulfilled_at?: string | null
-        }
-        Update: {
-          id?: string
-          item_id?: string
-          purchased_by?: string
-          price_paid?: number
-          status?: string
-          queen_note?: string | null
-          ledger_id?: string | null
-          created_at?: string
-          fulfilled_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shop_purchases_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "shop_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       worship_assignments: {
         Row: {
           id: string
@@ -2908,7 +3000,6 @@ export type Database = {
       }
       grant_speak_freely_tokens: { Args: { p_count?: number }; Returns: number }
       points_balance: { Args: { p_user?: string }; Returns: number }
-      purchase_shop_item: { Args: { p_item_id: string }; Returns: string }
       create_worship_assignment: {
         Args: {
           p_topic: string

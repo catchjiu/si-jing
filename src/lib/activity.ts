@@ -984,6 +984,8 @@ export async function fetchRecentActivity(
       edgeLogCommentsSlave,
       flirtGuys,
       flirtEntries,
+      bodyRatings,
+      workoutReactions,
     ] = await Promise.all([
       supabase
         .from("tasks")
@@ -1167,6 +1169,19 @@ export async function fetchRecentActivity(
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
+      supabase
+        .from("body_ratings")
+        .select("id, overall, updated_at, rated_for")
+        .eq("rated_for", profile.id)
+        .order("updated_at", { ascending: false })
+        .limit(3),
+      supabase
+        .from("workout_sessions")
+        .select("id, queen_impressed, queen_reacted_at, performed_at, created_by")
+        .eq("created_by", profile.id)
+        .not("queen_reacted_at", "is", null)
+        .order("queen_reacted_at", { ascending: false })
+        .limit(5),
     ]);
 
     for (const t of tasks.data ?? []) {
@@ -1527,6 +1542,32 @@ export async function fetchRecentActivity(
         body: guy?.name ? `${guy.name} — ${snippet}` : snippet,
         href: `/dashboard/flirt/${e.guy_id}`,
         kind: "flirt_entry",
+      });
+    }
+
+    for (const r of bodyRatings.data ?? []) {
+      pushItem(items, {
+        id: `body-rating-${r.id}`,
+        at: r.updated_at as string,
+        title: "Body rating updated",
+        body: `Overall ${r.overall as number}/100`,
+        href: "/dashboard/workouts",
+        kind: "body_rating",
+      });
+    }
+
+    for (const w of workoutReactions.data ?? []) {
+      if (!w.queen_reacted_at) continue;
+      pushItem(items, {
+        id: `workout-reaction-${w.id}`,
+        at: w.queen_reacted_at as string,
+        title: "Queen reacted to a workout",
+        body:
+          w.queen_impressed != null
+            ? `Impressed ${w.queen_impressed as number}/100`
+            : "New reaction",
+        href: `/dashboard/workouts/${w.id}`,
+        kind: "workout_reaction",
       });
     }
 

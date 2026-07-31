@@ -12,7 +12,6 @@ import {
   ListTodo,
   Lock,
   Sparkles,
-  Store,
   Sparkle,
 } from "lucide-react";
 import type { MessageAttachmentType } from "@/lib/inbox";
@@ -41,7 +40,6 @@ const ICONS: Record<
   journal: BookOpen,
   wishlist: Heart,
   worship: Crown,
-  shop: Store,
   worship_assignment: Sparkle,
   denial: Lock,
 };

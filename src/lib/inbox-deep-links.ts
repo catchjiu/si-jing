@@ -152,7 +152,6 @@ export function messageAttachmentHref(opts: {
   if (type === "journal") return `/dashboard/journal`;
   if (type === "wishlist") return wishlistDeepLink(id, anchor);
   if (type === "worship") return worshipDeepLink(id, anchor);
-  if (type === "shop") return `/dashboard/shop`;
   if (type === "worship_assignment") return `/dashboard/worship`;
   if (type === "denial") return denialDeepLink(id, anchor);
   return `/dashboard/inbox`;

@@ -13,35 +13,6 @@ export type PointsLedgerEntry = {
   created_at: string;
 };
 
-export type ShopItem = {
-  id: string;
-  created_by: string;
-  title: string;
-  description: string | null;
-  price: number;
-  image_path: string | null;
-  is_active: boolean;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ShopPurchase = {
-  id: string;
-  item_id: string;
-  purchased_by: string;
-  price_paid: number;
-  status: "pending" | "fulfilled" | "cancelled";
-  queen_note: string | null;
-  ledger_id: string | null;
-  created_at: string;
-  fulfilled_at: string | null;
-};
-
-export type ShopPurchaseWithItem = ShopPurchase & {
-  item?: ShopItem | null;
-};
-
 export async function fetchPointsBalance(
   supabase: Supabase,
   userId?: string
@@ -91,15 +62,4 @@ export async function adjustPoints(
     created_by: opts.createdBy,
   });
   return error ? { error: error.message } : {};
-}
-
-export async function purchaseShopItem(
-  supabase: Supabase,
-  itemId: string
-): Promise<{ id?: string; error?: string }> {
-  const { data, error } = await supabase.rpc("purchase_shop_item", {
-    p_item_id: itemId,
-  });
-  if (error) return { error: error.message };
-  return { id: data as string };
 }
