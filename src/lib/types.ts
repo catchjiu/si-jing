@@ -500,6 +500,8 @@ export type WorkoutSession = {
   notes: string | null;
   started_at: string | null;
   ended_at: string | null;
+  /** Manual session length; preferred over started/ended delta */
+  duration_minutes: number | null;
   queen_impressed: number | null;
   queen_note: string | null;
   queen_reacted_at: string | null;
@@ -531,10 +533,11 @@ export type WorkoutMedia = {
 export type WorkoutWeeklyPic = {
   id: string;
   created_by: string;
-  /** Calendar date for this before/after pair */
-  entry_date: string;
-  before_path: string | null;
-  after_path: string | null;
+  /** Monday of the week (one photo per week) */
+  week_start: string;
+  /** Calendar date the photo was taken */
+  taken_on: string | null;
+  file_path: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

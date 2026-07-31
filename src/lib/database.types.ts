@@ -1187,6 +1187,7 @@ export type Database = {
           notes: string | null
           started_at: string | null
           ended_at: string | null
+          duration_minutes: number | null
           queen_impressed: number | null
           queen_note: string | null
           queen_reacted_at: string | null
@@ -1200,6 +1201,7 @@ export type Database = {
           notes?: string | null
           started_at?: string | null
           ended_at?: string | null
+          duration_minutes?: number | null
           queen_impressed?: number | null
           queen_note?: string | null
           queen_reacted_at?: string | null
@@ -1213,6 +1215,7 @@ export type Database = {
           notes?: string | null
           started_at?: string | null
           ended_at?: string | null
+          duration_minutes?: number | null
           queen_impressed?: number | null
           queen_note?: string | null
           queen_reacted_at?: string | null
@@ -1290,9 +1293,9 @@ export type Database = {
         Row: {
           id: string
           created_by: string
-          entry_date: string
-          before_path: string | null
-          after_path: string | null
+          week_start: string
+          taken_on: string | null
+          file_path: string | null
           notes: string | null
           created_at: string
           updated_at: string
@@ -1300,9 +1303,9 @@ export type Database = {
         Insert: {
           id?: string
           created_by: string
-          entry_date: string
-          before_path?: string | null
-          after_path?: string | null
+          week_start: string
+          taken_on?: string | null
+          file_path?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string
@@ -1310,9 +1313,9 @@ export type Database = {
         Update: {
           id?: string
           created_by?: string
-          entry_date?: string
-          before_path?: string | null
-          after_path?: string | null
+          week_start?: string
+          taken_on?: string | null
+          file_path?: string | null
           notes?: string | null
           created_at?: string
           updated_at?: string

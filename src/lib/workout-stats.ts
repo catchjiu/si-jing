@@ -97,3 +97,18 @@ export function durationMinutes(
   if (ms < 0) return null;
   return Math.round(ms / (1000 * 60));
 }
+
+export function sessionDurationMin(session: {
+  duration_minutes?: number | null;
+  started_at: string | null;
+  ended_at: string | null;
+}): number | null {
+  if (
+    session.duration_minutes != null &&
+    Number.isFinite(session.duration_minutes) &&
+    session.duration_minutes >= 0
+  ) {
+    return Math.round(session.duration_minutes);
+  }
+  return durationMinutes(session.started_at, session.ended_at);
+}

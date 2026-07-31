@@ -437,7 +437,9 @@ export async function fetchRecentActivity(
         .limit(8),
       supabase
         .from("workout_weekly_pics")
-        .select("id, entry_date, updated_at, created_at, before_path, after_path")
+        .select(
+          "id, week_start, taken_on, updated_at, created_at, file_path"
+        )
         .order("updated_at", { ascending: false })
         .limit(8),
     ]);
@@ -833,13 +835,12 @@ export async function fetchRecentActivity(
     }
 
     for (const p of workoutProgressPics.data ?? []) {
-      const hasPhoto = Boolean(p.before_path || p.after_path);
-      if (!hasPhoto) continue;
+      if (!p.file_path) continue;
       pushItem(items, {
         id: `workout-progress-${p.id}`,
         at: (p.updated_at as string) || (p.created_at as string),
         title: "Progress photo · D",
-        body: `Entry ${p.entry_date as string}`,
+        body: (p.taken_on as string | null) || `Week of ${p.week_start as string}`,
         href: "/dashboard/workouts",
         kind: "workout_weekly_pic",
       });

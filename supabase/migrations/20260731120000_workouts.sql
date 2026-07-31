@@ -81,6 +81,7 @@ CREATE TABLE public.workout_sessions (
   notes TEXT,
   started_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
+  duration_minutes INT CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
   queen_impressed INT CHECK (queen_impressed IS NULL OR queen_impressed BETWEEN 0 AND 100),
   queen_note TEXT,
   queen_reacted_at TIMESTAMPTZ,
@@ -131,6 +132,7 @@ BEGIN
        OR NEW.notes IS DISTINCT FROM OLD.notes
        OR NEW.started_at IS DISTINCT FROM OLD.started_at
        OR NEW.ended_at IS DISTINCT FROM OLD.ended_at
+       OR NEW.duration_minutes IS DISTINCT FROM OLD.duration_minutes
        OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
       RAISE EXCEPTION 'Queen may only update reaction fields on workout_sessions';
     END IF;
@@ -255,21 +257,21 @@ CREATE POLICY "Slave or queen can delete workout_media"
     )
   );
 
--- Weekly before/after progress pics
+-- Weekly progress pics over time (one dated photo per week)
 CREATE TABLE public.workout_weekly_pics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_by UUID NOT NULL REFERENCES public.users(id),
-  entry_date DATE NOT NULL,
-  before_path TEXT,
-  after_path TEXT,
+  week_start DATE NOT NULL,
+  taken_on DATE,
+  file_path TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT workout_weekly_pics_unique UNIQUE (created_by, entry_date)
+  CONSTRAINT workout_weekly_pics_unique UNIQUE (created_by, week_start)
 );
 
 CREATE INDEX idx_workout_weekly_pics_created_by
-  ON public.workout_weekly_pics(created_by, entry_date DESC);
+  ON public.workout_weekly_pics(created_by, week_start DESC);
 
 ALTER TABLE public.workout_weekly_pics ENABLE ROW LEVEL SECURITY;
 

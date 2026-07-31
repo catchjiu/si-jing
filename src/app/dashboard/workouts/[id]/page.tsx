@@ -5,18 +5,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Dumbbell, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Dumbbell, Loader2, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { BODY_PART_LABELS } from "@/lib/workout-exercises";
 import {
-  durationMinutes,
   formatVolume,
+  sessionDurationMin,
   sessionVolume,
 } from "@/lib/workout-stats";
 import { signObjectUrl, removeObject } from "@/lib/storage/client";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
 import { WorkoutSessionSummary } from "@/components/workouts/workout-session-summary";
+import { WorkoutSessionEditor } from "@/components/workouts/workout-session-editor";
 import { WorkoutQueenReaction } from "@/components/workouts/workout-queen-reaction";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export default function WorkoutDetailPage() {
   const [media, setMedia] = useState<MediaView[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile || !id) return;
@@ -100,7 +102,7 @@ export default function WorkoutDetailPage() {
   );
   const prCount = sets.filter((s) => s.is_pr).length;
   const exerciseCount = grouped.length;
-  const mins = durationMinutes(session?.started_at ?? null, session?.ended_at ?? null);
+  const mins = session ? sessionDurationMin(session) : null;
 
   const deleteSession = async () => {
     if (!session || !isSlave) return;
@@ -143,6 +145,29 @@ export default function WorkoutDetailPage() {
     );
   }
 
+  if (editing && isSlave) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/dashboard/workouts"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-gold"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Workouts
+        </Link>
+        <WorkoutSessionEditor
+          session={session}
+          sets={sets}
+          media={media}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            void load();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <Link
@@ -166,20 +191,32 @@ export default function WorkoutDetailPage() {
           )}
         </div>
         {isSlave && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={deleting}
-            onClick={() => void deleteSession()}
-            className="text-muted-foreground hover:text-red-300"
-          >
-            {deleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setEditing(true)}
+              className="border-gold/30 text-gold"
+            >
+              <Pencil className="mr-1.5 h-4 w-4" />
+              Edit
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={deleting}
+              onClick={() => void deleteSession()}
+              className="text-muted-foreground hover:text-red-300"
+            >
+              {deleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         )}
       </header>
 

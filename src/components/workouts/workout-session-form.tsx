@@ -65,6 +65,10 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
   const [setCount, setSetCount] = useState(1);
   const [draft, setDraft] = useState<DraftExercise[]>([]);
   const [notes, setNotes] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [performedAt, setPerformedAt] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [startedAt] = useState(() => new Date().toISOString());
@@ -227,6 +231,12 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
       toast.error("Add at least one set");
       return;
     }
+    const minsParsed =
+      minutes.trim() === "" ? null : Number.parseInt(minutes, 10);
+    if (minsParsed != null && (!Number.isFinite(minsParsed) || minsParsed < 0)) {
+      toast.error("Minutes must be 0 or more");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
     try {
@@ -245,10 +255,11 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
         .insert({
           created_by: profile.id,
           assigned_to: queen.id,
-          performed_at: new Date().toISOString().slice(0, 10),
+          performed_at: performedAt || new Date().toISOString().slice(0, 10),
           notes: notes.trim() || null,
           started_at: startedAt,
           ended_at: new Date().toISOString(),
+          duration_minutes: minsParsed,
         })
         .select("id")
         .single();
@@ -472,11 +483,39 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
         </div>
       )}
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="log-performed-at">Date</Label>
+          <Input
+            id="log-performed-at"
+            type="date"
+            value={performedAt}
+            onChange={(e) => setPerformedAt(e.target.value)}
+            className="border-gold/20 bg-void/60"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="log-minutes">Minutes</Label>
+          <Input
+            id="log-minutes"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            placeholder="e.g. 45"
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+            className="border-gold/20 bg-void/60"
+          />
+        </div>
+      </div>
+
       <div className="space-y-2">
-        <Label>Notes (optional)</Label>
+        <Label>Notes / intensity (optional)</Label>
         <Input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          placeholder="Hard, pump day…"
           className="border-gold/20 bg-void/60"
         />
       </div>

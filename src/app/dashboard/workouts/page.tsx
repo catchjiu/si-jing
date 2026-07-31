@@ -27,8 +27,8 @@ export default function WorkoutsPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isQueen
-              ? "Rate his body, review sessions, and track weekly progress"
-              : "See Queen’s ratings, log training, and upload weekly progress pics"}
+              ? "Rate his body, review sessions, and watch progress over time"
+              : "See Queen’s ratings, log training, and add weekly progress pics"}
           </p>
         </div>
         {isSlave && (
