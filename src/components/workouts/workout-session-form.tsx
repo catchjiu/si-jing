@@ -29,7 +29,6 @@ import { presignAndUpload } from "@/lib/storage/client";
 import type { Profile } from "@/lib/types";
 import { WorkoutWeightDial } from "@/components/workouts/workout-weight-dial";
 import { WorkoutWheelPicker } from "@/components/workouts/workout-wheel-picker";
-import { WorkoutRestTimer } from "@/components/workouts/workout-rest-timer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,14 +61,12 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
   const [recent, setRecent] = useState<string[]>([]);
   const [priorMax, setPriorMax] = useState<Map<string, number>>(new Map());
   const [reps, setReps] = useState(10);
-  const [weight, setWeight] = useState(45);
+  const [weight, setWeight] = useState(20);
   const [setCount, setSetCount] = useState(1);
   const [draft, setDraft] = useState<DraftExercise[]>([]);
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-  const [restTotal, setRestTotal] = useState(90);
-  const [restLeft, setRestLeft] = useState<number | null>(null);
   const [startedAt] = useState(() => new Date().toISOString());
 
   const exerciseName =
@@ -137,12 +134,6 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
     void loadHistory();
   }, [loadHistory]);
 
-  useEffect(() => {
-    if (restLeft == null || restLeft <= 0) return;
-    const t = window.setTimeout(() => setRestLeft((s) => (s == null ? s : s - 1)), 1000);
-    return () => window.clearTimeout(t);
-  }, [restLeft]);
-
   const presets = WORKOUT_EXERCISES[bodyPart];
 
   const pickExercise = (name: string) => {
@@ -209,7 +200,6 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
         },
       ];
     });
-    setRestLeft(restTotal);
     toast.success(
       setCount === 1 ? "Set added" : `${setCount} sets added`
     );
@@ -277,7 +267,7 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
             set_number: setNum++,
             reps: s.reps,
             weight: s.weight,
-            unit: "lbs",
+            unit: "kg",
             sort_order: sort++,
             is_pr: prFlags[flatIdx]?.isPr ?? false,
           });
@@ -314,24 +304,23 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
       }
 
       const prCount = prFlags.filter((p) => p.isPr).length;
-      void import("@/lib/push-client").then(({ notifyPush }) => {
-        void notifyPush({
-          title: "New workout logged",
-          body: `${draft.length} exercises · ${formatVolume(volume)}`,
+      const { notifyPush } = await import("@/lib/push-client");
+      await notifyPush({
+        title: "New workout logged",
+        body: `${draft.length} exercises · ${formatVolume(volume)}`,
+        url: `/dashboard/workouts/${session.id}`,
+        target: "queen",
+        kind: "workout_new",
+      });
+      if (prCount > 0) {
+        await notifyPush({
+          title: "Personal record!",
+          body: `${prCount} PR${prCount === 1 ? "" : "s"} this session`,
           url: `/dashboard/workouts/${session.id}`,
           target: "queen",
-          kind: "workout_new",
+          kind: "workout_pr",
         });
-        if (prCount > 0) {
-          void notifyPush({
-            title: "Personal record!",
-            body: `${prCount} PR${prCount === 1 ? "" : "s"} this session`,
-            url: `/dashboard/workouts/${session.id}`,
-            target: "queen",
-            kind: "workout_pr",
-          });
-        }
-      });
+      }
 
       toast.success(
         prCount
@@ -440,19 +429,6 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
         <Plus className="mr-2 h-4 w-4" />
         Add {setCount === 1 ? "set" : `${setCount} sets`}
       </Button>
-
-      {restLeft != null && restLeft > 0 && (
-        <WorkoutRestTimer
-          seconds={restLeft}
-          total={restTotal}
-          running
-          onDismiss={() => setRestLeft(null)}
-          onPreset={(s) => {
-            setRestTotal(s);
-            setRestLeft(s);
-          }}
-        />
-      )}
 
       {draft.length > 0 && (
         <div className="space-y-3">

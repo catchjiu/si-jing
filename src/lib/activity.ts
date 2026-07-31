@@ -225,6 +225,8 @@ export async function fetchRecentActivity(
       apartmentFundEntries,
       edgeLogs,
       edgeLogComments,
+      workoutSessionsQueen,
+      workoutProgressPics,
     ] = await Promise.all([
       supabase
         .from("submissions")
@@ -428,6 +430,16 @@ export async function fetchRecentActivity(
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
+      supabase
+        .from("workout_sessions")
+        .select("id, performed_at, created_at, created_by, notes")
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("workout_weekly_pics")
+        .select("id, entry_date, updated_at, created_at, before_path, after_path")
+        .order("updated_at", { ascending: false })
+        .limit(8),
     ]);
 
     for (const t of slaveTasks.data ?? []) {
@@ -806,6 +818,30 @@ export async function fetchRecentActivity(
         body: note || "New edge proof submitted",
         href: denialPageHref({ edgeLogId: log.id as string }),
         kind: "denial_edge",
+      });
+    }
+
+    for (const w of workoutSessionsQueen.data ?? []) {
+      pushItem(items, {
+        id: `workout-new-${w.id}`,
+        at: w.created_at as string,
+        title: "New workout · D",
+        body: (w.notes as string | null)?.trim() || "Session logged",
+        href: `/dashboard/workouts/${w.id}`,
+        kind: "workout_new",
+      });
+    }
+
+    for (const p of workoutProgressPics.data ?? []) {
+      const hasPhoto = Boolean(p.before_path || p.after_path);
+      if (!hasPhoto) continue;
+      pushItem(items, {
+        id: `workout-progress-${p.id}`,
+        at: (p.updated_at as string) || (p.created_at as string),
+        title: "Progress photo · D",
+        body: `Entry ${p.entry_date as string}`,
+        href: "/dashboard/workouts",
+        kind: "workout_weekly_pic",
       });
     }
 

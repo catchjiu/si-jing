@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2, Plus, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { weekStartMonday } from "@/lib/workout-stats";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
-import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
+import { presignAndUpload, signObjectUrl, removeObject } from "@/lib/storage/client";
 import type { WorkoutWeeklyPic } from "@/lib/types";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type PicView = WorkoutWeeklyPic & {
@@ -39,15 +40,20 @@ async function withUrls(rows: WorkoutWeeklyPic[]): Promise<PicView[]> {
   );
 }
 
-function formatWeek(weekStart: string) {
+function todayYmd() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatEntryDate(ymd: string) {
   try {
-    return new Date(`${weekStart}T12:00:00`).toLocaleDateString(undefined, {
+    return new Date(`${ymd}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: "short",
       month: "short",
       day: "numeric",
       year: "numeric",
     });
   } catch {
-    return weekStart;
+    return ymd;
   }
 }
 
@@ -55,8 +61,10 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
   const { profile, isQueen, isSlave } = useAuth();
   const [rows, setRows] = useState<PicView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState<"before" | "after" | null>(null);
-  const currentWeek = weekStartMonday();
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [newDate, setNewDate] = useState(todayYmd);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -65,8 +73,8 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
     let query = supabase
       .from("workout_weekly_pics")
       .select("*")
-      .order("week_start", { ascending: false })
-      .limit(16);
+      .order("entry_date", { ascending: false })
+      .limit(40);
     if (isSlave) query = query.eq("created_by", profile.id);
     const { data, error } = await query;
     if (error) {
@@ -82,15 +90,39 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
     if (profile) void load();
   }, [profile, load]);
 
-  const current = rows.find((r) => r.week_start === currentWeek) ?? null;
+  const createEntry = async () => {
+    if (!isSlave || !profile || !newDate) return;
+    if (rows.some((r) => r.entry_date === newDate)) {
+      toast.error("An entry for that date already exists");
+      return;
+    }
+    setCreating(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("workout_weekly_pics").insert({
+      created_by: profile.id,
+      entry_date: newDate,
+    });
+    setCreating(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Progress date added");
+    void load();
+  };
 
-  const uploadSide = async (side: "before" | "after", file: File | null) => {
+  const uploadSide = async (
+    entry: PicView,
+    side: "before" | "after",
+    file: File | null
+  ) => {
     if (!isSlave || !profile || !file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Use a photo");
       return;
     }
-    setUploading(side);
+    const key = `${entry.id}:${side}`;
+    setUploading(key);
     const supabase = createClient();
     try {
       const prepared = await downsizeImageIfNeeded(file);
@@ -100,36 +132,34 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
         file: prepared,
         contentType: prepared.type || "image/jpeg",
         ext,
-        relativePath: `${profile.id}/weekly/${currentWeek}/${side}-${Date.now()}.${ext}`,
+        relativePath: `${profile.id}/progress/${entry.entry_date}/${side}-${Date.now()}.${ext}`,
       });
 
+      const oldPath =
+        side === "before" ? entry.before_path : entry.after_path;
       const patch =
         side === "before" ? { before_path: path } : { after_path: path };
 
-      if (current) {
-        const { error } = await supabase
-          .from("workout_weekly_pics")
-          .update(patch)
-          .eq("id", current.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("workout_weekly_pics").insert({
-          created_by: profile.id,
-          week_start: currentWeek,
-          ...patch,
-        });
-        if (error) throw error;
+      const { error } = await supabase
+        .from("workout_weekly_pics")
+        .update(patch)
+        .eq("id", entry.id);
+      if (error) throw error;
+
+      if (oldPath) {
+        await removeObject({ bucket: "workouts", path: oldPath }).catch(
+          () => undefined
+        );
       }
 
-      void import("@/lib/push-client").then(({ notifyPush }) =>
-        notifyPush({
-          title: "Weekly progress pic",
-          body: `${side === "before" ? "Before" : "After"} photo · week of ${formatWeek(currentWeek)}`,
-          url: "/dashboard/workouts",
-          target: "queen",
-          kind: "workout_weekly_pic",
-        })
-      );
+      const { notifyPush } = await import("@/lib/push-client");
+      await notifyPush({
+        title: "Progress photo added",
+        body: `${side === "before" ? "Before" : "After"} · ${formatEntryDate(entry.entry_date)}`,
+        url: "/dashboard/workouts",
+        target: "queen",
+        kind: "workout_weekly_pic",
+      });
       toast.success(`${side === "before" ? "Before" : "After"} photo saved`);
       void load();
     } catch (err) {
@@ -137,6 +167,31 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
     } finally {
       setUploading(null);
     }
+  };
+
+  const removeEntry = async (entry: PicView) => {
+    if (!isSlave) return;
+    if (!window.confirm(`Remove progress entry for ${formatEntryDate(entry.entry_date)}?`)) {
+      return;
+    }
+    setDeletingId(entry.id);
+    const supabase = createClient();
+    for (const p of [entry.before_path, entry.after_path]) {
+      if (p) {
+        await removeObject({ bucket: "workouts", path: p }).catch(() => undefined);
+      }
+    }
+    const { error } = await supabase
+      .from("workout_weekly_pics")
+      .delete()
+      .eq("id", entry.id);
+    setDeletingId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Entry removed");
+    void load();
   };
 
   return (
@@ -150,132 +205,150 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Progress
         </p>
-        <p className="font-heading text-lg text-ivory">Weekly before / after</p>
+        <p className="font-heading text-lg text-ivory">Before / after over time</p>
         <p className="text-xs text-muted-foreground">
-          Week of {formatWeek(currentWeek)}
+          Add a date, then upload before and after photos for that day
         </p>
       </div>
+
+      {isSlave && (
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border border-gold/15 bg-void/40 p-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="progress-date">Date</Label>
+            <Input
+              id="progress-date"
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="border-gold/20 bg-void/60"
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={creating || !newDate}
+            onClick={() => void createEntry()}
+            className="bg-gold text-void hover:bg-gold-muted"
+          >
+            {creating ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="mr-2 h-4 w-4" />
+            )}
+            Add date
+          </Button>
+        </div>
+      )}
 
       {loading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
         </p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {isQueen
+            ? "No progress photos yet."
+            : "Add a date to start tracking before/after photos."}
+        </p>
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(["before", "after"] as const).map((side) => {
-              const url =
-                side === "before" ? current?.beforeUrl : current?.afterUrl;
-              const path =
-                side === "before" ? current?.before_path : current?.after_path;
-              return (
-                <div
-                  key={side}
-                  className="space-y-2 rounded-xl border border-gold/15 bg-void/40 p-3"
-                >
-                  <p className="text-xs uppercase tracking-wider text-gold">
-                    {side}
-                  </p>
-                  <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-gold/10 bg-charcoal">
-                    {url && path ? (
-                      <WatermarkedFrame
-                        className="absolute inset-0"
-                        mediaPath={path}
-                      >
-                        <Image
-                          src={url}
-                          alt={side}
-                          fill
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </WatermarkedFrame>
+        <ul className="space-y-4">
+          {rows.map((entry) => (
+            <li
+              key={entry.id}
+              className="space-y-3 rounded-xl border border-gold/15 bg-void/30 p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-heading text-sm text-gold">
+                  {formatEntryDate(entry.entry_date)}
+                </p>
+                {isSlave && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={deletingId === entry.id}
+                    onClick={() => void removeEntry(entry)}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-red-300"
+                  >
+                    {deletingId === entry.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <div className="flex h-full items-center justify-center text-muted-foreground">
-                        <Camera className="h-8 w-8 opacity-40" />
-                      </div>
+                      <Trash2 className="h-4 w-4" />
                     )}
-                  </div>
-                  {isSlave && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={uploading === side}
-                      className="w-full border-gold/30"
-                      asChild
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(["before", "after"] as const).map((side) => {
+                  const url =
+                    side === "before" ? entry.beforeUrl : entry.afterUrl;
+                  const path =
+                    side === "before" ? entry.before_path : entry.after_path;
+                  const busy = uploading === `${entry.id}:${side}`;
+                  return (
+                    <div
+                      key={side}
+                      className="space-y-2 rounded-lg border border-gold/10 bg-charcoal/60 p-2"
                     >
-                      <label className="cursor-pointer">
-                        {uploading === side ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        {url ? "Replace" : "Upload"} {side}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) =>
-                            void uploadSide(side, e.target.files?.[0] ?? null)
-                          }
-                        />
-                      </label>
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {rows.filter((r) => r.week_start !== currentWeek).length > 0 && (
-            <div className="space-y-2 border-t border-gold/10 pt-4">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                Past weeks
-              </p>
-              <ul className="space-y-3">
-                {rows
-                  .filter((r) => r.week_start !== currentWeek)
-                  .map((r) => (
-                    <li
-                      key={r.id}
-                      className="rounded-xl border border-gold/10 bg-void/30 p-3"
-                    >
-                      <p className="mb-2 text-xs text-gold">
-                        Week of {formatWeek(r.week_start)}
+                      <p className="text-[10px] uppercase tracking-wider text-gold/90">
+                        {side}
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[r.beforeUrl, r.afterUrl].map((url, i) => (
-                          <div
-                            key={i}
-                            className="relative aspect-[3/4] overflow-hidden rounded-md border border-gold/10 bg-charcoal"
+                      <div className="relative aspect-[3/4] overflow-hidden rounded-md border border-gold/10 bg-void/50">
+                        {url && path ? (
+                          <WatermarkedFrame
+                            className="absolute inset-0"
+                            mediaPath={path}
                           >
-                            {url ? (
-                              <Image
-                                src={url}
-                                alt=""
-                                fill
-                                unoptimized
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground">
-                                —
-                              </div>
-                            )}
+                            <Image
+                              src={url}
+                              alt={`${side} ${entry.entry_date}`}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                            />
+                          </WatermarkedFrame>
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <Camera className="h-7 w-7 opacity-40" />
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-
-          {isQueen && rows.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No weekly progress pics yet.
-            </p>
-          )}
-        </>
+                      {isSlave && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          className="w-full border-gold/30"
+                          asChild
+                        >
+                          <label className="cursor-pointer">
+                            {busy ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            {url ? "Replace" : "Upload"} {side}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) =>
+                                void uploadSide(
+                                  entry,
+                                  side,
+                                  e.target.files?.[0] ?? null
+                                )
+                              }
+                            />
+                          </label>
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

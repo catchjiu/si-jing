@@ -48,7 +48,7 @@ export function sessionVolume(sets: { reps: number; weight: number }[]): number 
 }
 
 export function formatVolume(n: number): string {
-  return `${Math.round(n).toLocaleString("en-US")} lbs`;
+  return `${Math.round(n).toLocaleString("en-US")} kg`;
 }
 
 export function exerciseKey(bodyPart: WorkoutBodyPart, name: string): string {

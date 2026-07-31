@@ -1290,7 +1290,7 @@ export type Database = {
         Row: {
           id: string
           created_by: string
-          week_start: string
+          entry_date: string
           before_path: string | null
           after_path: string | null
           notes: string | null
@@ -1300,7 +1300,7 @@ export type Database = {
         Insert: {
           id?: string
           created_by: string
-          week_start: string
+          entry_date: string
           before_path?: string | null
           after_path?: string | null
           notes?: string | null
@@ -1310,7 +1310,7 @@ export type Database = {
         Update: {
           id?: string
           created_by?: string
-          week_start?: string
+          entry_date?: string
           before_path?: string | null
           after_path?: string | null
           notes?: string | null

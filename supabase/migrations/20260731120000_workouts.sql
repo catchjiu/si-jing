@@ -152,7 +152,7 @@ CREATE TABLE public.workout_sets (
   set_number INT NOT NULL DEFAULT 1 CHECK (set_number >= 1),
   reps INT NOT NULL DEFAULT 1 CHECK (reps >= 1),
   weight NUMERIC(8,2) NOT NULL DEFAULT 0 CHECK (weight >= 0),
-  unit TEXT NOT NULL DEFAULT 'lbs',
+  unit TEXT NOT NULL DEFAULT 'kg',
   sort_order INT NOT NULL DEFAULT 0,
   is_pr BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -259,17 +259,17 @@ CREATE POLICY "Slave or queen can delete workout_media"
 CREATE TABLE public.workout_weekly_pics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_by UUID NOT NULL REFERENCES public.users(id),
-  week_start DATE NOT NULL,
+  entry_date DATE NOT NULL,
   before_path TEXT,
   after_path TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT workout_weekly_pics_unique UNIQUE (created_by, week_start)
+  CONSTRAINT workout_weekly_pics_unique UNIQUE (created_by, entry_date)
 );
 
 CREATE INDEX idx_workout_weekly_pics_created_by
-  ON public.workout_weekly_pics(created_by, week_start DESC);
+  ON public.workout_weekly_pics(created_by, entry_date DESC);
 
 ALTER TABLE public.workout_weekly_pics ENABLE ROW LEVEL SECURITY;
 

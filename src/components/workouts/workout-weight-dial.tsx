@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function WorkoutWeightDial({
   weight,
-  unit = "lbs",
+  unit = "kg",
   setLabel,
 }: {
   weight: number;

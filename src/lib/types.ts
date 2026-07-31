@@ -531,7 +531,8 @@ export type WorkoutMedia = {
 export type WorkoutWeeklyPic = {
   id: string;
   created_by: string;
-  week_start: string;
+  /** Calendar date for this before/after pair */
+  entry_date: string;
   before_path: string | null;
   after_path: string | null;
   notes: string | null;
