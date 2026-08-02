@@ -1,18 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { Dumbbell, Play } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
+import { signObjectUrl } from "@/lib/storage/client";
 import {
   formatVolume,
   sessionVolume,
   buildSparklineSeries,
 } from "@/lib/workout-stats";
-import type { WorkoutSession, WorkoutSet } from "@/lib/types";
+import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
 import { WorkoutExerciseSparkline } from "@/components/workouts/workout-exercise-sparkline";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+type SessionPreview = {
+  mediaKind: WorkoutMedia["media_kind"];
+  filePath: string;
+  signedUrl?: string;
+};
 
 type SessionCard = WorkoutSession & {
   sets: WorkoutSet[];
@@ -20,7 +30,13 @@ type SessionCard = WorkoutSession & {
   volume: number;
   prCount: number;
   exerciseCount: number;
+  preview: SessionPreview | null;
 };
+
+function pickPreview(media: WorkoutMedia[]): WorkoutMedia | null {
+  if (media.length === 0) return null;
+  return media.find((m) => m.media_kind === "image") ?? media[0] ?? null;
+}
 
 export function WorkoutSessionsList({ className }: { className?: string }) {
   const { profile, isSlave } = useAuth();
@@ -42,23 +58,46 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
       const { data } = await query;
       const rows = (data ?? []) as WorkoutSession[];
       const ids = rows.map((r) => r.id);
-      let setsBySession = new Map<string, WorkoutSet[]>();
+      const setsBySession = new Map<string, WorkoutSet[]>();
+      const mediaBySession = new Map<string, WorkoutMedia[]>();
       if (ids.length > 0) {
-        const { data: setRows } = await supabase
-          .from("workout_sets")
-          .select("*")
-          .in("session_id", ids);
+        const [{ data: setRows }, { data: mediaRows }] = await Promise.all([
+          supabase.from("workout_sets").select("*").in("session_id", ids),
+          supabase
+            .from("workout_media")
+            .select("*")
+            .in("session_id", ids)
+            .order("created_at", { ascending: true }),
+        ]);
         for (const s of (setRows ?? []) as WorkoutSet[]) {
           const list = setsBySession.get(s.session_id) ?? [];
           list.push(s);
           setsBySession.set(s.session_id, list);
         }
+        for (const m of (mediaRows ?? []) as WorkoutMedia[]) {
+          const list = mediaBySession.get(m.session_id) ?? [];
+          list.push(m);
+          mediaBySession.set(m.session_id, list);
+        }
       }
-      setItems(
-        rows.map((r) => {
+
+      const cards = await Promise.all(
+        rows.map(async (r) => {
           const sets = setsBySession.get(r.id) ?? [];
           const weights = sets.map((s) => Number(s.weight));
           const names = new Set(sets.map((s) => s.exercise_name));
+          const previewMedia = pickPreview(mediaBySession.get(r.id) ?? []);
+          const preview: SessionPreview | null = previewMedia
+            ? {
+                mediaKind: previewMedia.media_kind,
+                filePath: previewMedia.file_path,
+                signedUrl:
+                  (await signObjectUrl({
+                    bucket: "workouts",
+                    path: previewMedia.file_path,
+                  })) ?? undefined,
+              }
+            : null;
           return {
             ...r,
             sets,
@@ -73,9 +112,11 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
                 weight: w,
               }))
             ),
+            preview,
           };
         })
       );
+      setItems(cards);
       setLoading(false);
     })();
   }, [profile, isSlave]);
@@ -129,6 +170,40 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
                 {formatVolume(s.volume)}
               </p>
               <WorkoutExerciseSparkline values={s.spark} className="mt-1 h-8 w-28" />
+            </div>
+            <div className="relative h-16 w-14 shrink-0 self-center overflow-hidden rounded-lg border border-gold/20 bg-void/50">
+              {s.preview?.signedUrl && s.preview.mediaKind === "image" ? (
+                <WatermarkedFrame
+                  className="absolute inset-0"
+                  mediaPath={s.preview.filePath}
+                  sizeClassName="text-[0.45rem]"
+                >
+                  <Image
+                    src={s.preview.signedUrl}
+                    alt=""
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                </WatermarkedFrame>
+              ) : s.preview?.signedUrl ? (
+                <>
+                  <video
+                    src={s.preview.signedUrl}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-void/35">
+                    <Play className="h-4 w-4 fill-gold text-gold" />
+                  </span>
+                </>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-gold/40">
+                  <Dumbbell className="h-5 w-5" />
+                </div>
+              )}
             </div>
           </Link>
         </li>

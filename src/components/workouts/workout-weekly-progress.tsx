@@ -66,8 +66,11 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
     null,
   ]);
 
-  const thisWeek = useMemo(() => weekStartMonday(), []);
-  const hasThisWeek = rows.some((r) => r.week_start === thisWeek);
+  const selectedWeek = useMemo(
+    () => weekStartMonday(new Date(`${newDate || todayYmd()}T12:00:00`)),
+    [newDate]
+  );
+  const weekAlreadyAdded = rows.some((r) => r.week_start === selectedWeek);
 
   const withPhotos = useMemo(
     () =>
@@ -127,41 +130,51 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
     });
   }, [withPhotos]);
 
-  const createThisWeek = async () => {
-    if (!isSlave || !profile) return;
-    if (hasThisWeek) {
-      toast.error("This week already has a progress slot");
+  const createEntry = async () => {
+    if (!isSlave || !profile || !newDate) return;
+    const weekStart = weekStartMonday(new Date(`${newDate}T12:00:00`));
+    if (rows.some((r) => r.week_start === weekStart)) {
+      toast.error("That week already has a progress photo");
       return;
     }
     setCreating(true);
     const supabase = createClient();
     const { error } = await supabase.from("workout_weekly_pics").insert({
       created_by: profile.id,
-      week_start: thisWeek,
-      taken_on: newDate || todayYmd(),
+      week_start: weekStart,
+      taken_on: newDate,
     });
     setCreating(false);
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("Week added — upload a photo");
+    toast.success("Date added — upload a photo");
     void load();
   };
 
   const saveDate = async (entry: PicView, value: string) => {
     if (!isSlave || !value) return;
+    const weekStart = weekStartMonday(new Date(`${value}T12:00:00`));
+    if (
+      rows.some((r) => r.id !== entry.id && r.week_start === weekStart)
+    ) {
+      toast.error("Another photo already uses that week");
+      return;
+    }
     const supabase = createClient();
     const { error } = await supabase
       .from("workout_weekly_pics")
-      .update({ taken_on: value })
+      .update({ taken_on: value, week_start: weekStart })
       .eq("id", entry.id);
     if (error) {
       toast.error(error.message);
       return;
     }
     setRows((prev) =>
-      prev.map((r) => (r.id === entry.id ? { ...r, taken_on: value } : r))
+      prev.map((r) =>
+        r.id === entry.id ? { ...r, taken_on: value, week_start: weekStart } : r
+      )
     );
   };
 
@@ -185,9 +198,14 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
       });
 
       const takenOn = entry.taken_on || todayYmd();
+      const weekStart = weekStartMonday(new Date(`${takenOn}T12:00:00`));
       const { error } = await supabase
         .from("workout_weekly_pics")
-        .update({ file_path: path, taken_on: takenOn })
+        .update({
+          file_path: path,
+          taken_on: takenOn,
+          week_start: weekStart,
+        })
         .eq("id", entry.id);
       if (error) throw error;
 
@@ -287,8 +305,8 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
           <Button
             type="button"
             size="sm"
-            disabled={creating || hasThisWeek || !newDate}
-            onClick={() => void createThisWeek()}
+            disabled={creating || weekAlreadyAdded || !newDate}
+            onClick={() => void createEntry()}
             className="bg-gold text-void hover:bg-gold-muted"
           >
             {creating ? (
@@ -296,7 +314,7 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
             ) : (
               <Plus className="mr-2 h-4 w-4" />
             )}
-            {hasThisWeek ? "This week added" : "Add this week"}
+            {weekAlreadyAdded ? "Week already added" : "Add date"}
           </Button>
         </div>
       )}
@@ -309,7 +327,7 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
         <p className="text-sm text-muted-foreground">
           {isQueen
             ? "No progress photos yet."
-            : "Add this week, then upload a photo to start the timeline."}
+            : "Pick a date, add it, then upload a photo to start the timeline."}
         </p>
       ) : (
         <>
