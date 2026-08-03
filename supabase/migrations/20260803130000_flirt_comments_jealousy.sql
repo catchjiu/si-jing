@@ -22,8 +22,7 @@ BEGIN
        OR NEW.status IS DISTINCT FROM OLD.status
        OR NEW.interest_level IS DISTINCT FROM OLD.interest_level
        OR NEW.hotness_level IS DISTINCT FROM OLD.hotness_level
-       OR NEW.created_at IS DISTINCT FROM OLD.created_at
-       OR NEW.updated_at IS DISTINCT FROM OLD.updated_at THEN
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
       RAISE EXCEPTION 'Only jealousy may be updated by the assigned slave';
     END IF;
   END IF;
