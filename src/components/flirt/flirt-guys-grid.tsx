@@ -13,6 +13,7 @@ import {
   FlirtInterestMeter,
 } from "@/components/flirt/flirt-interest-slider";
 import { cn } from "@/lib/utils";
+import { FlirtCountBadge } from "@/components/flirt/flirt-count-badge";
 
 async function withSignedUrls(
   guys: FlirtGuy[]
@@ -34,10 +35,12 @@ export function FlirtGuysGrid({
   guys,
   filter,
   onFilterChange,
+  unreadByGuy = {},
 }: {
   guys: FlirtGuy[];
   filter: FlirtStatus | "all";
   onFilterChange: (filter: FlirtStatus | "all") => void;
+  unreadByGuy?: Record<string, number>;
 }) {
   const [rows, setRows] = useState<FlirtGuyWithSignedUrl[]>([]);
 
@@ -54,6 +57,21 @@ export function FlirtGuysGrid({
   const filtered =
     filter === "all" ? rows : rows.filter((g) => g.status === filter);
 
+  const totalUnread = rows.reduce(
+    (sum, guy) => sum + (unreadByGuy[guy.id] ?? 0),
+    0
+  );
+
+  const unreadByStatus = FLIRT_STATUSES.reduce(
+    (acc, status) => {
+      acc[status] = rows
+        .filter((g) => g.status === status)
+        .reduce((sum, guy) => sum + (unreadByGuy[guy.id] ?? 0), 0);
+      return acc;
+    },
+    {} as Record<FlirtStatus, number>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -61,6 +79,7 @@ export function FlirtGuysGrid({
           active={filter === "all"}
           onClick={() => onFilterChange("all")}
           label="All"
+          count={totalUnread}
         />
         {FLIRT_STATUSES.map((status) => (
           <FilterChip
@@ -68,6 +87,7 @@ export function FlirtGuysGrid({
             active={filter === status}
             onClick={() => onFilterChange(status)}
             label={FLIRT_STATUS_LABELS[status]}
+            count={unreadByStatus[status]}
           />
         ))}
       </div>
@@ -78,13 +98,27 @@ export function FlirtGuysGrid({
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
-          {filtered.map((guy) => (
+          {filtered.map((guy) => {
+            const unread = unreadByGuy[guy.id] ?? 0;
+            return (
             <li key={guy.id}>
               <Link
                 href={`/dashboard/flirt/${guy.id}`}
                 className="group flex flex-col items-center text-center outline-none"
               >
-                <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-gold/25 bg-void/50 transition group-hover:border-gold/60 group-focus-visible:border-gold sm:h-28 sm:w-28">
+                <div
+                  className={cn(
+                    "relative h-24 w-24 overflow-hidden rounded-full border-2 bg-void/50 transition group-hover:border-gold/60 group-focus-visible:border-gold sm:h-28 sm:w-28",
+                    unread > 0 ? "border-gold/50" : "border-gold/25"
+                  )}
+                >
+                  {unread > 0 && (
+                    <FlirtCountBadge
+                      count={unread}
+                      size="sm"
+                      className="absolute -right-0.5 -top-0.5 z-10 ring-2 ring-void"
+                    />
+                  )}
                   {guy.signedUrl ? (
                     <Image
                       src={guy.signedUrl}
@@ -115,7 +149,8 @@ export function FlirtGuysGrid({
                 </div>
               </Link>
             </li>
-          ))}
+          );
+          })}
         </ul>
       )}
     </div>
@@ -126,23 +161,26 @@ function FilterChip({
   active,
   onClick,
   label,
+  count = 0,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
+  count?: number;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs transition-colors",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
         active
           ? "border-gold bg-gold/15 text-gold"
           : "border-gold/20 text-muted-foreground hover:border-gold/40 hover:text-ivory"
       )}
     >
       {label}
+      <FlirtCountBadge count={count} size="sm" />
     </button>
   );
 }

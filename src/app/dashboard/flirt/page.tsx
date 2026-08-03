@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/auth-context";
 import type { FlirtGuy, FlirtStatus, Profile } from "@/lib/types";
 import { FlirtGuyForm } from "@/components/flirt/flirt-guy-form";
 import { FlirtGuysGrid } from "@/components/flirt/flirt-guys-grid";
+import { FlirtCountBadge } from "@/components/flirt/flirt-count-badge";
+import { useFlirtUnread } from "@/components/flirt/use-flirt-unread";
 
 export default function FlirtPage() {
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
@@ -14,6 +16,7 @@ export default function FlirtPage() {
   const [recipient, setRecipient] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FlirtStatus | "all">("all");
+  const flirtUnread = useFlirtUnread();
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -81,11 +84,15 @@ export default function FlirtPage() {
       )}
 
       <section className="space-y-4">
-        <h2 className="font-heading text-xl text-gold">Guys</h2>
+        <h2 className="font-heading flex items-center gap-2 text-xl text-gold">
+          Guys
+          <FlirtCountBadge count={flirtUnread.total} />
+        </h2>
         <FlirtGuysGrid
           guys={guys}
           filter={filter}
           onFilterChange={setFilter}
+          unreadByGuy={flirtUnread.byGuy}
         />
       </section>
     </div>

@@ -38,6 +38,7 @@ import { NotificationBell } from "@/components/layout/notification-bell"
 import {
   useInboxUnread,
 } from "@/components/inbox/use-inbox-unread"
+import { useFlirtUnread } from "@/components/flirt/use-flirt-unread"
 import {
   attachmentHref,
   NAV_TOPIC_BY_HREF,
@@ -112,6 +113,7 @@ export function DashboardNav() {
   const { profile, role, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const unread = useInboxUnread()
+  const flirtUnread = useFlirtUnread()
   const unreadTotal = unread.total
 
   useEffect(() => {
@@ -182,8 +184,10 @@ export function DashboardNav() {
           pathname === href ||
           (href !== "/dashboard" && pathname.startsWith(href))
         const isInbox = href === "/dashboard/inbox"
+        const isFlirt = href === "/dashboard/flirt"
         const topic = NAV_TOPIC_BY_HREF[href]
         const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
+        const flirtNavUnread = isFlirt ? flirtUnread.total : 0
         const linkHref = featureNavHref(href, unread.threads)
 
         return (
@@ -200,7 +204,8 @@ export function DashboardNav() {
             <Icon className="size-4 shrink-0" />
             {label}
             {isInbox && <InboxBadge count={unreadTotal} />}
-            {!isInbox && <TopicBadge count={topicUnread} />}
+            {isFlirt && <TopicBadge count={flirtNavUnread} />}
+            {!isInbox && !isFlirt && <TopicBadge count={topicUnread} />}
           </Link>
         )
       })}

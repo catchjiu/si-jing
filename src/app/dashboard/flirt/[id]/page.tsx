@@ -32,6 +32,7 @@ import {
 import { FlirtTimeline } from "@/components/flirt/flirt-timeline";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { markFlirtGuyNotificationsRead } from "@/lib/flirt-notifications";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -84,6 +85,12 @@ export default function FlirtDetailPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!profile || !guyId) return;
+    const supabase = createClient();
+    void markFlirtGuyNotificationsRead(supabase, profile.id, guyId);
+  }, [profile, guyId]);
 
   const saveStatus = async (status: FlirtStatus) => {
     if (!isQueen || !guy || status === guy.status) return;
