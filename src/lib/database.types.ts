@@ -1178,6 +1178,51 @@ export type Database = {
         }
         Relationships: []
       }
+      body_rating_snapshots: {
+        Row: {
+          id: string
+          rated_by: string
+          rated_for: string
+          overall: number
+          arms: number
+          shoulders: number
+          chest: number
+          abs: number
+          back: number
+          butt: number
+          week_start: string
+          rated_at: string
+        }
+        Insert: {
+          id?: string
+          rated_by: string
+          rated_for: string
+          overall?: number
+          arms?: number
+          shoulders?: number
+          chest?: number
+          abs?: number
+          back?: number
+          butt?: number
+          week_start: string
+          rated_at?: string
+        }
+        Update: {
+          id?: string
+          rated_by?: string
+          rated_for?: string
+          overall?: number
+          arms?: number
+          shoulders?: number
+          chest?: number
+          abs?: number
+          back?: number
+          butt?: number
+          week_start?: string
+          rated_at?: string
+        }
+        Relationships: []
+      }
       workout_sessions: {
         Row: {
           id: string
