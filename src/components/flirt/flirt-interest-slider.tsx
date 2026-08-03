@@ -156,3 +156,45 @@ export function FlirtHotnessSlider({
     />
   );
 }
+
+export function FlirtJealousyMeter({
+  value,
+  className,
+  compact,
+}: {
+  value: number;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <FlirtLevelMeter
+      label="Jealousy"
+      value={value}
+      className={className}
+      compact={compact}
+      barClassName="bg-violet-400/80"
+    />
+  );
+}
+
+export function FlirtJealousySlider({
+  value,
+  onChange,
+  disabled,
+  id = "flirt-jealousy",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+  id?: string;
+}) {
+  return (
+    <FlirtLevelSlider
+      id={id}
+      label="How jealous"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  );
+}

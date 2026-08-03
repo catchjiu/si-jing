@@ -11,6 +11,7 @@ import { FlirtStatusBadge } from "@/components/flirt/flirt-status-badge";
 import {
   FlirtHotnessMeter,
   FlirtInterestMeter,
+  FlirtJealousyMeter,
 } from "@/components/flirt/flirt-interest-slider";
 import { cn } from "@/lib/utils";
 import { FlirtCountBadge } from "@/components/flirt/flirt-count-badge";
@@ -146,6 +147,7 @@ export function FlirtGuysGrid({
                 <div className="mt-2 w-full max-w-[7.5rem] space-y-1.5">
                   <FlirtInterestMeter value={guy.interest_level} compact />
                   <FlirtHotnessMeter value={guy.hotness_level} compact />
+                  <FlirtJealousyMeter value={guy.jealousy_level} compact />
                 </div>
               </Link>
             </li>

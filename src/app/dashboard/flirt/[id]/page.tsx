@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Flame, Loader2, Trash2, User } from "lucide-react";
+import { ArrowLeft, Flame, HeartCrack, Loader2, Trash2, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
@@ -28,8 +28,11 @@ import {
   FlirtHotnessSlider,
   FlirtInterestMeter,
   FlirtInterestSlider,
+  FlirtJealousyMeter,
+  FlirtJealousySlider,
 } from "@/components/flirt/flirt-interest-slider";
 import { FlirtTimeline } from "@/components/flirt/flirt-timeline";
+import { FlirtCommentThread } from "@/components/flirt/flirt-comment-thread";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { markFlirtGuyNotificationsRead } from "@/lib/flirt-notifications";
@@ -47,9 +50,11 @@ export default function FlirtDetailPage() {
   const [loading, setLoading] = useState(true);
   const [interestDraft, setInterestDraft] = useState(50);
   const [hotnessDraft, setHotnessDraft] = useState(50);
+  const [jealousyDraft, setJealousyDraft] = useState(50);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
   const [savingHotness, setSavingHotness] = useState(false);
+  const [savingJealousy, setSavingJealousy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -70,6 +75,7 @@ export default function FlirtDetailPage() {
     setGuy(row);
     setInterestDraft(row?.interest_level ?? 50);
     setHotnessDraft(row?.hotness_level ?? 50);
+    setJealousyDraft(row?.jealousy_level ?? 50);
     if (row?.photo_path) {
       const url = await signObjectUrl({
         bucket: "flirt",
@@ -170,6 +176,33 @@ export default function FlirtDetailPage() {
       })
     );
     toast.success("Hotness saved");
+  };
+
+  const saveJealousy = async () => {
+    if (!isSlave || !guy) return;
+    if (jealousyDraft === guy.jealousy_level) return;
+    setSavingJealousy(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("flirt_guys")
+      .update({ jealousy_level: jealousyDraft })
+      .eq("id", guy.id);
+    setSavingJealousy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGuy({ ...guy, jealousy_level: jealousyDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Jealousy updated",
+        body: `${guy.name}: jealousy ${jealousyDraft}%`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "queen",
+        kind: "flirt_jealousy",
+      })
+    );
+    toast.success("Jealousy saved");
   };
 
   const uploadPhoto = async (file: File) => {
@@ -363,9 +396,41 @@ export default function FlirtDetailPage() {
           </div>
 
           {isSlave && (
-            <div className="mx-auto w-full max-w-xs space-y-2 sm:mx-0">
+            <div className="mx-auto w-full max-w-xs space-y-3 sm:mx-0">
               <FlirtInterestMeter value={guy.interest_level} />
               <FlirtHotnessMeter value={guy.hotness_level} />
+              <div className="space-y-3 rounded-xl border border-gold/10 bg-void/40 p-4 text-left">
+                <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
+                  How you feel
+                </p>
+                <FlirtJealousySlider
+                  value={jealousyDraft}
+                  onChange={setJealousyDraft}
+                  disabled={savingJealousy}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    savingJealousy || jealousyDraft === guy.jealousy_level
+                  }
+                  onClick={() => void saveJealousy()}
+                  className="bg-gold text-void hover:bg-gold-muted"
+                >
+                  {savingJealousy ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Save jealousy
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isQueen && (
+            <div className="flex items-center gap-2 text-sm text-ivory">
+              <HeartCrack className="h-4 w-4 text-violet-300" />
+              Jealous ·{" "}
+              <span className="font-heading text-gold">{guy.jealousy_level}%</span>
             </div>
           )}
 
@@ -433,6 +498,11 @@ export default function FlirtDetailPage() {
           guyName={guy.name}
           canPost={!!isQueen}
         />
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-gold/15 bg-charcoal/60 p-5">
+        <h2 className="font-heading text-xl text-gold">Comments</h2>
+        <FlirtCommentThread guyId={guy.id} guyName={guy.name} />
       </section>
     </div>
   );
