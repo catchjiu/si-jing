@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     { data: recurring },
     { data: scheduleApplied },
     { data: noContactCleared },
+    { data: bodyRatingPrompts },
   ] = await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
@@ -38,9 +39,11 @@ export async function POST(request: Request) {
     supabase.rpc("apply_queen_work_schedules"),
     supabase.rpc("clear_expired_no_contact"),
     supabase.rpc("ensure_queen_love_day_rollover"),
+    supabase.rpc("prompt_weekly_body_rating"),
   ]);
 
   const clearedCount = Number(noContactCleared ?? 0);
+  const bodyRatingDue = Number(bodyRatingPrompts ?? 0);
   if (clearedCount > 0) {
     const { data: slaves } = await supabase
       .from("users")
@@ -70,6 +73,20 @@ export async function POST(request: Request) {
     }
   }
 
+  if (bodyRatingDue > 0) {
+    try {
+      await sendPushToRoles(supabase, "queen", {
+        title: "Weekly body rating due",
+        body: "Rate his physique for this week's check-in.",
+        url: "/dashboard/workouts",
+        tag: "body-rating-due",
+        renotify: true,
+      });
+    } catch {
+      // push is best-effort
+    }
+  }
+
   const nowIso = new Date().toISOString();
   await supabase
     .from("teases")
@@ -85,6 +102,7 @@ export async function POST(request: Request) {
     recurring: recurring ?? 0,
     scheduleApplied: scheduleApplied ?? 0,
     noContactCleared: clearedCount,
+    bodyRatingDue,
   });
 }
 

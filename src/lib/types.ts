@@ -492,6 +492,21 @@ export type BodyRatings = {
   updated_at: string;
 };
 
+export type BodyRatingSnapshot = {
+  id: string;
+  rated_by: string;
+  rated_for: string;
+  overall: number;
+  arms: number;
+  shoulders: number;
+  chest: number;
+  abs: number;
+  back: number;
+  butt: number;
+  week_start: string;
+  rated_at: string;
+};
+
 export type WorkoutSession = {
   id: string;
   created_by: string;

@@ -1207,11 +1207,11 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
-        .from("body_ratings")
-        .select("id, overall, updated_at, rated_for")
+        .from("body_rating_snapshots")
+        .select("id, overall, rated_at, week_start, rated_for")
         .eq("rated_for", profile.id)
-        .order("updated_at", { ascending: false })
-        .limit(3),
+        .order("rated_at", { ascending: false })
+        .limit(12),
       supabase
         .from("workout_sessions")
         .select("id, queen_impressed, queen_reacted_at, performed_at, created_by")
@@ -1585,7 +1585,7 @@ export async function fetchRecentActivity(
     for (const r of bodyRatings.data ?? []) {
       pushItem(items, {
         id: `body-rating-${r.id}`,
-        at: r.updated_at as string,
+        at: (r.rated_at as string) ?? (r.week_start as string),
         title: "Body rating updated",
         body: `Overall ${r.overall as number}/100`,
         href: "/dashboard/workouts",
