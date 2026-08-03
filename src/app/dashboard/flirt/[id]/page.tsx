@@ -186,6 +186,15 @@ export default function FlirtDetailPage() {
       return;
     }
     setGuy({ ...guy, jealousy_level: jealousyDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Jealousy updated",
+        body: `${guy.name}: jealousy ${jealousyDraft}%`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "queen",
+        kind: "flirt_jealousy",
+      })
+    );
     toast.success("Jealousy saved");
   };
 
