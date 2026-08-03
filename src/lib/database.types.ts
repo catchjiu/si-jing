@@ -1332,6 +1332,7 @@ export type Database = {
           status: string
           interest_level: number
           hotness_level: number
+          jealousy_level: number
           created_at: string
           updated_at: string
         }
@@ -1344,6 +1345,7 @@ export type Database = {
           status?: string
           interest_level?: number
           hotness_level?: number
+          jealousy_level?: number
           created_at?: string
           updated_at?: string
         }
@@ -1356,6 +1358,7 @@ export type Database = {
           status?: string
           interest_level?: number
           hotness_level?: number
+          jealousy_level?: number
           created_at?: string
           updated_at?: string
         }
@@ -1417,6 +1420,48 @@ export type Database = {
           },
           {
             foreignKeyName: "flirt_entries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flirt_messages: {
+        Row: {
+          id: string
+          guy_id: string
+          author_id: string
+          content: string | null
+          image_path: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          guy_id: string
+          author_id: string
+          content?: string | null
+          image_path?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          guy_id?: string
+          author_id?: string
+          content?: string | null
+          image_path?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flirt_messages_guy_id_fkey"
+            columns: ["guy_id"]
+            isOneToOne: false
+            referencedRelation: "flirt_guys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flirt_messages_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "users"

@@ -451,6 +451,7 @@ export type FlirtGuy = {
   status: FlirtStatus;
   interest_level: number;
   hotness_level: number;
+  jealousy_level: number;
   created_at: string;
   updated_at: string;
 };
@@ -474,6 +475,15 @@ export type FlirtEntry = {
 
 export type FlirtEntryWithSignedUrl = FlirtEntry & {
   signedUrl?: string;
+};
+
+export type FlirtMessage = {
+  id: string;
+  guy_id: string;
+  author_id: string;
+  content: string | null;
+  image_path: string | null;
+  created_at: string;
 };
 
 export type { WorkoutBodyPart };
