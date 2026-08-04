@@ -249,7 +249,8 @@ export function JournalEntryForm({ onSuccess, className }: JournalEntryFormProps
         }
 
         const cover = uploaded[0]!;
-        const entryDate = sorted[0]!.dateYmd;
+        // Post date (Taipei) for list grouping; per-photo taken_at stays on images
+        const entryDate = ymdInZone(new Date(), TZ);
 
         const { error: entryError } = await supabase
           .from("journal_entries")

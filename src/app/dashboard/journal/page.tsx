@@ -49,62 +49,79 @@ export default function JournalPage() {
     setLoading(true);
     const supabase = createClient();
 
-    let query = supabase
-      .from("journal_entries")
-      .select("*, journal_entry_images(*)")
-      .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false });
+    try {
+      let query = supabase
+        .from("journal_entries")
+        .select("*, journal_entry_images(*)")
+        // Newest posts first — timeline photo dates live on each image, not the list order
+        .order("created_at", { ascending: false });
 
-    if (isSlave) {
-      query = query.eq("author_id", profile.id);
-    }
+      if (isSlave) {
+        query = query.eq("author_id", profile.id);
+      }
 
-    const { data } = await query;
-    const rows = (data as EntryRow[]) ?? [];
-    const withUrls = await Promise.all(
-      rows.map(async (entry) => {
-        const childImages = sortImages(entry.journal_entry_images ?? []);
-        const signedChildren: JournalEntryImageWithSignedUrl[] =
-          await Promise.all(
-            childImages.map(async (img) => {
-              const signedUrl =
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const rows = (data as EntryRow[]) ?? [];
+      const withUrls = await Promise.all(
+        rows.map(async (entry) => {
+          const childImages = sortImages(entry.journal_entry_images ?? []);
+          const signedChildren: JournalEntryImageWithSignedUrl[] =
+            await Promise.all(
+              childImages.map(async (img) => {
+                let signedUrl: string | undefined;
+                try {
+                  signedUrl =
+                    (await signObjectUrl({
+                      bucket: "journal",
+                      path: img.image_path,
+                    })) ?? undefined;
+                } catch {
+                  signedUrl = undefined;
+                }
+                return { ...img, signedUrl };
+              })
+            );
+
+          let signedUrl = signedChildren.find((img) => img.signedUrl)?.signedUrl;
+          if (!signedUrl && entry.image_path) {
+            try {
+              signedUrl =
                 (await signObjectUrl({
                   bucket: "journal",
-                  path: img.image_path,
+                  path: entry.image_path,
                 })) ?? undefined;
-              return { ...img, signedUrl };
-            })
-          );
+            } catch {
+              signedUrl = undefined;
+            }
+          }
 
-        let signedUrl = signedChildren[0]?.signedUrl;
-        if (!signedUrl && entry.image_path) {
-          signedUrl =
-            (await signObjectUrl({
-              bucket: "journal",
-              path: entry.image_path,
-            })) ?? undefined;
-        }
-
-        return {
-          id: entry.id,
-          author_id: entry.author_id,
-          body: entry.body,
-          visibility: entry.visibility,
-          entry_date: entry.entry_date,
-          created_at: entry.created_at,
-          updated_at: entry.updated_at,
-          image_path: entry.image_path,
-          latitude: entry.latitude,
-          longitude: entry.longitude,
-          accuracy_m: entry.accuracy_m,
-          location_source: entry.location_source,
-          signedUrl,
-          images: signedChildren,
-        } satisfies JournalEntryWithSignedUrl;
-      })
-    );
-    setEntries(withUrls);
-    setLoading(false);
+          return {
+            id: entry.id,
+            author_id: entry.author_id,
+            body: entry.body,
+            visibility: entry.visibility,
+            entry_date: entry.entry_date,
+            created_at: entry.created_at,
+            updated_at: entry.updated_at,
+            image_path: entry.image_path,
+            latitude: entry.latitude,
+            longitude: entry.longitude,
+            accuracy_m: entry.accuracy_m,
+            location_source: entry.location_source,
+            signedUrl,
+            images: signedChildren,
+          } satisfies JournalEntryWithSignedUrl;
+        })
+      );
+      setEntries(withUrls);
+    } catch (err) {
+      console.error("Failed to load journal entries", err);
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
   }, [profile, isSlave]);
 
   useEffect(() => {
