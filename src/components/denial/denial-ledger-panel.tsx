@@ -47,7 +47,66 @@ import { ShareLinkButton } from "@/components/ui/share-link-button";
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-export function DenialLedgerPanel() {
+type EdgePhotoUploadProps = {
+  label: string;
+  hint: string;
+  previewAlt: string;
+  preview: string | null;
+  onPick: (incoming: FileList | File[] | null) => void;
+  onClear: () => void;
+};
+
+function EdgePhotoUpload({
+  label,
+  hint,
+  previewAlt,
+  preview,
+  onPick,
+  onClear,
+}: EdgePhotoUploadProps) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {preview ? (
+        <div className="relative aspect-[4/5] max-w-xs overflow-hidden rounded-lg border border-gold/20 bg-void">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview}
+            alt={previewAlt}
+            className="h-full w-full object-cover"
+          />
+          <button
+            type="button"
+            className="absolute right-2 top-2 rounded-full bg-void/80 p-1 text-ivory"
+            onClick={onClear}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gold/30 bg-void/40 px-4 py-8 text-sm text-muted-foreground hover:border-gold/50">
+          <ImagePlus className="h-6 w-6 text-gold/70" />
+          {hint}
+          <input
+            type="file"
+            accept={ACCEPTED_TYPES.join(",")}
+            className="hidden"
+            onChange={(e) => onPick(e.target.files)}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+type DenialLedgerPanelProps = {
+  /** When false, the edge material upload section is omitted entirely. */
+  showEdgeMaterial?: boolean;
+};
+
+export function DenialLedgerPanel({
+  showEdgeMaterial = false,
+}: DenialLedgerPanelProps) {
   const { isQueen, isSlave, profile } = useAuth();
   const searchParams = useSearchParams();
   const highlightEdgeId = searchParams.get("edge");
@@ -62,8 +121,10 @@ export function DenialLedgerPanel() {
   const [queenNote, setQueenNote] = useState("");
 
   const [edgeNote, setEdgeNote] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [materialPreview, setMaterialPreview] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -75,12 +136,23 @@ export function DenialLedgerPanel() {
       const withUrls = await Promise.all(
         nextLogs.map(async (log) => {
           try {
-            const signedUrl =
-              (await signObjectUrl({
+            const [signedUrl, materialSignedUrl] = await Promise.all([
+              signObjectUrl({
                 bucket: "messages",
                 path: log.image_path,
-              })) ?? undefined;
-            return { ...log, signedUrl };
+              }),
+              log.material_path
+                ? signObjectUrl({
+                    bucket: "messages",
+                    path: log.material_path,
+                  })
+                : Promise.resolve(null),
+            ]);
+            return {
+              ...log,
+              signedUrl: signedUrl ?? undefined,
+              materialSignedUrl: materialSignedUrl ?? undefined,
+            };
           } catch {
             return log;
           }
@@ -151,13 +223,22 @@ export function DenialLedgerPanel() {
     [ledger?.denial_ends_at]
   );
 
-  const setImage = (next: File | null) => {
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(next);
-    setPreview(next ? URL.createObjectURL(next) : null);
+  const setProofImage = (next: File | null) => {
+    if (proofPreview) URL.revokeObjectURL(proofPreview);
+    setProofFile(next);
+    setProofPreview(next ? URL.createObjectURL(next) : null);
   };
 
-  const pickFile = (incoming: FileList | File[] | null) => {
+  const setMaterialImage = (next: File | null) => {
+    if (materialPreview) URL.revokeObjectURL(materialPreview);
+    setMaterialFile(next);
+    setMaterialPreview(next ? URL.createObjectURL(next) : null);
+  };
+
+  const pickImage = (
+    incoming: FileList | File[] | null,
+    setter: (file: File | null) => void
+  ) => {
     const candidate = incoming?.[0];
     if (!candidate) return;
     if (!ACCEPTED_TYPES.includes(candidate.type)) {
@@ -168,7 +249,28 @@ export function DenialLedgerPanel() {
       toast.error("Image must be under 10MB");
       return;
     }
-    setImage(candidate);
+    setter(candidate);
+  };
+
+  const uploadEdgePhoto = async (file: File, suffix: string) => {
+    if (!profile) throw new Error("Not signed in");
+    const geo = await resolveImageLocation(file);
+    if (geo) {
+      toast.message(
+        geo.source === "exif"
+          ? "Photo location from image metadata"
+          : "Photo location from device GPS"
+      );
+    }
+    const uploadFile = await downsizeImageIfNeeded(file);
+    const ext = uploadFile.name.split(".").pop() || "jpg";
+    return presignAndUpload({
+      bucket: "messages",
+      file: uploadFile,
+      contentType: uploadFile.type || "image/jpeg",
+      ext,
+      relativePath: `${profile.id}/edges/${Date.now()}-${suffix}.${ext}`,
+    });
   };
 
   const addEdges = async () => {
@@ -275,48 +377,42 @@ export function DenialLedgerPanel() {
 
   const logEdge = async () => {
     if (!isSlave || !profile) return;
-    if (!file) {
-      toast.error("Photo proof is required");
-      return;
-    }
-    if (!ledger || ledger.edges_remaining <= 0) {
-      toast.error("No edge debt remaining to log");
+    if (!proofFile) {
+      toast.error("Edge proof photo is required");
       return;
     }
     setBusy(true);
     const supabase = createClient();
+    const edgesBefore = ledger?.edges_remaining ?? 0;
     try {
-      const geo = await resolveImageLocation(file);
-      if (geo) {
-        toast.message(
-          geo.source === "exif"
-            ? "Photo location from image metadata"
-            : "Photo location from device GPS"
-        );
-      }
-      const uploadFile = await downsizeImageIfNeeded(file);
-      const ext = uploadFile.name.split(".").pop() || "jpg";
-      const imagePath = await presignAndUpload({
-        bucket: "messages",
-        file: uploadFile,
-        contentType: uploadFile.type || "image/jpeg",
-        ext,
-        relativePath: `${profile.id}/edges/${Date.now()}.${ext}`,
-      });
+      const [imagePath, materialPath] = await Promise.all([
+        uploadEdgePhoto(proofFile, "proof"),
+        materialFile ? uploadEdgePhoto(materialFile, "material") : null,
+      ]);
       const note = edgeNote.trim()
         ? formatRoleSpeech(edgeNote.trim(), "slave")
         : null;
-      const result = await slaveLogEdge(supabase, imagePath, note);
+      const result = await slaveLogEdge(
+        supabase,
+        imagePath,
+        note,
+        materialPath
+      );
       setLedger(result.ledger);
       setEdgeNote("");
-      setImage(null);
-      toast.success(
-        `Edge logged · ${result.ledger.edges_remaining} remaining`
-      );
+      setProofImage(null);
+      setMaterialImage(null);
+      const debtMsg =
+        result.ledger.edges_remaining > 0
+          ? ` · ${result.ledger.edges_remaining} remaining`
+          : edgesBefore > 0
+            ? " · debt cleared"
+            : "";
+      toast.success(`Edge logged${debtMsg}`);
       void postToTopicThread(supabase, {
         topic: "general",
         senderId: profile.id,
-        content: note ?? "Logged an edge with photo proof",
+        content: note ?? "Logged an edge with proof",
         attachmentType: "denial",
         attachmentId: result.logId,
         attachmentAnchor: inboxAnchors.denialEdge(result.logId),
@@ -324,9 +420,12 @@ export function DenialLedgerPanel() {
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Edge logged",
-          body: `${result.ledger.edges_remaining} edge${
-            result.ledger.edges_remaining === 1 ? "" : "s"
-          } still owed`,
+          body:
+            result.ledger.edges_remaining > 0
+              ? `${result.ledger.edges_remaining} edge${
+                  result.ledger.edges_remaining === 1 ? "" : "s"
+                } still owed`
+              : "New edge logged",
           url: denialPageHref({ edgeLogId: result.logId }),
           target: "queen",
           kind: "denial",
@@ -485,73 +584,57 @@ export function DenialLedgerPanel() {
         <section className="space-y-4 rounded-xl border border-gold/20 bg-charcoal/80 p-5">
           <h3 className="font-heading text-lg text-gold">Log an edge</h3>
           <p className="text-sm text-muted-foreground">
-            Photo proof required. Each log reduces edge debt by one. Orgasm
-            permission stays locked until edges and denial days are both clear.
+            Edge proof required
+            {showEdgeMaterial ? " · edge material optional" : ""}. Log anytime
+            — each log with outstanding debt reduces it by one. Orgasm permission
+            stays locked until edges and denial days are both clear.
           </p>
           {ledger.edges_remaining <= 0 ? (
             <p className="text-sm text-ivory/80">
-              {daysLeft > 0
-                ? "No edges owed — wait out the denial days."
-                : "No edges owed. You may request orgasm permission."}
+              No edge debt owed — you can still log edges here.
             </p>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label>Proof photo</Label>
-                {preview ? (
-                  <div className="relative aspect-[4/5] max-w-xs overflow-hidden rounded-lg border border-gold/20 bg-void">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={preview}
-                      alt="Edge proof preview"
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-2 top-2 rounded-full bg-void/80 p-1 text-ivory"
-                      onClick={() => setImage(null)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gold/30 bg-void/40 px-4 py-8 text-sm text-muted-foreground hover:border-gold/50">
-                    <ImagePlus className="h-6 w-6 text-gold/70" />
-                    Tap to add photo proof
-                    <input
-                      type="file"
-                      accept={ACCEPTED_TYPES.join(",")}
-                      className="hidden"
-                      onChange={(e) => pickFile(e.target.files)}
-                    />
-                  </label>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edge-note">Note (optional)</Label>
-                <Textarea
-                  id="edge-note"
-                  value={edgeNote}
-                  onChange={(e) => setEdgeNote(e.target.value)}
-                  rows={2}
-                  maxLength={300}
-                  placeholder="How long, how it felt…"
-                  className="border-gold/20 bg-void/60"
-                />
-              </div>
-              <Button
-                type="button"
-                disabled={busy || !file}
-                className="bg-gold text-void hover:bg-gold-muted"
-                onClick={() => void logEdge()}
-              >
-                {busy ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                Log edge
-              </Button>
-            </>
-          )}
+          ) : null}
+          {showEdgeMaterial ? (
+            <EdgePhotoUpload
+              label="Edge material (optional)"
+              hint="Tap to add edge material"
+              previewAlt="Edge material preview"
+              preview={materialPreview}
+              onPick={(files) => pickImage(files, setMaterialImage)}
+              onClear={() => setMaterialImage(null)}
+            />
+          ) : null}
+          <EdgePhotoUpload
+            label="Edge proof"
+            hint="Tap to add edge proof"
+            previewAlt="Edge proof preview"
+            preview={proofPreview}
+            onPick={(files) => pickImage(files, setProofImage)}
+            onClear={() => setProofImage(null)}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="edge-note">Note (optional)</Label>
+            <Textarea
+              id="edge-note"
+              value={edgeNote}
+              onChange={(e) => setEdgeNote(e.target.value)}
+              rows={2}
+              maxLength={300}
+              placeholder="How long, how it felt…"
+              className="border-gold/20 bg-void/60"
+            />
+          </div>
+          <Button
+            type="button"
+            disabled={busy || !proofFile}
+            className="bg-gold text-void hover:bg-gold-muted"
+            onClick={() => void logEdge()}
+          >
+            {busy ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            Log edge
+          </Button>
         </section>
       )}
 
@@ -575,7 +658,7 @@ export function DenialLedgerPanel() {
                     >
                       <Image
                         src={log.signedUrl}
-                        alt="Edge log"
+                        alt="Edge proof"
                         fill
                         unoptimized
                         className="object-cover"
@@ -584,9 +667,21 @@ export function DenialLedgerPanel() {
                     </WatermarkedFrame>
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                      Photo unavailable
+                      Proof unavailable
                     </div>
                   )}
+                  {log.materialSignedUrl ? (
+                    <div className="absolute bottom-2 right-2 h-16 w-16 overflow-hidden rounded-md border border-gold/30 bg-void shadow-lg">
+                      <Image
+                        src={log.materialSignedUrl}
+                        alt="Edge material"
+                        fill
+                        unoptimized
+                        className="object-cover"
+                        sizes="64px"
+                      />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="space-y-1 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
