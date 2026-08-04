@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type {
@@ -13,6 +13,7 @@ import type {
 import { formatRelative } from "@/lib/format";
 import { signObjectUrl } from "@/lib/storage/client";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
+import { JournalEntryEditor } from "@/components/journal/journal-entry-editor";
 import { JournalCommentThread } from "@/components/journal/journal-comment-thread";
 import { JournalSlideshow } from "@/components/journal/journal-slideshow";
 import { VoiceNotes } from "@/components/voice/voice-notes";
@@ -20,6 +21,7 @@ import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type EntryRow = JournalEntryWithSignedUrl & {
@@ -43,6 +45,7 @@ export default function JournalPage() {
   const [entries, setEntries] = useState<JournalEntryWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -169,12 +172,14 @@ export default function JournalPage() {
               const showLegacySingle =
                 !hasSlideshow && Boolean(entry.signedUrl && entry.image_path);
 
+              const isEditing = editingId === entry.id;
+
               return (
                 <li
                   key={entry.id}
                   className={cn(
                     "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
-                    entry.id === newEntryId
+                    entry.id === newEntryId || isEditing
                       ? "border-gold/40"
                       : "border-gold/15"
                   )}
@@ -208,69 +213,97 @@ export default function JournalPage() {
                     <span className="text-xs text-muted-foreground">
                       {formatRelative(entry.created_at)}
                     </span>
-                  </div>
-                  {entry.body.trim() && (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
-                      <RoleSpeech text={entry.body} role="slave" />
-                    </p>
-                  )}
-                  {hasSlideshow && (
-                    <JournalSlideshow
-                      images={images}
-                      className={cn(entry.body.trim() ? "mt-3" : "")}
-                    />
-                  )}
-                  {showLegacySingle && (
-                    <>
-                      <WatermarkedFrame
-                        className={cn(
-                          "rounded-lg border border-gold/15",
-                          entry.body.trim() ? "mt-3" : ""
-                        )}
-                        mediaPath={entry.image_path}
+                    {isSlave && !isEditing && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-7 border-gold/25 px-2 text-xs"
+                        onClick={() => setEditingId(entry.id)}
                       >
-                        <a
-                          href={entry.signedUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <Image
-                            src={entry.signedUrl!}
-                            alt="Journal photo"
-                            width={960}
-                            height={640}
-                            className="h-auto max-h-96 w-full bg-void object-contain"
-                            unoptimized
-                          />
-                        </a>
-                      </WatermarkedFrame>
-                      {entry.latitude != null && entry.longitude != null && (
-                        <GeoMapLinks
-                          latitude={entry.latitude}
-                          longitude={entry.longitude}
-                          accuracy_m={entry.accuracy_m}
-                          location_source={entry.location_source}
-                          className="mt-2"
+                        <Pencil className="mr-1 h-3 w-3" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+
+                  {isEditing ? (
+                    <JournalEntryEditor
+                      entry={entry}
+                      onCancel={() => setEditingId(null)}
+                      onSaved={() => {
+                        setEditingId(null);
+                        setNewEntryId(entry.id);
+                        void load();
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {entry.body.trim() && (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
+                          <RoleSpeech text={entry.body} role="slave" />
+                        </p>
+                      )}
+                      {hasSlideshow && (
+                        <JournalSlideshow
+                          images={images}
+                          className={cn(entry.body.trim() ? "mt-3" : "")}
                         />
                       )}
-                    </>
-                  )}
+                      {showLegacySingle && (
+                        <>
+                          <WatermarkedFrame
+                            className={cn(
+                              "rounded-lg border border-gold/15",
+                              entry.body.trim() ? "mt-3" : ""
+                            )}
+                            mediaPath={entry.image_path}
+                          >
+                            <a
+                              href={entry.signedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
+                            >
+                              <Image
+                                src={entry.signedUrl!}
+                                alt="Journal photo"
+                                width={960}
+                                height={640}
+                                className="h-auto max-h-96 w-full bg-void object-contain"
+                                unoptimized
+                              />
+                            </a>
+                          </WatermarkedFrame>
+                          {entry.latitude != null &&
+                            entry.longitude != null && (
+                              <GeoMapLinks
+                                latitude={entry.latitude}
+                                longitude={entry.longitude}
+                                accuracy_m={entry.accuracy_m}
+                                location_source={entry.location_source}
+                                className="mt-2"
+                              />
+                            )}
+                        </>
+                      )}
 
-                  <JournalCommentThread
-                    entryId={entry.id}
-                    visibility={entry.visibility as "private" | "shared"}
-                  />
-
-                  {(entry.visibility === "shared" || isSlave) && (
-                    <div className="mt-4 border-t border-gold/10 pt-4">
-                      <VoiceNotes
-                        entityType="journal"
-                        entityId={entry.id}
-                        compact
-                        title="Voice note"
+                      <JournalCommentThread
+                        entryId={entry.id}
+                        visibility={entry.visibility as "private" | "shared"}
                       />
-                    </div>
+
+                      {(entry.visibility === "shared" || isSlave) && (
+                        <div className="mt-4 border-t border-gold/10 pt-4">
+                          <VoiceNotes
+                            entityType="journal"
+                            entityId={entry.id}
+                            compact
+                            title="Voice note"
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
                 </li>
               );
