@@ -15,9 +15,11 @@ export type EdgeLog = {
   id: string;
   logged_by: string;
   image_path: string;
+  material_path: string | null;
   note: string | null;
   created_at: string;
   signedUrl?: string;
+  materialSignedUrl?: string;
 };
 
 function normalizeLedger(raw: Record<string, unknown> | null): DenialLedger {
@@ -136,11 +138,13 @@ export async function addEdgeLogComment(
 export async function slaveLogEdge(
   supabase: Supabase,
   imagePath: string,
-  note?: string | null
+  note?: string | null,
+  materialPath?: string | null
 ): Promise<{ logId: string; ledger: DenialLedger }> {
   const { data, error } = await supabase.rpc("slave_log_edge", {
     p_image_path: imagePath,
     p_note: note?.trim() || null,
+    p_material_path: materialPath?.trim() || null,
   });
   if (error) throw error;
   const row = (data ?? {}) as {
@@ -159,7 +163,7 @@ export async function fetchEdgeLogs(
 ): Promise<EdgeLog[]> {
   const { data, error } = await supabase
     .from("edge_logs")
-    .select("id, logged_by, image_path, note, created_at")
+    .select("id, logged_by, image_path, material_path, note, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;

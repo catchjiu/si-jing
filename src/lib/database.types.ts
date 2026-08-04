@@ -2761,6 +2761,7 @@ export type Database = {
           id: string
           logged_by: string
           image_path: string
+          material_path: string | null
           note: string | null
           created_at: string
         }
@@ -2768,6 +2769,7 @@ export type Database = {
           id?: string
           logged_by: string
           image_path: string
+          material_path?: string | null
           note?: string | null
           created_at?: string
         }
@@ -2775,6 +2777,7 @@ export type Database = {
           id?: string
           logged_by?: string
           image_path?: string
+          material_path?: string | null
           note?: string | null
           created_at?: string
         }
@@ -3092,7 +3095,11 @@ export type Database = {
         Returns: Json
       }
       slave_log_edge: {
-        Args: { p_image_path: string; p_note?: string | null }
+        Args: {
+          p_image_path: string
+          p_note?: string | null
+          p_material_path?: string | null
+        }
         Returns: Json
       }
       assert_slave_can_mutate: { Args: never; Returns: undefined }

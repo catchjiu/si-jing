@@ -23,7 +23,7 @@ export default function DenialPage() {
           {isQueen
             ? "Assign edge debt and denial days. Orgasm permission stays locked until the ledger is clear."
             : isSlave
-              ? "Clear your edge debt with photo proof. You cannot ask for orgasm permission until the balance is zero."
+              ? "Log edges anytime with proof. Debt logs count toward what you owe; extra logs are kept in the edge log."
               : "Edge debt and denial ledger."}
         </p>
       </div>
