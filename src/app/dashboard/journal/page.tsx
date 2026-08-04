@@ -5,17 +5,38 @@ import Image from "next/image";
 import { BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import type { JournalEntryWithSignedUrl } from "@/lib/types";
+import type {
+  JournalEntryImage,
+  JournalEntryImageWithSignedUrl,
+  JournalEntryWithSignedUrl,
+} from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { signObjectUrl } from "@/lib/storage/client";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { JournalCommentThread } from "@/components/journal/journal-comment-thread";
+import { JournalSlideshow } from "@/components/journal/journal-slideshow";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+type EntryRow = JournalEntryWithSignedUrl & {
+  journal_entry_images?: JournalEntryImage[] | null;
+};
+
+function sortImages(images: JournalEntryImage[]): JournalEntryImage[] {
+  return [...images].sort((a, b) => {
+    const aTime = a.taken_at ? Date.parse(a.taken_at) : NaN;
+    const bTime = b.taken_at ? Date.parse(b.taken_at) : NaN;
+    if (!Number.isNaN(aTime) && !Number.isNaN(bTime) && aTime !== bTime) {
+      return aTime - bTime;
+    }
+    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+    return a.created_at.localeCompare(b.created_at);
+  });
+}
 
 export default function JournalPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
@@ -30,7 +51,7 @@ export default function JournalPage() {
 
     let query = supabase
       .from("journal_entries")
-      .select("*")
+      .select("*, journal_entry_images(*)")
       .order("entry_date", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -39,16 +60,47 @@ export default function JournalPage() {
     }
 
     const { data } = await query;
-    const rows = (data as JournalEntryWithSignedUrl[]) ?? [];
+    const rows = (data as EntryRow[]) ?? [];
     const withUrls = await Promise.all(
       rows.map(async (entry) => {
-        if (!entry.image_path) return entry;
-        const signedUrl =
-          (await signObjectUrl({
-            bucket: "journal",
-            path: entry.image_path,
-          })) ?? undefined;
-        return { ...entry, signedUrl };
+        const childImages = sortImages(entry.journal_entry_images ?? []);
+        const signedChildren: JournalEntryImageWithSignedUrl[] =
+          await Promise.all(
+            childImages.map(async (img) => {
+              const signedUrl =
+                (await signObjectUrl({
+                  bucket: "journal",
+                  path: img.image_path,
+                })) ?? undefined;
+              return { ...img, signedUrl };
+            })
+          );
+
+        let signedUrl = signedChildren[0]?.signedUrl;
+        if (!signedUrl && entry.image_path) {
+          signedUrl =
+            (await signObjectUrl({
+              bucket: "journal",
+              path: entry.image_path,
+            })) ?? undefined;
+        }
+
+        return {
+          id: entry.id,
+          author_id: entry.author_id,
+          body: entry.body,
+          visibility: entry.visibility,
+          entry_date: entry.entry_date,
+          created_at: entry.created_at,
+          updated_at: entry.updated_at,
+          image_path: entry.image_path,
+          latitude: entry.latitude,
+          longitude: entry.longitude,
+          accuracy_m: entry.accuracy_m,
+          location_source: entry.location_source,
+          signedUrl,
+          images: signedChildren,
+        } satisfies JournalEntryWithSignedUrl;
       })
     );
     setEntries(withUrls);
@@ -94,95 +146,118 @@ export default function JournalPage() {
           </div>
         ) : (
           <ul className="space-y-4">
-            {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className={cn(
-                  "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
-                  entry.id === newEntryId
-                    ? "border-gold/40"
-                    : "border-gold/15"
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] uppercase tracking-wider"
-                  >
-                    {entry.entry_date}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px] uppercase tracking-wider",
-                      entry.visibility === "private"
-                        ? "border-muted text-muted-foreground"
-                        : "border-gold/40 text-gold"
-                    )}
-                  >
-                    {entry.visibility}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {formatRelative(entry.created_at)}
-                  </span>
-                </div>
-                {entry.body.trim() && (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
-                    <RoleSpeech text={entry.body} role="slave" />
-                  </p>
-                )}
-                {entry.signedUrl && (
-                  <WatermarkedFrame
-                    className={cn(
-                      "rounded-lg border border-gold/15",
-                      entry.body.trim() ? "mt-3" : ""
-                    )}
-                    mediaPath={entry.image_path}
-                  >
-                    <a
-                      href={entry.signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block"
+            {entries.map((entry) => {
+              const images = entry.images ?? [];
+              const hasSlideshow = images.some((img) => img.signedUrl);
+              const showLegacySingle =
+                !hasSlideshow && Boolean(entry.signedUrl && entry.image_path);
+
+              return (
+                <li
+                  key={entry.id}
+                  className={cn(
+                    "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
+                    entry.id === newEntryId
+                      ? "border-gold/40"
+                      : "border-gold/15"
+                  )}
+                >
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] uppercase tracking-wider"
                     >
-                      <Image
-                        src={entry.signedUrl}
-                        alt="Journal photo"
-                        width={960}
-                        height={640}
-                        className="h-auto max-h-96 w-full bg-void object-contain"
-                        unoptimized
-                      />
-                    </a>
-                  </WatermarkedFrame>
-                )}
-                {entry.latitude != null && entry.longitude != null && (
-                  <GeoMapLinks
-                    latitude={entry.latitude}
-                    longitude={entry.longitude}
-                    accuracy_m={entry.accuracy_m}
-                    location_source={entry.location_source}
-                    className="mt-2"
-                  />
-                )}
-
-                <JournalCommentThread
-                  entryId={entry.id}
-                  visibility={entry.visibility as "private" | "shared"}
-                />
-
-                {(entry.visibility === "shared" || isSlave) && (
-                  <div className="mt-4 border-t border-gold/10 pt-4">
-                    <VoiceNotes
-                      entityType="journal"
-                      entityId={entry.id}
-                      compact
-                      title="Voice note"
-                    />
+                      {entry.entry_date}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] uppercase tracking-wider",
+                        entry.visibility === "private"
+                          ? "border-muted text-muted-foreground"
+                          : "border-gold/40 text-gold"
+                      )}
+                    >
+                      {entry.visibility}
+                    </Badge>
+                    {images.length > 1 && (
+                      <Badge
+                        variant="outline"
+                        className="border-gold/25 text-[10px] uppercase tracking-wider text-gold/80"
+                      >
+                        {images.length} photos
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {formatRelative(entry.created_at)}
+                    </span>
                   </div>
-                )}
-              </li>
-            ))}
+                  {entry.body.trim() && (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
+                      <RoleSpeech text={entry.body} role="slave" />
+                    </p>
+                  )}
+                  {hasSlideshow && (
+                    <JournalSlideshow
+                      images={images}
+                      className={cn(entry.body.trim() ? "mt-3" : "")}
+                    />
+                  )}
+                  {showLegacySingle && (
+                    <>
+                      <WatermarkedFrame
+                        className={cn(
+                          "rounded-lg border border-gold/15",
+                          entry.body.trim() ? "mt-3" : ""
+                        )}
+                        mediaPath={entry.image_path}
+                      >
+                        <a
+                          href={entry.signedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <Image
+                            src={entry.signedUrl!}
+                            alt="Journal photo"
+                            width={960}
+                            height={640}
+                            className="h-auto max-h-96 w-full bg-void object-contain"
+                            unoptimized
+                          />
+                        </a>
+                      </WatermarkedFrame>
+                      {entry.latitude != null && entry.longitude != null && (
+                        <GeoMapLinks
+                          latitude={entry.latitude}
+                          longitude={entry.longitude}
+                          accuracy_m={entry.accuracy_m}
+                          location_source={entry.location_source}
+                          className="mt-2"
+                        />
+                      )}
+                    </>
+                  )}
+
+                  <JournalCommentThread
+                    entryId={entry.id}
+                    visibility={entry.visibility as "private" | "shared"}
+                  />
+
+                  {(entry.visibility === "shared" || isSlave) && (
+                    <div className="mt-4 border-t border-gold/10 pt-4">
+                      <VoiceNotes
+                        entityType="journal"
+                        entityId={entry.id}
+                        compact
+                        title="Voice note"
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

@@ -2436,6 +2436,53 @@ export type Database = {
           },
         ]
       }
+      journal_entry_images: {
+        Row: {
+          id: string
+          entry_id: string
+          image_path: string
+          sort_order: number
+          taken_at: string | null
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id: string
+          image_path: string
+          sort_order?: number
+          taken_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string
+          image_path?: string
+          sort_order?: number
+          taken_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entry_images_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_comments: {
         Row: {
           id: string

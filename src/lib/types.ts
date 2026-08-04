@@ -339,8 +339,26 @@ export type JournalEntry = {
   location_source?: ImageLocationSource | null;
 };
 
+export type JournalEntryImage = {
+  id: string;
+  entry_id: string;
+  image_path: string;
+  sort_order: number;
+  taken_at: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
+  location_source?: ImageLocationSource | null;
+  created_at: string;
+};
+
+export type JournalEntryImageWithSignedUrl = JournalEntryImage & {
+  signedUrl?: string;
+};
+
 export type JournalEntryWithSignedUrl = JournalEntry & {
   signedUrl?: string;
+  images?: JournalEntryImageWithSignedUrl[];
 };
 
 export type JournalComment = {

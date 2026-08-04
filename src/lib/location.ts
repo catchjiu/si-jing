@@ -7,6 +7,28 @@ export type GeoPoint = {
   source: "exif" | "device";
 };
 
+/** Best-effort capture time from EXIF (UTC Date). */
+export async function readImageDateTime(file: File): Promise<Date | null> {
+  try {
+    const tags = await exifr.parse(file, {
+      pick: ["DateTimeOriginal", "CreateDate", "ModifyDate"],
+    });
+    if (!tags || typeof tags !== "object") return null;
+    const raw =
+      (tags as Record<string, unknown>).DateTimeOriginal ??
+      (tags as Record<string, unknown>).CreateDate ??
+      (tags as Record<string, unknown>).ModifyDate;
+    if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
+    if (typeof raw === "string" || typeof raw === "number") {
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function appleMapsUrl(lat: number, lng: number): string {
   return `https://maps.apple.com/?ll=${lat},${lng}&q=${lat},${lng}`;
 }
