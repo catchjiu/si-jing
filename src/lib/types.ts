@@ -332,6 +332,15 @@ export type JournalEntry = {
   entry_date: string;
   created_at: string;
   updated_at: string;
+  image_path?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
+  location_source?: ImageLocationSource | null;
+};
+
+export type JournalEntryWithSignedUrl = JournalEntry & {
+  signedUrl?: string;
 };
 
 export type JournalComment = {

@@ -1,21 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { BookOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import type { JournalEntry } from "@/lib/types";
+import type { JournalEntryWithSignedUrl } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
+import { signObjectUrl } from "@/lib/storage/client";
 import { JournalEntryForm } from "@/components/journal/journal-entry-form";
 import { JournalCommentThread } from "@/components/journal/journal-comment-thread";
 import { VoiceNotes } from "@/components/voice/voice-notes";
+import { GeoMapLinks } from "@/components/location/geo-map-links";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export default function JournalPage() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [entries, setEntries] = useState<JournalEntryWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
   const [newEntryId, setNewEntryId] = useState<string | null>(null);
 
@@ -35,7 +39,19 @@ export default function JournalPage() {
     }
 
     const { data } = await query;
-    setEntries((data as JournalEntry[]) ?? []);
+    const rows = (data as JournalEntryWithSignedUrl[]) ?? [];
+    const withUrls = await Promise.all(
+      rows.map(async (entry) => {
+        if (!entry.image_path) return entry;
+        const signedUrl =
+          (await signObjectUrl({
+            bucket: "journal",
+            path: entry.image_path,
+          })) ?? undefined;
+        return { ...entry, signedUrl };
+      })
+    );
+    setEntries(withUrls);
     setLoading(false);
   }, [profile, isSlave]);
 
@@ -110,9 +126,45 @@ export default function JournalPage() {
                     {formatRelative(entry.created_at)}
                   </span>
                 </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
-                  <RoleSpeech text={entry.body} role="slave" />
-                </p>
+                {entry.body.trim() && (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ivory/90">
+                    <RoleSpeech text={entry.body} role="slave" />
+                  </p>
+                )}
+                {entry.signedUrl && (
+                  <WatermarkedFrame
+                    className={cn(
+                      "rounded-lg border border-gold/15",
+                      entry.body.trim() ? "mt-3" : ""
+                    )}
+                    mediaPath={entry.image_path}
+                  >
+                    <a
+                      href={entry.signedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <Image
+                        src={entry.signedUrl}
+                        alt="Journal photo"
+                        width={960}
+                        height={640}
+                        className="h-auto max-h-96 w-full bg-void object-contain"
+                        unoptimized
+                      />
+                    </a>
+                  </WatermarkedFrame>
+                )}
+                {entry.latitude != null && entry.longitude != null && (
+                  <GeoMapLinks
+                    latitude={entry.latitude}
+                    longitude={entry.longitude}
+                    accuracy_m={entry.accuracy_m}
+                    location_source={entry.location_source}
+                    className="mt-2"
+                  />
+                )}
 
                 <JournalCommentThread
                   entryId={entry.id}

@@ -2392,6 +2392,11 @@ export type Database = {
           entry_date: string
           created_at: string
           updated_at: string
+          image_path: string | null
+          latitude: number | null
+          longitude: number | null
+          accuracy_m: number | null
+          location_source: string | null
         }
         Insert: {
           id?: string
@@ -2401,6 +2406,11 @@ export type Database = {
           entry_date?: string
           created_at?: string
           updated_at?: string
+          image_path?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Update: {
           id?: string
@@ -2410,6 +2420,11 @@ export type Database = {
           entry_date?: string
           created_at?: string
           updated_at?: string
+          image_path?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accuracy_m?: number | null
+          location_source?: string | null
         }
         Relationships: [
           {

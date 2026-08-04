@@ -25,7 +25,8 @@ type StorageBucket =
   | "date_posts"
   | "wishlist"
   | "messages"
-  | "voice";
+  | "voice"
+  | "journal";
 
 type Preview = {
   title: string;
@@ -150,7 +151,7 @@ async function loadPreview(
   if (type === "journal") {
     const { data } = await supabase
       .from("journal_entries")
-      .select("id, body, entry_date")
+      .select("id, body, entry_date, image_path")
       .eq("id", id)
       .maybeSingle();
     if (!data) return null;
@@ -159,7 +160,10 @@ async function loadPreview(
       title: data.entry_date
         ? `Journal · ${data.entry_date}`
         : "Journal",
-      body: body.slice(0, 160) || null,
+      body: body.slice(0, 160) || (data.image_path ? "Photo entry" : null),
+      imagePath: (data.image_path as string | null) ?? null,
+      bucket: "journal",
+      mediaKind: "image",
     };
   }
 
