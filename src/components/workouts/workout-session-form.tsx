@@ -260,6 +260,7 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
           started_at: startedAt,
           ended_at: new Date().toISOString(),
           duration_minutes: minsParsed,
+          status: "completed",
         })
         .select("id")
         .single();

@@ -544,6 +544,12 @@ export type BodyRatingSnapshot = {
   rated_at: string;
 };
 
+export type WorkoutSessionStatus =
+  | "planned"
+  | "in_progress"
+  | "completed"
+  | "skipped";
+
 export type WorkoutSession = {
   id: string;
   created_by: string;
@@ -554,6 +560,7 @@ export type WorkoutSession = {
   ended_at: string | null;
   /** Manual session length; preferred over started/ended delta */
   duration_minutes: number | null;
+  status: WorkoutSessionStatus;
   queen_impressed: number | null;
   queen_note: string | null;
   queen_reacted_at: string | null;

@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Dumbbell, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Dumbbell, Loader2, Moon, Pencil, Play, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { BODY_PART_LABELS } from "@/lib/workout-exercises";
@@ -15,6 +15,7 @@ import {
   sessionVolume,
 } from "@/lib/workout-stats";
 import { signObjectUrl, removeObject } from "@/lib/storage/client";
+import { workoutStatusLabel } from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
 import { WorkoutSessionSummary } from "@/components/workouts/workout-session-summary";
 import { WorkoutSessionEditor } from "@/components/workouts/workout-session-editor";
@@ -85,6 +86,14 @@ export default function WorkoutDetailPage() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    if (!authLoading && profile && session && isSlave) {
+      if (session.status === "in_progress") {
+        router.replace(`/dashboard/workouts/log/${id}`);
+      }
+    }
+  }, [authLoading, profile, session, isSlave, id, router]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, WorkoutSet[]>();
@@ -168,6 +177,10 @@ export default function WorkoutDetailPage() {
     );
   }
 
+  const isSkipped = session.status === "skipped";
+  const isPlanned = session.status === "planned";
+  const isCompleted = session.status === "completed";
+
   return (
     <div className="space-y-8">
       <Link
@@ -179,29 +192,84 @@ export default function WorkoutDetailPage() {
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-heading flex items-center gap-2 text-2xl text-ivory">
-            <Dumbbell className="h-6 w-6 text-gold" />
-            {new Date(`${session.performed_at}T12:00:00`).toLocaleDateString(
-              undefined,
-              { weekday: "long", month: "long", day: "numeric" }
+          <h1 className="font-heading flex flex-wrap items-center gap-2 text-2xl text-ivory">
+            {isSkipped ? (
+              <Moon className="h-6 w-6 text-muted-foreground" />
+            ) : (
+              <Dumbbell className="h-6 w-6 text-gold" />
             )}
+            {isSkipped
+              ? "Rest day"
+              : new Date(`${session.performed_at}T12:00:00`).toLocaleDateString(
+                  undefined,
+                  { weekday: "long", month: "long", day: "numeric" }
+                )}
           </h1>
-          {session.notes && (
-            <p className="mt-1 text-sm text-muted-foreground">{session.notes}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {session.status !== "completed" && (
+              <Badge
+                variant="outline"
+                className={
+                  isSkipped
+                    ? "border-muted-foreground/40 text-muted-foreground"
+                    : isPlanned
+                      ? "border-gold/40 text-gold"
+                      : "border-emerald-400/40 text-emerald-300"
+                }
+              >
+                {workoutStatusLabel(session.status)}
+              </Badge>
+            )}
+            {!isSkipped && session.notes && (
+              <p className="text-sm text-muted-foreground">{session.notes}</p>
+            )}
+          </div>
+          {isSkipped && session.notes && (
+            <p className="mt-2 text-sm text-ivory/90">{session.notes}</p>
+          )}
+          {isSkipped && !session.notes && (
+            <p className="mt-2 text-sm text-muted-foreground">No workout today.</p>
           )}
         </div>
         {isSlave && (
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setEditing(true)}
-              className="border-gold/30 text-gold"
-            >
-              <Pencil className="mr-1.5 h-4 w-4" />
-              Edit
-            </Button>
+          <div className="flex flex-wrap items-center gap-1">
+            {isPlanned && (
+              <>
+                <Button
+                  asChild
+                  size="sm"
+                  className="bg-gold text-void hover:bg-gold-muted"
+                >
+                  <Link href={`/dashboard/workouts/log/${session.id}`}>
+                    <Play className="mr-1.5 h-4 w-4" />
+                    Start workout
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="border-gold/30 text-gold"
+                >
+                  <Link href={`/dashboard/workouts/plan/${session.id}`}>
+                    <Pencil className="mr-1.5 h-4 w-4" />
+                    Edit plan
+                  </Link>
+                </Button>
+              </>
+            )}
+            {isCompleted && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setEditing(true)}
+                className="border-gold/30 text-gold"
+              >
+                <Pencil className="mr-1.5 h-4 w-4" />
+                Edit
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
@@ -220,13 +288,15 @@ export default function WorkoutDetailPage() {
         )}
       </header>
 
-      <WorkoutSessionSummary
-        volume={volume}
-        setCount={sets.length}
-        exerciseCount={exerciseCount}
-        durationMin={mins}
-        prCount={prCount}
-      />
+      {!isSkipped && (
+        <WorkoutSessionSummary
+          volume={volume}
+          setCount={sets.length}
+          exerciseCount={exerciseCount}
+          durationMin={mins}
+          prCount={prCount}
+        />
+      )}
 
       {(session.queen_impressed != null || session.queen_note) && (
         <div className="rounded-xl border border-gold/25 bg-gold/8 p-4">
@@ -248,8 +318,11 @@ export default function WorkoutDetailPage() {
         <WorkoutQueenReaction session={session} onSaved={setSession} />
       )}
 
+      {!isSkipped && (
       <section className="space-y-4">
-        <h2 className="font-heading text-xl text-gold">Exercises</h2>
+        <h2 className="font-heading text-xl text-gold">
+          {isPlanned ? "Planned exercises" : "Exercises"}
+        </h2>
         <ul className="space-y-3">
           {grouped.map(([key, group]) => {
             const first = group[0]!;
@@ -285,6 +358,7 @@ export default function WorkoutDetailPage() {
           })}
         </ul>
       </section>
+      )}
 
       {media.length > 0 && (
         <section className="space-y-3">

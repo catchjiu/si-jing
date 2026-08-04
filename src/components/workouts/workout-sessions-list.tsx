@@ -12,6 +12,7 @@ import {
   sessionVolume,
   buildSparklineSeries,
 } from "@/lib/workout-stats";
+import { workoutStatusLabel } from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
 import { WorkoutExerciseSparkline } from "@/components/workouts/workout-exercise-sparkline";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
@@ -142,7 +143,12 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
           style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
         >
           <Link
-            href={`/dashboard/workouts/${s.id}`}
+            href={
+              isSlave &&
+              (s.status === "planned" || s.status === "in_progress")
+                ? `/dashboard/workouts/log/${s.id}`
+                : `/dashboard/workouts/${s.id}`
+            }
             className="flex gap-3 rounded-xl border border-gold/15 bg-charcoal/80 p-4 transition hover:border-gold/40"
           >
             <div className="w-1 shrink-0 rounded-full bg-gold/70" />
@@ -154,6 +160,20 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
                     { weekday: "short", month: "short", day: "numeric" }
                   )}
                 </p>
+                {s.status !== "completed" && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      s.status === "skipped"
+                        ? "border-muted-foreground/40 text-muted-foreground"
+                        : s.status === "in_progress"
+                          ? "border-emerald-400/40 text-emerald-300"
+                          : "border-gold/40 text-gold"
+                    }
+                  >
+                    {workoutStatusLabel(s.status)}
+                  </Badge>
+                )}
                 {s.prCount > 0 && (
                   <Badge className="bg-gold/20 text-gold border-gold/40">
                     {s.prCount} PR
@@ -166,10 +186,13 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                {s.exerciseCount} exercises · {s.sets.length} sets ·{" "}
-                {formatVolume(s.volume)}
+                {s.status === "skipped"
+                  ? s.notes || "Rest day"
+                  : `${s.exerciseCount} exercises · ${s.sets.length} sets · ${formatVolume(s.volume)}`}
               </p>
-              <WorkoutExerciseSparkline values={s.spark} className="mt-1 h-8 w-28" />
+              {s.status === "completed" && (
+                <WorkoutExerciseSparkline values={s.spark} className="mt-1 h-8 w-28" />
+              )}
             </div>
             <div className="relative h-16 w-14 shrink-0 self-center overflow-hidden rounded-lg border border-gold/20 bg-void/50">
               {s.preview?.signedUrl && s.preview.mediaKind === "image" ? (

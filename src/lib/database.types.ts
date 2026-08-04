@@ -1233,6 +1233,7 @@ export type Database = {
           started_at: string | null
           ended_at: string | null
           duration_minutes: number | null
+          status: string
           queen_impressed: number | null
           queen_note: string | null
           queen_reacted_at: string | null
@@ -1247,6 +1248,7 @@ export type Database = {
           started_at?: string | null
           ended_at?: string | null
           duration_minutes?: number | null
+          status?: string
           queen_impressed?: number | null
           queen_note?: string | null
           queen_reacted_at?: string | null
@@ -1261,6 +1263,7 @@ export type Database = {
           started_at?: string | null
           ended_at?: string | null
           duration_minutes?: number | null
+          status?: string
           queen_impressed?: number | null
           queen_note?: string | null
           queen_reacted_at?: string | null
