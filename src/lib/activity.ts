@@ -1739,7 +1739,7 @@ export async function fetchRecentActivity(
         at: e.created_at as string,
         title: "Flirt update",
         body: guy?.name ? `${guy.name} — ${snippet}` : snippet,
-        href: `/dashboard/flirt/${e.guy_id}`,
+        href: flirtPageHref(e.guy_id as string, { entryId: e.id as string }),
         kind: "flirt_entry",
       });
     }
