@@ -70,6 +70,7 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   date_timeline: Heart,
   flirt_new: Heart,
   flirt_entry: Heart,
+  flirt_entry_comment: MessageSquare,
   flirt_comment: MessageSquare,
   task: ClipboardList,
   task_started: ClipboardList,

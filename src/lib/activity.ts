@@ -8,6 +8,7 @@ import {
 import {
   datePageHref,
   denialPageHref,
+  flirtPageHref,
   inboxAnchors,
   messageAttachmentHref,
   teasePageHref,
@@ -227,6 +228,7 @@ export async function fetchRecentActivity(
       edgeLogs,
       edgeLogComments,
       flirtMessages,
+      flirtEntryComments,
       dateMessages,
       workoutSessionsQueen,
       workoutProgressPics,
@@ -441,6 +443,13 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("flirt_entry_comments")
+        .select(
+          "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username), entry:flirt_entries!entry_id(guy_id, body, guy:flirt_guys!guy_id(name, assigned_to))"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("date_messages")
         .select(
           "id, content, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
@@ -596,10 +605,33 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content,
         where: "flirt",
-        href: `/dashboard/flirt/${m.guy_id as string}`,
+        href: flirtPageHref(m.guy_id as string),
         kind: "flirt_comment",
         context: guy?.name ?? null,
         author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const c of flirtEntryComments.data ?? []) {
+      const entry = c.entry as {
+        guy_id?: string;
+        body?: string | null;
+        guy?: { name?: string; assigned_to?: string } | null;
+      } | null;
+      const guyId = entry?.guy_id;
+      if (!guyId) continue;
+      pushOtherPartyComment(items, profile, {
+        id: `flirt-entry-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "flirt",
+        href: flirtPageHref(guyId, {
+          entryId: c.entry_id as string,
+          commentId: c.id as string,
+        }),
+        kind: "flirt_entry_comment",
+        context: entry?.guy?.name ?? null,
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -1070,6 +1102,7 @@ export async function fetchRecentActivity(
       flirtGuys,
       flirtEntries,
       flirtMessages,
+      flirtEntryComments,
       dateMessages,
       bodyRatings,
       workoutReactions,
@@ -1264,6 +1297,13 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("flirt_entry_comments")
+        .select(
+          "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username), entry:flirt_entries!entry_id(guy_id, body, guy:flirt_guys!guy_id(name, assigned_to))"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("date_messages")
         .select(
           "id, content, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
@@ -1435,10 +1475,36 @@ export async function fetchRecentActivity(
         at: m.created_at as string,
         content,
         where: "flirt",
-        href: `/dashboard/flirt/${m.guy_id as string}`,
+        href: flirtPageHref(m.guy_id as string),
         kind: "flirt_comment",
         context: guy?.name ?? null,
         author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const c of flirtEntryComments.data ?? []) {
+      const entry = c.entry as {
+        guy_id?: string;
+        body?: string | null;
+        guy?: { name?: string; assigned_to?: string } | null;
+      } | null;
+      const guyId = entry?.guy_id;
+      if (!guyId) continue;
+      if (entry?.guy?.assigned_to && entry.guy.assigned_to !== profile.id) {
+        continue;
+      }
+      pushOtherPartyComment(items, profile, {
+        id: `flirt-entry-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "flirt",
+        href: flirtPageHref(guyId, {
+          entryId: c.entry_id as string,
+          commentId: c.id as string,
+        }),
+        kind: "flirt_entry_comment",
+        context: entry?.guy?.name ?? null,
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 

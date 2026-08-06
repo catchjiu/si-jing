@@ -1517,6 +1517,45 @@ export type Database = {
           },
         ]
       }
+      flirt_entry_comments: {
+        Row: {
+          id: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flirt_entry_comments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "flirt_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flirt_entry_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queen_dates: {
         Row: {
           id: string

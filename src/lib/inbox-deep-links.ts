@@ -58,6 +58,18 @@ export function datePageHref(
   return `/dashboard/dates?${params.toString()}`;
 }
 
+export function flirtPageHref(
+  guyId: string,
+  opts?: { entryId?: string | null; commentId?: string | null }
+): string {
+  const base = `/dashboard/flirt/${guyId}`;
+  const params = new URLSearchParams();
+  if (opts?.entryId) params.set("entry", opts.entryId);
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
 export function rewardPageHref(rewardId: string): string {
   return `/dashboard/rewards?reward=${encodeURIComponent(rewardId)}`;
 }

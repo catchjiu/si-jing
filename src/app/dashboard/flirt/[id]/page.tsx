@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Flame, HeartCrack, Loader2, Trash2, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -32,7 +32,6 @@ import {
   FlirtJealousySlider,
 } from "@/components/flirt/flirt-interest-slider";
 import { FlirtTimeline } from "@/components/flirt/flirt-timeline";
-import { FlirtCommentThread } from "@/components/flirt/flirt-comment-thread";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { markFlirtGuyNotificationsRead } from "@/lib/flirt-notifications";
@@ -42,7 +41,9 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export default function FlirtDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
+  const focusEntryId = searchParams.get("entry");
   const guyId = typeof params.id === "string" ? params.id : "";
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [guy, setGuy] = useState<FlirtGuy | null>(null);
@@ -97,6 +98,15 @@ export default function FlirtDetailPage() {
     const supabase = createClient();
     void markFlirtGuyNotificationsRead(supabase, profile.id, guyId);
   }, [profile, guyId]);
+
+  useEffect(() => {
+    if (!focusEntryId) return;
+    const timer = window.setTimeout(() => {
+      const el = document.getElementById(`flirt-entry-${focusEntryId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [focusEntryId, loading, guy?.id]);
 
   const saveStatus = async (status: FlirtStatus) => {
     if (!isQueen || !guy || status === guy.status) return;
@@ -497,12 +507,8 @@ export default function FlirtDetailPage() {
           guyId={guy.id}
           guyName={guy.name}
           canPost={!!isQueen}
+          focusEntryId={focusEntryId}
         />
-      </section>
-
-      <section className="space-y-4 rounded-2xl border border-gold/15 bg-charcoal/60 p-5">
-        <h2 className="font-heading text-xl text-gold">Comments</h2>
-        <FlirtCommentThread guyId={guy.id} guyName={guy.name} />
       </section>
     </div>
   );

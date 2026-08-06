@@ -9,13 +9,16 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRelative } from "@/lib/format";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { formatRoleSpeech } from "@/lib/role-speech";
+import { flirtPageHref } from "@/lib/inbox-deep-links";
 import type { FlirtEntry, FlirtEntryWithSignedUrl } from "@/lib/types";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
+import { FlirtEntryCommentThread } from "@/components/flirt/flirt-entry-comment-thread";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import {
   presignAndUpload,
   removeObject,
@@ -29,6 +32,7 @@ type Props = {
   guyId: string;
   guyName: string;
   canPost: boolean;
+  focusEntryId?: string | null;
 };
 
 async function withSignedUrls(
@@ -60,7 +64,7 @@ function formatEntryDate(date: string) {
   }
 }
 
-export function FlirtTimeline({ guyId, guyName, canPost }: Props) {
+export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) {
   const { profile } = useAuth();
   const [entries, setEntries] = useState<FlirtEntryWithSignedUrl[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,21 +182,25 @@ export function FlirtTimeline({ guyId, guyName, canPost }: Props) {
         mediaKind = "image";
       }
 
-      const { error } = await supabase.from("flirt_entries").insert({
-        guy_id: guyId,
-        author_id: profile.id,
-        body: speechBody,
-        media_kind: mediaKind,
-        file_path: filePath,
-        entry_date: entryDate || new Date().toISOString().slice(0, 10),
-      });
+      const { data: row, error } = await supabase
+        .from("flirt_entries")
+        .insert({
+          guy_id: guyId,
+          author_id: profile.id,
+          body: speechBody,
+          media_kind: mediaKind,
+          file_path: filePath,
+          entry_date: entryDate || new Date().toISOString().slice(0, 10),
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "New flirt entry",
           body: `${guyName}${text ? `: ${text.slice(0, 80)}` : " · photo"}`,
-          url: `/dashboard/flirt/${guyId}`,
+          url: flirtPageHref(guyId, { entryId: row.id }),
           target: "slave",
           kind: "flirt_entry",
         })
@@ -323,7 +331,13 @@ export function FlirtTimeline({ guyId, guyName, canPost }: Props) {
                 {dayEntries.map((entry) => (
                   <li
                     key={entry.id}
-                    className="rounded-xl border border-gold/15 bg-charcoal/70 p-4"
+                    id={`flirt-entry-${entry.id}`}
+                    className={cn(
+                      "rounded-xl border bg-charcoal/70 p-4",
+                      focusEntryId === entry.id
+                        ? "border-gold/40 ring-1 ring-gold/20"
+                        : "border-gold/15"
+                    )}
                   >
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <p className="text-xs text-muted-foreground">
@@ -365,6 +379,12 @@ export function FlirtTimeline({ guyId, guyName, canPost }: Props) {
                         />
                       </WatermarkedFrame>
                     )}
+                    <FlirtEntryCommentThread
+                      entryId={entry.id}
+                      guyId={guyId}
+                      guyName={guyName}
+                      defaultExpanded={focusEntryId === entry.id}
+                    />
                   </li>
                 ))}
               </ul>
