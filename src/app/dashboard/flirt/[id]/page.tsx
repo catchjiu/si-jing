@@ -32,6 +32,7 @@ import {
   FlirtJealousySlider,
 } from "@/components/flirt/flirt-interest-slider";
 import { FlirtTimeline } from "@/components/flirt/flirt-timeline";
+import { JealousyMissionForm } from "@/components/jealousy/jealousy-mission-form";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { markFlirtGuyNotificationsRead } from "@/lib/flirt-notifications";
@@ -500,6 +501,14 @@ export default function FlirtDetailPage() {
           )}
         </div>
       </header>
+
+      {isQueen && (
+        <JealousyMissionForm
+          sourceType="flirt_guy"
+          sourceId={guy.id}
+          sourceLabel={guy.name}
+        />
+      )}
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">Timeline</h2>

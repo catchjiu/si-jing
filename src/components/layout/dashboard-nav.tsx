@@ -25,6 +25,7 @@ import {
   Dumbbell,
   Lock,
   Flame,
+  HeartCrack,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -78,6 +79,7 @@ const navLinks = [
   { href: "/dashboard/teases", label: "Teases", icon: Sparkles },
   { href: "/dashboard/dates", label: "Dates", icon: CalendarHeart },
   { href: "/dashboard/flirt", label: "Flirt", icon: Flame },
+  { href: "/dashboard/jealousy", label: "Jealousy", icon: HeartCrack },
   { href: "/dashboard/evidence", label: "Evidence", icon: Images },
   { href: "/dashboard/rewards", label: "Rewards", icon: Gift },
   { href: "/dashboard/workouts", label: "Workouts", icon: Dumbbell },

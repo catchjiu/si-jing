@@ -1556,6 +1556,128 @@ export type Database = {
           },
         ]
       }
+      jealousy_missions: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          source_type: string
+          source_id: string
+          source_label: string | null
+          prompt: string
+          status: string
+          response_text: string | null
+          completed_at: string | null
+          denial_days: number
+          edge_debt: number
+          due_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          source_type: string
+          source_id: string
+          source_label?: string | null
+          prompt: string
+          status?: string
+          response_text?: string | null
+          completed_at?: string | null
+          denial_days?: number
+          edge_debt?: number
+          due_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          source_type?: string
+          source_id?: string
+          source_label?: string | null
+          prompt?: string
+          status?: string
+          response_text?: string | null
+          completed_at?: string | null
+          denial_days?: number
+          edge_debt?: number
+          due_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jealousy_missions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jealousy_missions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      body_inspections: {
+        Row: {
+          id: string
+          slave_id: string
+          week_start: string
+          status: string
+          inspection_score: number | null
+          queen_note: string | null
+          reply_allowed: boolean
+          slave_reply: string | null
+          slave_replied_at: string | null
+          queen_reviewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          slave_id: string
+          week_start: string
+          status?: string
+          inspection_score?: number | null
+          queen_note?: string | null
+          reply_allowed?: boolean
+          slave_reply?: string | null
+          slave_replied_at?: string | null
+          queen_reviewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          slave_id?: string
+          week_start?: string
+          status?: string
+          inspection_score?: number | null
+          queen_note?: string | null
+          reply_allowed?: boolean
+          slave_reply?: string | null
+          slave_replied_at?: string | null
+          queen_reviewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "body_inspections_slave_id_fkey"
+            columns: ["slave_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       queen_dates: {
         Row: {
           id: string
@@ -3059,6 +3181,27 @@ export type Database = {
     }
     Functions: {
       current_user_role: { Args: never; Returns: string }
+      create_jealousy_mission: {
+        Args: {
+          p_source_type: string
+          p_source_id: string
+          p_prompt: string
+          p_source_label?: string | null
+          p_denial_days?: number
+          p_edge_debt?: number
+          p_due_at?: string | null
+        }
+        Returns: string
+      }
+      complete_jealousy_mission: {
+        Args: { p_mission_id: string; p_response: string }
+        Returns: string
+      }
+      ensure_body_inspection_week: {
+        Args: { p_week_start?: string | null }
+        Returns: string
+      }
+      prompt_weekly_progress_pic: { Args: never; Returns: number }
       ensure_queen_slave_conversation: { Args: never; Returns: string }
       ensure_topic_conversations: { Args: never; Returns: string }
       get_topic_conversation: { Args: { p_topic: string }; Returns: string }

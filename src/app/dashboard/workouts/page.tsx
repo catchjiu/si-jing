@@ -2,6 +2,7 @@
 
 import { Dumbbell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import { BodyInspectionPanel } from "@/components/workouts/body-inspection-panel";
 import { BodyRatingsPanel } from "@/components/workouts/body-ratings-panel";
 import { WorkoutWeeklyProgress } from "@/components/workouts/workout-weekly-progress";
 import { WorkoutSessionsList } from "@/components/workouts/workout-sessions-list";
@@ -33,6 +34,8 @@ export default function WorkoutsPage() {
       </div>
 
       {isSlave && <WorkoutActiveSessions />}
+
+      <BodyInspectionPanel />
 
       <BodyRatingsPanel />
 

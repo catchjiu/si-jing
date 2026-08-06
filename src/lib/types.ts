@@ -544,6 +544,48 @@ export type BodyRatingSnapshot = {
   rated_at: string;
 };
 
+export type JealousyMissionSourceType = "flirt_guy" | "queen_date";
+export type JealousyMissionStatus = "open" | "completed" | "cancelled";
+
+export type JealousyMission = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  source_type: JealousyMissionSourceType;
+  source_id: string;
+  source_label: string | null;
+  prompt: string;
+  status: JealousyMissionStatus;
+  response_text: string | null;
+  completed_at: string | null;
+  denial_days: number;
+  edge_debt: number;
+  due_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BodyInspectionStatus =
+  | "open"
+  | "awaiting_rating"
+  | "reviewed"
+  | "complete";
+
+export type BodyInspection = {
+  id: string;
+  slave_id: string;
+  week_start: string;
+  status: BodyInspectionStatus;
+  inspection_score: number | null;
+  queen_note: string | null;
+  reply_allowed: boolean;
+  slave_reply: string | null;
+  slave_replied_at: string | null;
+  queen_reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WorkoutSessionStatus =
   | "planned"
   | "in_progress"

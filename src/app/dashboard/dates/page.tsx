@@ -17,6 +17,7 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import type { Profile, QueenDate } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { LazyDateDetails } from "@/components/dates/lazy-date-details";
+import { JealousyMissionForm } from "@/components/jealousy/jealousy-mission-form";
 import {
   DateFeaturedContent,
   extrasFromDate,
@@ -526,6 +527,14 @@ function DatesPageInner() {
                       />
                     )}
                   </div>
+                )}
+
+                {isQueen && (
+                  <JealousyMissionForm
+                    sourceType="queen_date"
+                    sourceId={d.id}
+                    sourceLabel={d.title || "Date"}
+                  />
                 )}
 
                 <LazyDateDetails

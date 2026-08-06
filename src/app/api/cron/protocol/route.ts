@@ -28,7 +28,9 @@ export async function POST(request: Request) {
     { data: recurring },
     { data: scheduleApplied },
     { data: noContactCleared },
+    { data: loveDayRollover },
     { data: bodyRatingPrompts },
+    { data: progressPicPrompts },
   ] = await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
@@ -40,10 +42,12 @@ export async function POST(request: Request) {
     supabase.rpc("clear_expired_no_contact"),
     supabase.rpc("ensure_queen_love_day_rollover"),
     supabase.rpc("prompt_weekly_body_rating"),
+    supabase.rpc("prompt_weekly_progress_pic"),
   ]);
 
   const clearedCount = Number(noContactCleared ?? 0);
   const bodyRatingDue = Number(bodyRatingPrompts ?? 0);
+  const progressPicDue = Number(progressPicPrompts ?? 0);
   if (clearedCount > 0) {
     const { data: slaves } = await supabase
       .from("users")
@@ -77,9 +81,23 @@ export async function POST(request: Request) {
     try {
       await sendPushToRoles(supabase, "queen", {
         title: "Weekly body rating due",
-        body: "Rate his physique for this week's check-in.",
+        body: "Rate his physique for this week's inspection.",
         url: "/dashboard/workouts",
         tag: "body-rating-due",
+        renotify: true,
+      });
+    } catch {
+      // push is best-effort
+    }
+  }
+
+  if (progressPicDue > 0) {
+    try {
+      await sendPushToRoles(supabase, "slave", {
+        title: "Weekly inspection photo due",
+        body: "Upload this week's progress pic for Queen's inspection.",
+        url: "/dashboard/workouts",
+        tag: "body-inspection-pic-due",
         renotify: true,
       });
     } catch {
@@ -101,8 +119,10 @@ export async function POST(request: Request) {
     expired: expired ?? 0,
     recurring: recurring ?? 0,
     scheduleApplied: scheduleApplied ?? 0,
+    loveDayRollover: loveDayRollover ?? 0,
     noContactCleared: clearedCount,
     bodyRatingDue,
+    progressPicDue,
   });
 }
 
