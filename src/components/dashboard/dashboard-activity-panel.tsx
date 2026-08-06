@@ -101,6 +101,7 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   apartment_fund: Building2,
   denial_edge: Lock,
   denial_comment: MessageSquare,
+  jealousy_mission_comment: MessageSquare,
 };
 
 function iconForKind(kind: string) {

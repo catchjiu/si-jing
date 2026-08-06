@@ -565,6 +565,15 @@ export type JealousyMission = {
   updated_at: string;
 };
 
+export type JealousyMissionComment = {
+  id: string;
+  mission_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author?: Pick<Profile, "id" | "username" | "role"> | null;
+};
+
 export type BodyInspectionStatus =
   | "open"
   | "awaiting_rating"

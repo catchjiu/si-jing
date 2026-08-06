@@ -1625,6 +1625,45 @@ export type Database = {
           },
         ]
       }
+      jealousy_mission_comments: {
+        Row: {
+          id: string
+          mission_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          mission_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          mission_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jealousy_mission_comments_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "jealousy_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jealousy_mission_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       body_inspections: {
         Row: {
           id: string

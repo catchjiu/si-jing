@@ -15,7 +15,18 @@ export const inboxAnchors = {
   denialEdge: (edgeLogId: string) => `denial_edge:${edgeLogId}`,
   denialComment: (edgeLogId: string, commentId: string) =>
     `denial_comment:${edgeLogId}:${commentId}`,
+  jealousyMissionComment: (missionId: string, commentId: string) =>
+    `jealousy_mission_comment:${missionId}:${commentId}`,
 } as const;
+
+export function jealousyPageHref(
+  missionId: string,
+  opts?: { commentId?: string | null }
+): string {
+  const params = new URLSearchParams({ mission: missionId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  return `/dashboard/jealousy?${params.toString()}`;
+}
 
 export function denialPageHref(opts?: {
   edgeLogId?: string | null;
@@ -167,7 +178,22 @@ export function messageAttachmentHref(opts: {
   if (type === "worship") return worshipDeepLink(id, anchor);
   if (type === "worship_assignment") return `/dashboard/worship`;
   if (type === "denial") return denialDeepLink(id, anchor);
+  if (type === "jealousy_mission") return jealousyMissionDeepLink(id, anchor);
   return `/dashboard/inbox`;
+}
+
+function jealousyMissionDeepLink(
+  missionId: string,
+  anchor?: string | null
+): string {
+  if (anchor?.startsWith("jealousy_mission_comment:")) {
+    const rest = anchor.slice("jealousy_mission_comment:".length);
+    const [mission, comment] = rest.split(":");
+    if (mission && comment) {
+      return jealousyPageHref(mission, { commentId: comment });
+    }
+  }
+  return jealousyPageHref(missionId);
 }
 
 function denialDeepLink(edgeLogId: string, anchor?: string | null): string {

@@ -10,8 +10,9 @@ import { useAuth } from "@/contexts/auth-context";
 import type { JealousyMission } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
-import { datePageHref, flirtPageHref } from "@/lib/inbox-deep-links";
+import { datePageHref, flirtPageHref, jealousyPageHref } from "@/lib/inbox-deep-links";
 import { RoleSpeech } from "@/components/ui/role-speech";
+import { JealousyMissionCommentThread } from "@/components/jealousy/jealousy-mission-comment-thread";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ export default function JealousyPage() {
 function JealousyPageInner() {
   const searchParams = useSearchParams();
   const focusId = searchParams.get("mission");
+  const focusCommentId = searchParams.get("comment");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<JealousyMission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ function JealousyPageInner() {
       notifyPush({
         title: "Jealousy mission completed",
         body: text.slice(0, 120),
-        url: `/dashboard/jealousy?mission=${mission.id}`,
+        url: jealousyPageHref(mission.id),
         target: "queen",
         kind: "jealousy_mission_done",
       })
@@ -210,6 +212,14 @@ function JealousyPageInner() {
                   </Button>
                 </div>
               )}
+
+              <JealousyMissionCommentThread
+                missionId={m.id}
+                missionLabel={m.source_label}
+                highlightCommentId={
+                  m.id === focusId ? focusCommentId : null
+                }
+              />
             </li>
           ))}
         </ul>

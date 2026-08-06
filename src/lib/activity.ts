@@ -10,6 +10,7 @@ import {
   denialPageHref,
   flirtPageHref,
   inboxAnchors,
+  jealousyPageHref,
   messageAttachmentHref,
   teasePageHref,
   voiceNotePageHref,
@@ -230,6 +231,7 @@ export async function fetchRecentActivity(
       flirtMessages,
       flirtEntryComments,
       dateMessages,
+      jealousyMissionComments,
       workoutSessionsQueen,
       workoutProgressPics,
     ] = await Promise.all([
@@ -457,6 +459,13 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("jealousy_mission_comments")
+        .select(
+          "id, content, created_at, mission_id, author_id, author:users!author_id(id, role, username), mission:jealousy_missions(source_label)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("workout_sessions")
         .select("id, performed_at, created_at, created_by, notes")
         .order("created_at", { ascending: false })
@@ -646,6 +655,22 @@ export async function fetchRecentActivity(
         kind: "date_comment",
         context: date?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const c of jealousyMissionComments.data ?? []) {
+      const mission = c.mission as { source_label?: string | null } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `jealousy-mission-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "jealousy mission",
+        href: jealousyPageHref(c.mission_id as string, {
+          commentId: c.id as string,
+        }),
+        kind: "jealousy_mission_comment",
+        context: mission?.source_label ?? null,
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -1104,6 +1129,7 @@ export async function fetchRecentActivity(
       flirtMessages,
       flirtEntryComments,
       dateMessages,
+      jealousyMissionComments,
       bodyRatings,
       workoutReactions,
     ] = await Promise.all([
@@ -1307,6 +1333,13 @@ export async function fetchRecentActivity(
         .from("date_messages")
         .select(
           "id, content, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("jealousy_mission_comments")
+        .select(
+          "id, content, created_at, mission_id, author_id, author:users!author_id(id, role, username), mission:jealousy_missions(source_label)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1519,6 +1552,22 @@ export async function fetchRecentActivity(
         kind: "date_comment",
         context: date?.title ?? null,
         author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const c of jealousyMissionComments.data ?? []) {
+      const mission = c.mission as { source_label?: string | null } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `jealousy-mission-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "jealousy mission",
+        href: jealousyPageHref(c.mission_id as string, {
+          commentId: c.id as string,
+        }),
+        kind: "jealousy_mission_comment",
+        context: mission?.source_label ?? null,
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 
