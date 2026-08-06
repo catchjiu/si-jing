@@ -26,6 +26,7 @@ import { hasPunishmentEffect } from "@/lib/punishments";
 import { getCurrentPosition, resolveImageLocation } from "@/lib/location";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { postToTopicThread } from "@/lib/inbox";
+import { datePageHref } from "@/lib/inbox-deep-links";
 import type { DatePost, DatePostMediaKind, DatePostWithSignedUrl, Profile } from "@/lib/types";
 import { KeepInEvidenceButton } from "@/components/evidence/keep-in-evidence-button";
 import { GeoMapLinks } from "@/components/location/geo-map-links";
@@ -200,6 +201,22 @@ export function DateTimeline({
       if (error) throw error;
 
       toast.success("Location shared on timeline");
+      void postToTopicThread(supabase, {
+        topic: "dates",
+        senderId: profile.id,
+        content: text,
+        attachmentType: "date",
+        attachmentId: dateId,
+      });
+      void import("@/lib/push-client").then(({ notifyPush }) =>
+        notifyPush({
+          title: isQueen ? "Queen shared location on a date" : "Location on date timeline",
+          body: dateTitle || text.slice(0, 80) || "Shared location",
+          url: datePageHref(dateId),
+          target: isQueen ? "slave" : "queen",
+          kind: "date_timeline",
+        })
+      );
       setBody("");
       void load();
       onPosted?.();
@@ -329,8 +346,9 @@ export function DateTimeline({
         notifyPush({
           title: isQueen ? "Queen posted on a date" : "New date timeline post",
           body: dateTitle || text.slice(0, 80) || "New timeline post",
-          url: "/dashboard/inbox",
+          url: datePageHref(dateId),
           target: isQueen ? "slave" : "queen",
+          kind: "date_timeline",
         })
       );
       setBody("");

@@ -1630,6 +1630,45 @@ export type Database = {
           },
         ]
       }
+      date_messages: {
+        Row: {
+          id: string
+          date_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "date_messages_date_id_fkey"
+            columns: ["date_id"]
+            isOneToOne: false
+            referencedRelation: "queen_dates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "date_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       date_posts: {
         Row: {
           id: string

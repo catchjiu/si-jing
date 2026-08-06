@@ -6,12 +6,13 @@ import {
   type MessageAttachmentType,
 } from "@/lib/inbox";
 import {
+  datePageHref,
+  denialPageHref,
   inboxAnchors,
   messageAttachmentHref,
   teasePageHref,
-  wishlistPageHref,
-  denialPageHref,
   voiceNotePageHref,
+  wishlistPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -225,6 +226,8 @@ export async function fetchRecentActivity(
       apartmentFundEntries,
       edgeLogs,
       edgeLogComments,
+      flirtMessages,
+      dateMessages,
       workoutSessionsQueen,
       workoutProgressPics,
     ] = await Promise.all([
@@ -431,6 +434,20 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("flirt_messages")
+        .select(
+          "id, content, image_path, created_at, guy_id, author_id, author:users!author_id(id, role, username), guy:flirt_guys!guy_id(name, assigned_to)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("date_messages")
+        .select(
+          "id, content, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("workout_sessions")
         .select("id, performed_at, created_at, created_by, notes")
         .order("created_at", { ascending: false })
@@ -558,14 +575,45 @@ export async function fetchRecentActivity(
       const date = dp.date as { title?: string } | null;
       const body = (dp.body as string | null)?.trim();
       pushOtherPartyComment(items, profile, {
-        id: `date-comment-${dp.id}`,
+        id: `date-timeline-${dp.id}`,
         at: dp.created_at as string,
         content: body || "Shared on the date timeline",
         where: "date",
-        href: "/dashboard/dates",
-        kind: "date_comment",
+        href: datePageHref(dp.date_id as string),
+        kind: "date_timeline",
         context: date?.title ?? null,
         author: dp.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const m of flirtMessages.data ?? []) {
+      const guy = m.guy as { name?: string; assigned_to?: string } | null;
+      const content =
+        (m.content as string | null)?.trim() ||
+        ((m as { image_path?: string | null }).image_path ? "Photo" : "Comment");
+      pushOtherPartyComment(items, profile, {
+        id: `flirt-comment-${m.id}`,
+        at: m.created_at as string,
+        content,
+        where: "flirt",
+        href: `/dashboard/flirt/${m.guy_id as string}`,
+        kind: "flirt_comment",
+        context: guy?.name ?? null,
+        author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const m of dateMessages.data ?? []) {
+      const date = m.date as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `date-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "date",
+        href: datePageHref(m.date_id as string, { commentId: m.id as string }),
+        kind: "date_comment",
+        context: date?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 
@@ -1021,6 +1069,8 @@ export async function fetchRecentActivity(
       edgeLogCommentsSlave,
       flirtGuys,
       flirtEntries,
+      flirtMessages,
+      dateMessages,
       bodyRatings,
       workoutReactions,
     ] = await Promise.all([
@@ -1207,6 +1257,20 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("flirt_messages")
+        .select(
+          "id, content, image_path, created_at, guy_id, author_id, author:users!author_id(id, role, username), guy:flirt_guys!guy_id(name, assigned_to)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
+        .from("date_messages")
+        .select(
+          "id, content, created_at, date_id, author_id, author:users!author_id(id, role, username), date:queen_dates(title)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("body_rating_snapshots")
         .select("id, overall, rated_at, week_start, rated_for")
         .eq("rated_for", profile.id)
@@ -1349,14 +1413,46 @@ export async function fetchRecentActivity(
       const date = dp.date as { title?: string } | null;
       const body = (dp.body as string | null)?.trim();
       pushOtherPartyComment(items, profile, {
-        id: `date-comment-${dp.id}`,
+        id: `date-timeline-${dp.id}`,
         at: dp.created_at as string,
         content: body || "Shared on the date timeline",
         where: "date",
-        href: "/dashboard/dates",
-        kind: "date_comment",
+        href: datePageHref(dp.date_id as string),
+        kind: "date_timeline",
         context: date?.title ?? null,
         author: dp.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const m of flirtMessages.data ?? []) {
+      const guy = m.guy as { name?: string; assigned_to?: string } | null;
+      if (guy?.assigned_to && guy.assigned_to !== profile.id) continue;
+      const content =
+        (m.content as string | null)?.trim() ||
+        ((m as { image_path?: string | null }).image_path ? "Photo" : "Comment");
+      pushOtherPartyComment(items, profile, {
+        id: `flirt-comment-${m.id}`,
+        at: m.created_at as string,
+        content,
+        where: "flirt",
+        href: `/dashboard/flirt/${m.guy_id as string}`,
+        kind: "flirt_comment",
+        context: guy?.name ?? null,
+        author: m.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const m of dateMessages.data ?? []) {
+      const date = m.date as { title?: string } | null;
+      pushOtherPartyComment(items, profile, {
+        id: `date-comment-${m.id}`,
+        at: m.created_at as string,
+        content: m.content as string,
+        where: "date",
+        href: datePageHref(m.date_id as string, { commentId: m.id as string }),
+        kind: "date_comment",
+        context: date?.title ?? null,
+        author: m.author as { id?: string; role?: string } | null,
       });
     }
 

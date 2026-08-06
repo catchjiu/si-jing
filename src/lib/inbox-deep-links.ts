@@ -50,10 +50,11 @@ export function teasePageHref(
 
 export function datePageHref(
   dateId: string,
-  opts?: { voiceId?: string | null }
+  opts?: { voiceId?: string | null; commentId?: string | null }
 ): string {
   const params = new URLSearchParams({ date: dateId });
   if (opts?.voiceId) params.set("voice", opts.voiceId);
+  if (opts?.commentId) params.set("comment", opts.commentId);
   return `/dashboard/dates?${params.toString()}`;
 }
 

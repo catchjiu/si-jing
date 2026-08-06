@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CalendarHeart } from "lucide-react";
+import { DateCommentThread } from "@/components/dates/date-comment-thread";
 import { DateTimeline } from "@/components/dates/date-timeline";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { Button } from "@/components/ui/button";
@@ -41,12 +42,16 @@ export function LazyDateDetails({
 
   return (
     <div className="space-y-3">
-      <DateTimeline
-        dateId={dateId}
-        dateTitle={dateTitle}
-        canPost={canPost}
-        onPosted={onPosted}
-      />
+      <section className="space-y-4">
+        <h3 className="font-heading text-lg text-gold">Timeline</h3>
+        <DateTimeline
+          dateId={dateId}
+          dateTitle={dateTitle}
+          canPost={canPost}
+          onPosted={onPosted}
+        />
+        <DateCommentThread dateId={dateId} dateTitle={dateTitle} />
+      </section>
       <VoiceNotes
         entityType="date"
         entityId={dateId}
