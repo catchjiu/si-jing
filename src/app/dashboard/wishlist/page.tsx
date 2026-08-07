@@ -141,7 +141,7 @@ function WishlistPageInner() {
         </p>
       </div>
 
-      <WishlistApartmentFundPanel />
+      <WishlistApartmentFundPanel refreshKey={budgetRefresh} />
 
       <WishlistTotalSpentPanel
         totalUsd={totalSpentOnQueenUsd}

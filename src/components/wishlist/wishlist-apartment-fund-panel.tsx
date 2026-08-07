@@ -46,15 +46,18 @@ const MOVE_CANCEL_PX = 10;
 
 type WishlistApartmentFundPanelProps = {
   className?: string;
+  refreshKey?: number;
 };
 
 export function WishlistApartmentFundPanel({
   className,
+  refreshKey = 0,
 }: WishlistApartmentFundPanelProps) {
   const { isQueen, isSlave, profile } = useAuth();
   const [entries, setEntries] = useState<QueenApartmentFundEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [walletLocked, setWalletLocked] = useState(false);
   const [amountInput, setAmountInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -80,8 +83,12 @@ export function WishlistApartmentFundPanel({
     setLoadError(null);
     const supabase = createClient();
     try {
-      const rows = await listQueenApartmentFundEntries(supabase);
+      const [rows, locked] = await Promise.all([
+        listQueenApartmentFundEntries(supabase),
+        isSlave ? fetchLockedWalletEnabled(supabase) : Promise.resolve(false),
+      ]);
       setEntries(rows);
+      setWalletLocked(locked);
     } catch (err) {
       setEntries([]);
       const msg =
@@ -91,11 +98,11 @@ export function WishlistApartmentFundPanel({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isSlave]);
 
   useEffect(() => {
     if (isQueen || isSlave) void load();
-  }, [isQueen, isSlave, load]);
+  }, [isQueen, isSlave, load, refreshKey]);
 
   const clearLongPress = useCallback(() => {
     const ref = longPressRef.current;
@@ -162,9 +169,11 @@ export function WishlistApartmentFundPanel({
     setSaving(true);
     const supabase = createClient();
     try {
-      const walletLocked =
-        isSlave && (await fetchLockedWalletEnabled(supabase));
-      if (walletLocked) {
+      const locked =
+        walletLocked ||
+        (isSlave && (await fetchLockedWalletEnabled(supabase)));
+      if (locked) {
+        setWalletLocked(true);
         await requestApartmentFundApproval(supabase, {
           amountNtd: amount,
           note: noteInput,
@@ -172,7 +181,7 @@ export function WishlistApartmentFundPanel({
         });
         setAmountInput("");
         setNoteInput("");
-        toast.success("Beg sent — waiting for Queen to approve");
+        toast.success("Request sent — waiting for Queen to approve");
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
             title: "Wallet beg",
@@ -306,9 +315,17 @@ export function WishlistApartmentFundPanel({
               void submitEntry();
             }}
           >
+            {walletLocked ? (
+              <p className="text-xs text-muted-foreground">
+                Wallet is locked — your request goes to Queen for one-tap
+                approval before it hits the fund.
+              </p>
+            ) : null}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1 space-y-1.5">
-                <Label htmlFor="apartment-fund-amount">Add amount (NTD)</Label>
+                <Label htmlFor="apartment-fund-amount">
+                  {walletLocked ? "Request amount (NTD)" : "Add amount (NTD)"}
+                </Label>
                 <Input
                   id="apartment-fund-amount"
                   type="text"
@@ -328,7 +345,7 @@ export function WishlistApartmentFundPanel({
                 {saving ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
-                Add to fund
+                {walletLocked ? "Request" : "Add to fund"}
               </Button>
             </div>
             <div className="space-y-1.5">
@@ -337,7 +354,11 @@ export function WishlistApartmentFundPanel({
                 id="apartment-fund-note"
                 rows={2}
                 maxLength={200}
-                placeholder="What this deposit is for"
+                placeholder={
+                  walletLocked
+                    ? "Why you need this added / what it’s for"
+                    : "What this deposit is for"
+                }
                 value={noteInput}
                 onChange={(e) => setNoteInput(e.target.value)}
                 className="border-gold/20 bg-void/60 resize-none"
