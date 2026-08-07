@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -35,9 +42,19 @@ import { WorkoutWeightDial } from "@/components/workouts/workout-weight-dial";
 import { WorkoutWheelPicker } from "@/components/workouts/workout-wheel-picker";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+
+const LONG_PRESS_MS = 480;
+const MOVE_CANCEL_PX = 10;
 
 type MediaView = WorkoutMedia & { signedUrl?: string };
 
@@ -104,8 +121,18 @@ export function WorkoutSessionLogger({
     "idle"
   );
   const [removingMediaId, setRemovingMediaId] = useState<string | null>(null);
+  const [editingExerciseKey, setEditingExerciseKey] = useState<string | null>(
+    null
+  );
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressRef = useRef<{
+    timer: number | null;
+    startX: number;
+    startY: number;
+    exKey: string | null;
+    fired: boolean;
+  }>({ timer: null, startX: 0, startY: 0, exKey: null, fired: false });
   const draftRef = useRef(draft);
   const fieldsRef = useRef<SessionFields>({ performed_at: performedAt, notes, minutes });
 
@@ -370,6 +397,52 @@ export function WorkoutSessionLogger({
 
   const removeExercise = (key: string) => {
     setDraft((prev) => prev.filter((e) => e.key !== key));
+  };
+
+  const editingExercise =
+    editingExerciseKey != null
+      ? (draft.find((e) => e.key === editingExerciseKey) ?? null)
+      : null;
+
+  const clearLongPress = useCallback(() => {
+    const ref = longPressRef.current;
+    if (ref.timer != null) {
+      window.clearTimeout(ref.timer);
+      ref.timer = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearLongPress(), [clearLongPress]);
+
+  const openExerciseEdit = useCallback((exKey: string) => {
+    setEditingExerciseKey(exKey);
+    navigator.vibrate?.(10);
+  }, []);
+
+  const onCardPointerDown = (e: ReactPointerEvent, exKey: string) => {
+    if (mode !== "plan" || e.button !== 0) return;
+    clearLongPress();
+    const ref = longPressRef.current;
+    ref.startX = e.clientX;
+    ref.startY = e.clientY;
+    ref.exKey = exKey;
+    ref.fired = false;
+    ref.timer = window.setTimeout(() => {
+      ref.fired = true;
+      openExerciseEdit(exKey);
+    }, LONG_PRESS_MS);
+  };
+
+  const onCardPointerMove = (e: ReactPointerEvent) => {
+    const ref = longPressRef.current;
+    if (ref.timer == null) return;
+    const dx = Math.abs(e.clientX - ref.startX);
+    const dy = Math.abs(e.clientY - ref.startY);
+    if (dx > MOVE_CANCEL_PX || dy > MOVE_CANCEL_PX) clearLongPress();
+  };
+
+  const onCardPointerUp = () => {
+    clearLongPress();
   };
 
   const handleMediaPick = async (files: FileList | null) => {
@@ -673,9 +746,16 @@ export function WorkoutSessionLogger({
       {draft.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-heading text-gold">
-              {mode === "plan" ? "Planned exercises" : "This session"}
-            </p>
+            <div>
+              <p className="font-heading text-gold">
+                {mode === "plan" ? "Planned exercises" : "This session"}
+              </p>
+              {mode === "plan" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Long-press to edit sets
+                </p>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               {totalSets} sets · {formatVolume(volume)}
             </p>
@@ -684,7 +764,19 @@ export function WorkoutSessionLogger({
             {draft.map((ex) => (
               <li
                 key={ex.key}
-                className="space-y-2 rounded-xl border border-gold/15 bg-charcoal/70 p-3"
+                className={cn(
+                  "space-y-2 rounded-xl border border-gold/15 bg-charcoal/70 p-3",
+                  mode === "plan" && "touch-manipulation select-none"
+                )}
+                onPointerDown={
+                  mode === "plan"
+                    ? (e) => onCardPointerDown(e, ex.key)
+                    : undefined
+                }
+                onPointerMove={mode === "plan" ? onCardPointerMove : undefined}
+                onPointerUp={mode === "plan" ? onCardPointerUp : undefined}
+                onPointerLeave={mode === "plan" ? onCardPointerUp : undefined}
+                onPointerCancel={mode === "plan" ? onCardPointerUp : undefined}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -698,6 +790,7 @@ export function WorkoutSessionLogger({
                     size="sm"
                     variant="ghost"
                     onClick={() => removeExercise(ex.key)}
+                    onPointerDown={(e) => e.stopPropagation()}
                     className="text-muted-foreground hover:text-red-300"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -765,6 +858,84 @@ export function WorkoutSessionLogger({
           </ul>
         </div>
       )}
+
+      <Dialog
+        open={editingExercise != null}
+        onOpenChange={(open) => {
+          if (!open) setEditingExerciseKey(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto border-gold/20 bg-charcoal sm:max-w-md">
+          {editingExercise && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-gold">
+                  {editingExercise.exercise_name}
+                </DialogTitle>
+                <DialogDescription>
+                  {BODY_PART_LABELS[editingExercise.body_part]} · Edit reps and
+                  weight for each set
+                </DialogDescription>
+              </DialogHeader>
+              <ul className="space-y-2">
+                {editingExercise.sets.map((s, idx) => (
+                  <li
+                    key={`${editingExercise.key}-${idx}`}
+                    className="grid grid-cols-[auto_1fr_1fr_auto] items-end gap-2"
+                  >
+                    <span className="pb-2 text-xs text-muted-foreground">
+                      #{idx + 1}
+                    </span>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">Reps</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={s.reps}
+                        onChange={(e) =>
+                          updateSet(editingExercise.key, idx, {
+                            reps: Math.max(1, Number(e.target.value) || 1),
+                          })
+                        }
+                        className="h-9 border-gold/20 bg-void/60"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">kg</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={s.weight}
+                        onChange={(e) =>
+                          updateSet(editingExercise.key, idx, {
+                            weight: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        className="h-9 border-gold/20 bg-void/60"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        removeSet(editingExercise.key, idx);
+                        if (editingExercise.sets.length <= 1) {
+                          setEditingExerciseKey(null);
+                        }
+                      }}
+                      className="h-9 w-9 p-0 text-muted-foreground hover:text-red-300"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-3">
         <p className="font-heading text-gold">Photos / video</p>
