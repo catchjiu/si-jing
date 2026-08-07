@@ -1,46 +1,4 @@
--- Fix outfit veto ranking: accept JSONB rank order (PostgREST-friendly) and
--- harden id validation so ranking succeeds reliably from the slave client.
-
-ALTER TABLE public.jealousy_outfit_vetoes
-  ADD COLUMN IF NOT EXISTS purpose TEXT;
-
-UPDATE public.jealousy_outfit_vetoes
-SET purpose = 'Outfit veto'
-WHERE purpose IS NULL OR trim(purpose) = '';
-
-ALTER TABLE public.jealousy_outfit_vetoes
-  ALTER COLUMN purpose SET DEFAULT 'Outfit veto';
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM public.jealousy_outfit_vetoes
-    WHERE purpose IS NULL
-  ) THEN
-    UPDATE public.jealousy_outfit_vetoes
-    SET purpose = 'Outfit veto'
-    WHERE purpose IS NULL;
-  END IF;
-
-  BEGIN
-    ALTER TABLE public.jealousy_outfit_vetoes
-      ALTER COLUMN purpose SET NOT NULL;
-  EXCEPTION
-    WHEN others THEN
-      NULL;
-  END;
-END;
-$$;
-
-ALTER TABLE public.jealousy_missions
-  DROP CONSTRAINT IF EXISTS jealousy_missions_source_type_check;
-
-ALTER TABLE public.jealousy_missions
-  ADD CONSTRAINT jealousy_missions_source_type_check
-  CHECK (source_type IN ('flirt_guy', 'queen_date', 'outfit_veto'));
-
-DROP FUNCTION IF EXISTS public.rank_jealousy_outfit_veto(UUID, UUID[]);
+-- Fix ambiguous mission_id in rank_jealousy_outfit_veto UPDATE (column vs variable)
 
 CREATE OR REPLACE FUNCTION public.rank_jealousy_outfit_veto(
   p_veto_id UUID,
