@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     { data: loveDayRollover },
     { data: bodyRatingPrompts },
     { data: progressPicPrompts },
+    { data: missedPremieres },
   ] = await Promise.all([
     supabase.rpc("open_due_check_ins"),
     supabase.rpc("flag_missed_check_ins"),
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     supabase.rpc("ensure_queen_love_day_rollover"),
     supabase.rpc("prompt_weekly_body_rating"),
     supabase.rpc("prompt_weekly_progress_pic"),
+    supabase.rpc("flag_missed_premieres"),
   ]);
 
   const clearedCount = Number(noContactCleared ?? 0);
@@ -123,6 +125,7 @@ export async function POST(request: Request) {
     noContactCleared: clearedCount,
     bodyRatingDue,
     progressPicDue,
+    missedPremieres: missedPremieres ?? 0,
   });
 }
 

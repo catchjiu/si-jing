@@ -266,7 +266,7 @@ export async function fetchRecentActivity(
       supabase
         .from("teases")
         .select(
-          "id, title, viewed_at, screenshot_flagged_at, unblurred_at, expired_at, created_at"
+          "id, title, viewed_at, screenshot_flagged_at, unblurred_at, expired_at, created_at, premiere_kind, burned_at, burn_reason, unlocks_at"
         )
         .order("created_at", { ascending: false })
         .limit(8),
@@ -875,7 +875,21 @@ export async function fetchRecentActivity(
           kind: "tease_capture",
         });
       }
-      if (t.viewed_at) {
+      if (t.burned_at && t.premiere_kind) {
+        pushItem(items, {
+          id: `premiere-burn-${t.id}`,
+          at: t.burned_at as string,
+          title:
+            t.burn_reason === "played"
+              ? "Premiere watched"
+              : t.burn_reason === "missed_window"
+                ? "Premiere missed"
+                : "Premiere burned",
+          body: (t.title as string) || "One-shot premiere ended",
+          href: teasePageHref(t.id as string),
+          kind: "premiere_burned",
+        });
+      } else if (t.viewed_at) {
         pushItem(items, {
           id: `tease-view-${t.id}`,
           at: t.viewed_at as string,
@@ -1184,7 +1198,7 @@ export async function fetchRecentActivity(
       supabase
         .from("teases")
         .select(
-          "id, title, is_blurred, unblurred_at, unlocks_at, expired_at, created_at"
+          "id, title, is_blurred, unblurred_at, unlocks_at, expired_at, created_at, premiere_kind, burned_at, burn_reason"
         )
         .eq("sent_to", profile.id)
         .order("created_at", { ascending: false })
@@ -1719,8 +1733,26 @@ export async function fetchRecentActivity(
     }
 
     for (const t of teases.data ?? []) {
-      if (t.expired_at) continue;
-      if (!t.is_blurred && t.unblurred_at) {
+      if (t.expired_at || t.burned_at) continue;
+      if (t.premiere_kind === "timed") {
+        pushItem(items, {
+          id: `premiere-${t.id}`,
+          at: (t.unlocks_at as string) || (t.created_at as string),
+          title: "Timed premiere",
+          body: (t.title as string) || "One-shot show waiting",
+          href: teasePageHref(t.id as string),
+          kind: "premiere",
+        });
+      } else if (t.premiere_kind === "burned") {
+        pushItem(items, {
+          id: `premiere-${t.id}`,
+          at: t.created_at as string,
+          title: "Burned premiere",
+          body: (t.title as string) || "One play — then gone",
+          href: teasePageHref(t.id as string),
+          kind: "premiere",
+        });
+      } else if (!t.is_blurred && t.unblurred_at) {
         pushItem(items, {
           id: `tease-rev-${t.id}`,
           at: t.unblurred_at as string,

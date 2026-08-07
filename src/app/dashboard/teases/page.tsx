@@ -7,7 +7,13 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatDeadline, formatRelative } from "@/lib/format";
-import type { Profile, TeaseMediaKind, TeaseViewCapture, TeaseWithSignedUrl } from "@/lib/types";
+import type {
+  Profile,
+  TeaseMediaKind,
+  TeasePremiereKind,
+  TeaseViewCapture,
+  TeaseWithSignedUrl,
+} from "@/lib/types";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
@@ -15,7 +21,27 @@ import { formatRoleSpeech } from "@/lib/role-speech";
 import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { teasePageHref } from "@/lib/inbox-deep-links";
+import {
+  burnReasonLabel,
+  computePremiereClosesAt,
+  finishPremiereSession,
+  isPremiere,
+  isPremiereBurned,
+  isPremiereWindowOpen,
+  premiereBadgeLabel,
+  startPremiereSession,
+  type PremiereEndReason,
+} from "@/lib/tease-premiere";
+import { Countdown } from "@/components/tasks/countdown";
 import { ShareLinkButton } from "@/components/ui/share-link-button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   isTeaseReactionCaptureSupported,
   pickVideoRecorderMimeType,
@@ -107,8 +133,15 @@ async function withSignedUrls(
   return Promise.all(
     teases.map(async (t) => {
       if (!t.image_path) return t;
-      const unlocked = isTimeUnlocked(t.unlocks_at);
-      if (!isQueen && !unlocked) return { ...t, signedUrl: undefined };
+      if (!isQueen) {
+        // Premieres only sign after start_premiere_session in openSessionView
+        if (isPremiere(t)) {
+          return { ...t, signedUrl: undefined };
+        }
+        if (!isTimeUnlocked(t.unlocks_at)) {
+          return { ...t, signedUrl: undefined };
+        }
+      }
       const signedUrl =
         (await signObjectUrl({
           bucket: "teases",
@@ -137,6 +170,11 @@ function TeasesPageInner() {
   const [startBlurred, setStartBlurred] = useState(true);
   const [blurAmount, setBlurAmount] = useState(20);
   const [unlockTaskLabels, setUnlockTaskLabels] = useState<string[]>([""]);
+  const [premiereKind, setPremiereKind] = useState<"none" | TeasePremiereKind>(
+    "none"
+  );
+  const [premiereWindowMinutes, setPremiereWindowMinutes] = useState("15");
+  const [premiereDenialDays, setPremiereDenialDays] = useState("1");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -269,14 +307,33 @@ function TeasesPageInner() {
       return;
     }
 
-    const taskLabels = unlockTaskLabels
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .slice(0, 3);
+    const isPremiereCreate = premiereKind !== "none";
+    const taskLabels = isPremiereCreate
+      ? []
+      : unlockTaskLabels
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .slice(0, 3);
     if (taskLabels.length > 0 && !file) {
       toast.error("Unlock tasks need an image or video to reveal");
       return;
     }
+    if (isPremiereCreate && !file) {
+      toast.error("Premieres need an image or video");
+      return;
+    }
+    if (premiereKind === "timed" && !unlockLocal) {
+      toast.error("Timed premiere needs a showtime");
+      return;
+    }
+    const windowMins = Math.min(
+      60,
+      Math.max(5, parseInt(premiereWindowMinutes, 10) || 15)
+    );
+    const denialDays = Math.min(
+      7,
+      Math.max(0, parseInt(premiereDenialDays, 10) || 0)
+    );
 
     setSubmitting(true);
     const supabase = createClient();
@@ -322,13 +379,19 @@ function TeasesPageInner() {
       }
 
       const taskGated = taskLabels.length > 0;
-      const blurred = !!imagePath && (startBlurred || taskGated);
-      // Task-gated teases start heavier so each completion visibly clears more
+      // Premieres force clear media — premiere gate replaces blur/tasks
+      const blurred = isPremiereCreate
+        ? false
+        : !!imagePath && (startBlurred || taskGated);
       const startAmount = blurred
         ? taskGated
           ? Math.max(blurAmount || 20, 75)
           : blurAmount || 20
         : 0;
+      const premiereClosesAt =
+        premiereKind === "timed"
+          ? computePremiereClosesAt(unlocks, windowMins)
+          : null;
 
       const { data: created, error } = await supabase
         .from("teases")
@@ -351,6 +414,11 @@ function TeasesPageInner() {
           longitude: geo?.longitude ?? null,
           accuracy_m: geo?.accuracy_m ?? null,
           location_source: geo?.source ?? null,
+          premiere_kind: isPremiereCreate ? premiereKind : null,
+          premiere_window_minutes:
+            premiereKind === "timed" ? windowMins : null,
+          premiere_closes_at: premiereClosesAt,
+          premiere_denial_days: isPremiereCreate ? denialDays : 1,
         })
         .select("id")
         .single();
@@ -377,7 +445,7 @@ function TeasesPageInner() {
           (message.trim()
             ? formatRoleSpeech(message.trim(), "queen")
             : null) ||
-          "New tease";
+          (isPremiereCreate ? "New premiere" : "New tease");
         void import("@/lib/inbox").then(({ postTeaseToInboxes }) =>
           postTeaseToInboxes(supabase, {
             senderId: profile.id,
@@ -387,21 +455,33 @@ function TeasesPageInner() {
         );
         void import("@/lib/push-client").then(({ notifyPush }) =>
           notifyPush({
-            title: "New tease",
-            body: summary,
+            title:
+              premiereKind === "timed"
+                ? "Timed premiere"
+                : premiereKind === "burned"
+                  ? "Burned premiere"
+                  : "New tease",
+            body:
+              premiereKind === "timed"
+                ? `Premiere at ${formatDeadline(unlocks.toISOString())} — one shot`
+                : summary,
             url: teasePageHref(created.id),
             target: "slave",
-            kind: "tease",
+            kind: isPremiereCreate ? "premiere" : "tease",
           })
         );
       }
 
       toast.success(
-        taskGated
-          ? `Tease queued · ${taskLabels.length} unlock task${taskLabels.length > 1 ? "s" : ""}`
-          : blurred
-            ? "Blurred tease queued"
-            : "Tease queued"
+        premiereKind === "timed"
+          ? "Timed premiere queued"
+          : premiereKind === "burned"
+            ? "Burned premiere queued"
+            : taskGated
+              ? `Tease queued · ${taskLabels.length} unlock task${taskLabels.length > 1 ? "s" : ""}`
+              : blurred
+                ? "Blurred tease queued"
+                : "Tease queued"
       );
       setTitle("");
       setMessage("");
@@ -409,6 +489,9 @@ function TeasesPageInner() {
       setStartBlurred(true);
       setBlurAmount(20);
       setUnlockTaskLabels([""]);
+      setPremiereKind("none");
+      setPremiereWindowMinutes("15");
+      setPremiereDenialDays("1");
       setImage(null);
       void load();
     } catch (err) {
@@ -439,6 +522,9 @@ function TeasesPageInner() {
             : 20
         : 0;
 
+      const redoPremiere = isPremiere(tease);
+      const premiereBlurred = redoPremiere ? false : blurred;
+      const premiereAmount = redoPremiere ? 0 : startAmount;
       const { data: created, error } = await supabase
         .from("teases")
         .insert({
@@ -449,19 +535,26 @@ function TeasesPageInner() {
           image_path: tease.image_path,
           media_kind: tease.media_kind ?? "image",
           unlocks_at: now,
-          is_blurred: blurred,
-          blur_amount: startAmount,
-          unblurred_at: blurred ? null : now,
+          is_blurred: premiereBlurred,
+          blur_amount: premiereAmount,
+          unblurred_at: premiereBlurred ? null : now,
           latitude: tease.latitude,
           longitude: tease.longitude,
           accuracy_m: tease.accuracy_m,
           location_source: tease.location_source,
+          // Re-send premieres as burned (available now), not timed
+          premiere_kind: redoPremiere ? "burned" : null,
+          premiere_window_minutes: null,
+          premiere_closes_at: null,
+          premiere_denial_days: redoPremiere
+            ? tease.premiere_denial_days ?? 1
+            : 1,
         })
         .select("id")
         .single();
       if (error) throw error;
 
-      if (taskGated && created?.id) {
+      if (!redoPremiere && taskGated && created?.id) {
         const { error: taskError } = await supabase
           .from("tease_unlock_tasks")
           .insert(
@@ -474,7 +567,9 @@ function TeasesPageInner() {
         if (taskError) throw taskError;
       }
 
-      toast.success("Re-teased — sent again");
+      toast.success(
+        redoPremiere ? "Premiere re-sent (burned, one play)" : "Re-teased — sent again"
+      );
       if (created?.id && profile) {
         void import("@/lib/inbox").then(({ postTeaseToInboxes }) =>
           postTeaseToInboxes(supabase, {
@@ -486,11 +581,11 @@ function TeasesPageInner() {
       }
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
-          title: "New tease",
+          title: redoPremiere ? "Burned premiere" : "New tease",
           body: tease.title || "Queen sent a tease again",
           url: teasePageHref(created.id),
           target: "slave",
-          kind: "tease",
+          kind: redoPremiere ? "premiere" : "tease",
         })
       );
       void load();
@@ -812,66 +907,156 @@ function TeasesPageInner() {
   const openSessionView = async (tease: TeaseWithSignedUrl) => {
     if (!isSlave || !profile || !tease.image_path) return;
     if (tease.is_blurred || !isTimeUnlocked(tease.unlocks_at)) return;
+    if (isPremiere(tease) && isPremiereBurned(tease)) {
+      toast.error("This premiere is already burned");
+      return;
+    }
+    if (isPremiere(tease) && !isPremiereWindowOpen(tease)) {
+      toast.error(
+        tease.premiere_kind === "timed"
+          ? "Premiere window is not open"
+          : "Premiere is not available"
+      );
+      return;
+    }
 
     setOpening(tease.id);
     if (inlineViewId) await endInlineView();
 
-    const ok = await startCameraSession();
-    if (!ok) {
-      setOpening(null);
-      return;
-    }
-
-    const signedUrl = await signObjectUrl({
-      bucket: "teases",
-      path: tease.image_path,
-      expiresIn: 3600,
-    });
-
-    if (!signedUrl) {
-      setOpening(null);
-      if (reactionRecorderRef.current) {
-        await reactionRecorderRef.current.dispose();
-      }
-      reactionRecorderRef.current = null;
-      setCameraStream(null);
-      toast.error("Could not open tease");
-      return;
-    }
-
-    const now = new Date().toISOString();
-    viewSessionStartedAtRef.current = Date.now();
     const supabase = createClient();
-    await supabase
-      .from("teases")
-      .update({
-        viewed_at: tease.viewed_at ?? now,
-        view_started_at: now,
-      })
-      .eq("id", tease.id);
+    try {
+      if (isPremiere(tease)) {
+        await startPremiereSession(supabase, tease.id);
+      }
 
-    setActiveView({ tease, url: signedUrl });
-    setOpening(null);
+      const ok = await startCameraSession();
+      if (!ok) {
+        setOpening(null);
+        return;
+      }
+
+      const signedUrl = await signObjectUrl({
+        bucket: "teases",
+        path: tease.image_path,
+        expiresIn: isPremiere(tease) ? 600 : 3600,
+      });
+
+      if (!signedUrl) {
+        setOpening(null);
+        if (reactionRecorderRef.current) {
+          await reactionRecorderRef.current.dispose();
+        }
+        reactionRecorderRef.current = null;
+        setCameraStream(null);
+        toast.error("Could not open tease");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      viewSessionStartedAtRef.current = Date.now();
+      if (!isPremiere(tease)) {
+        await supabase
+          .from("teases")
+          .update({
+            viewed_at: tease.viewed_at ?? now,
+            view_started_at: now,
+          })
+          .eq("id", tease.id);
+      }
+
+      setActiveView({ tease, url: signedUrl });
+      setOpening(null);
+    } catch (err) {
+      setOpening(null);
+      toast.error(err instanceof Error ? err.message : "Could not open premiere");
+    }
   };
 
-  const endSessionView = useCallback(async (watchMetric: number) => {
-    const current = activeViewRef.current;
-    setActiveView(null);
-    if (!current || !profileRef.current?.role || profileRef.current.role !== "slave")
-      return;
+  const endSessionView = useCallback(
+    async (watchMetric: number, endReason: PremiereEndReason = "played") => {
+      const current = activeViewRef.current;
+      setActiveView(null);
+      if (
+        !current ||
+        !profileRef.current?.role ||
+        profileRef.current.role !== "slave"
+      )
+        return;
 
-    const mediaKind = current.tease.media_kind ?? "image";
-    await uploadReactionAndCleanup(current.tease.id, watchMetric, mediaKind);
+      const mediaKind = current.tease.media_kind ?? "image";
+      const premiere = isPremiere(current.tease);
 
-    setReactionPrompt({
-      tease: current.tease,
-      score: current.tease.reaction_score ?? 70,
-    });
-  }, []);
+      if (premiere) {
+        const supabase = createClient();
+        try {
+          const result = await finishPremiereSession(
+            supabase,
+            current.tease.id,
+            endReason
+          );
+          setItems((prev) =>
+            prev.map((t) =>
+              t.id === current.tease.id
+                ? {
+                    ...t,
+                    burned_at: new Date().toISOString(),
+                    burn_reason: endReason,
+                    expired_at: t.expired_at ?? new Date().toISOString(),
+                    signedUrl: undefined,
+                  }
+                : t
+            )
+          );
+          if (endReason === "played") {
+            toast.success("Premiere watched — burned forever");
+          } else if (result.penalized) {
+            toast.error(
+              `${burnReasonLabel(endReason)} · +${result.denial_days ?? 0} denial day(s)`
+            );
+          } else {
+            toast.error(burnReasonLabel(endReason));
+          }
+          void import("@/lib/push-client").then(({ notifyPush }) =>
+            notifyPush({
+              title:
+                endReason === "played" ? "Premiere watched" : "Premiere burned",
+              body:
+                endReason === "played"
+                  ? "D finished your premiere."
+                  : `D: ${burnReasonLabel(endReason)}`,
+              url: teasePageHref(current.tease.id),
+              target: "queen",
+              kind: "premiere_burned",
+            })
+          );
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : "Could not burn premiere"
+          );
+        }
+      }
+
+      await uploadReactionAndCleanup(current.tease.id, watchMetric, mediaKind);
+
+      if (!premiere || endReason === "played") {
+        setReactionPrompt({
+          tease: current.tease,
+          score: current.tease.reaction_score ?? 70,
+        });
+      }
+    },
+    []
+  );
 
   const handleSessionEnd = useCallback(
-    ({ watchMetric }: { watchMetric: number }) => {
-      void endSessionView(watchMetric);
+    ({
+      watchMetric,
+      endReason,
+    }: {
+      watchMetric: number;
+      endReason: PremiereEndReason;
+    }) => {
+      void endSessionView(watchMetric, endReason);
     },
     [endSessionView]
   );
@@ -992,6 +1177,35 @@ function TeasesPageInner() {
         >
           <h2 className="font-heading text-xl text-gold">Queue a tease</h2>
           <div className="space-y-2">
+            <Label>Mode</Label>
+            <Select
+              value={premiereKind}
+              onValueChange={(v) =>
+                setPremiereKind(v as "none" | TeasePremiereKind)
+              }
+            >
+              <SelectTrigger className="border-gold/20 bg-void/60">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Normal tease</SelectItem>
+                <SelectItem value="burned">Burned premiere (one play)</SelectItem>
+                <SelectItem value="timed">
+                  Timed premiere (one play + showtime)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {premiereKind !== "none" && (
+              <p className="text-xs text-muted-foreground">
+                One-shot only. Leaving the tab or exiting early burns it
+                {Number(premiereDenialDays) > 0
+                  ? ` and can add denial days`
+                  : ""}
+                . Blur/unlock tasks are off for premieres.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
             <Label>Title</Label>
             <Input
               value={title}
@@ -1009,14 +1223,49 @@ function TeasesPageInner() {
             />
           </div>
           <div className="space-y-2">
-            <Label>Available from (optional)</Label>
+            <Label>
+              {premiereKind === "timed"
+                ? "Showtime"
+                : premiereKind === "burned"
+                  ? "Available from (optional)"
+                  : "Available from (optional)"}
+            </Label>
             <Input
               type="datetime-local"
               value={unlockLocal}
               onChange={(e) => setUnlockLocal(e.target.value)}
               className="border-gold/20 bg-void/60"
+              required={premiereKind === "timed"}
             />
           </div>
+          {premiereKind !== "none" && (
+            <div className="grid grid-cols-2 gap-3">
+              {premiereKind === "timed" && (
+                <div className="space-y-1">
+                  <Label>Window (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={60}
+                    value={premiereWindowMinutes}
+                    onChange={(e) => setPremiereWindowMinutes(e.target.value)}
+                    className="border-gold/20 bg-void/60"
+                  />
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label>Denial days on miss / leave</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={7}
+                  value={premiereDenialDays}
+                  onChange={(e) => setPremiereDenialDays(e.target.value)}
+                  className="border-gold/20 bg-void/60"
+                />
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Image or video (optional)</Label>
             {preview ? (
@@ -1081,7 +1330,7 @@ function TeasesPageInner() {
               </p>
             )}
           </div>
-          {file && (
+          {file && premiereKind === "none" && (
             <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
               <label className="flex cursor-pointer items-center gap-3">
                 <input
@@ -1127,6 +1376,7 @@ function TeasesPageInner() {
               )}
             </div>
           )}
+          {premiereKind === "none" && (
           <div className="space-y-3 rounded-lg border border-gold/15 bg-void/40 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -1199,6 +1449,7 @@ function TeasesPageInner() {
               </p>
             ) : null}
           </div>
+          )}
           <Button
             type="submit"
             disabled={submitting}
@@ -1209,7 +1460,11 @@ function TeasesPageInner() {
             ) : (
               <EyeOff className="mr-2 h-4 w-4" />
             )}
-            Queue tease
+            {premiereKind === "timed"
+              ? "Queue timed premiere"
+              : premiereKind === "burned"
+                ? "Queue burned premiere"
+                : "Queue tease"}
           </Button>
         </form>
       )}
@@ -1220,10 +1475,14 @@ function TeasesPageInner() {
         ) : (
           items.map((t) => {
             const timeReady = isTimeUnlocked(t.unlocks_at);
-            const showImage = isQueen || timeReady;
-            const visuallyBlurred = !!t.image_path && t.is_blurred;
+            const premiere = isPremiere(t);
+            const burned = premiere && isPremiereBurned(t);
+            const windowOpen = premiere ? isPremiereWindowOpen(t) : timeReady;
+            const showImage =
+              isQueen || (premiere ? windowOpen && !burned : timeReady);
+            const visuallyBlurred = !!t.image_path && t.is_blurred && !premiere;
             const amount = t.blur_amount ?? 20;
-            const queenRevealed = showImage && !visuallyBlurred;
+            const queenRevealed = showImage && !visuallyBlurred && !burned;
             const fullyRevealed = queenRevealed;
             const isVideo = t.media_kind === "video";
             const slaveCardPreviewBlur = visuallyBlurred
@@ -1241,6 +1500,20 @@ function TeasesPageInner() {
             const tasksDone = unlockTasks.filter((x) => x.completed_at).length;
             const tasksAllDone =
               hasUnlockTasks && tasksDone === unlockTasks.length;
+            const premiereLobby =
+              isSlave &&
+              premiere &&
+              !burned &&
+              !timeReady &&
+              t.premiere_kind === "timed";
+            const premiereMissed =
+              isSlave &&
+              premiere &&
+              (burned ||
+                (t.premiere_kind === "timed" &&
+                  !!t.premiere_closes_at &&
+                  new Date(t.premiere_closes_at) < new Date() &&
+                  !windowOpen));
 
             return (
               <article
@@ -1248,11 +1521,44 @@ function TeasesPageInner() {
                 id={`tease-${t.id}`}
                 className={cn(
                   "overflow-hidden rounded-xl border bg-charcoal/80",
-                  fullyRevealed ? "border-gold/30" : "border-gold/15"
+                  burned
+                    ? "border-red-500/25"
+                    : fullyRevealed
+                      ? "border-gold/30"
+                      : "border-gold/15"
                 )}
               >
                 <div className="relative aspect-[4/5] bg-void overflow-hidden select-none">
-                  {!showImage ? (
+                  {!isQueen && (premiereMissed || burned) ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+                      <Flame className="h-8 w-8 text-red-300/80" />
+                      <p className="font-heading text-ivory">
+                        {t.title || "Premiere burned"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {burnReasonLabel(t.burn_reason)}
+                      </p>
+                    </div>
+                  ) : premiereLobby ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+                      <Lock className="h-8 w-8 text-gold/50" />
+                      <p className="font-heading text-ivory">
+                        {t.title || "Timed premiere"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Doors open in
+                      </p>
+                      <Countdown
+                        deadline={t.unlocks_at}
+                        className="font-heading text-2xl text-gold"
+                      />
+                      {t.premiere_closes_at && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Then live until {formatDeadline(t.premiere_closes_at)}
+                        </p>
+                      )}
+                    </div>
+                  ) : !showImage ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
                       <Lock className="h-8 w-8 text-gold/50" />
                       <p className="font-heading text-ivory">
@@ -1356,6 +1662,36 @@ function TeasesPageInner() {
                         </p>
                       </div>
                     </>
+                  ) : isSlave && premiere && windowOpen && !burned ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 bg-void p-4 text-center">
+                      <Eye className="h-8 w-8 text-gold" />
+                      <p className="font-heading text-ivory">
+                        {t.title || "Premiere ready"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {t.premiere_kind === "timed"
+                          ? "Premiere live — watch once now"
+                          : "Burns after one play — stay on this screen"}
+                      </p>
+                      {t.premiere_closes_at && t.premiere_kind === "timed" && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Closes {formatDeadline(t.premiere_closes_at)}
+                        </p>
+                      )}
+                      <Button
+                        size="sm"
+                        disabled={opening === t.id}
+                        onClick={() => void openSessionView(t)}
+                        className="bg-gold text-void hover:bg-gold-muted"
+                      >
+                        {opening === t.id ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Eye className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        Watch once
+                      </Button>
+                    </div>
                   ) : t.signedUrl && slaveShowsBlurredPreview ? (
                     <>
                       {isVideo ? (
@@ -1435,6 +1771,21 @@ function TeasesPageInner() {
                 <div className="space-y-3 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 space-y-1">
+                    {premiereBadgeLabel(t.premiere_kind) && (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "mb-1 text-[10px] uppercase tracking-wider",
+                          burned
+                            ? "border-red-500/40 text-red-300"
+                            : "border-gold/50 text-gold"
+                        )}
+                      >
+                        {burned
+                          ? burnReasonLabel(t.burn_reason)
+                          : premiereBadgeLabel(t.premiere_kind)}
+                      </Badge>
+                    )}
                     <p className="font-heading text-ivory">
                       <RoleSpeech text={t.title || "Tease"} role="queen" />
                     </p>
@@ -1725,6 +2076,7 @@ function TeasesPageInner() {
           mediaKind={activeView.tease.media_kind ?? "image"}
           title={activeView.tease.title}
           cameraStream={cameraStream}
+          premiereMode={isPremiere(activeView.tease)}
           onSessionEnd={handleSessionEnd}
           onSuspiciousCapture={() =>
             void flagScreenshot(activeView.tease.id)

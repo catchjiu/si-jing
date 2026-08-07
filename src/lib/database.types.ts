@@ -2257,6 +2257,12 @@ export type Database = {
           reaction_score: number | null
           reacted_at: string | null
           view_count: number
+          premiere_kind: string | null
+          premiere_window_minutes: number | null
+          premiere_closes_at: string | null
+          premiere_denial_days: number
+          burned_at: string | null
+          burn_reason: string | null
         }
         Insert: {
           id?: string
@@ -2284,6 +2290,12 @@ export type Database = {
           reaction_score?: number | null
           reacted_at?: string | null
           view_count?: number
+          premiere_kind?: string | null
+          premiere_window_minutes?: number | null
+          premiere_closes_at?: string | null
+          premiere_denial_days?: number
+          burned_at?: string | null
+          burn_reason?: string | null
         }
         Update: {
           id?: string
@@ -2310,6 +2322,12 @@ export type Database = {
           location_source?: string | null
           reaction_score?: number | null
           reacted_at?: string | null
+          premiere_kind?: string | null
+          premiere_window_minutes?: number | null
+          premiere_closes_at?: string | null
+          premiere_denial_days?: number
+          burned_at?: string | null
+          burn_reason?: string | null
         }
         Relationships: [
           {
@@ -3484,6 +3502,19 @@ export type Database = {
           p_status: string
           p_fulfillment_notes?: string | null
         }
+        Returns: undefined
+      }
+      start_premiere_session: {
+        Args: { p_tease_id: string }
+        Returns: Json
+      }
+      finish_premiere_session: {
+        Args: { p_tease_id: string; p_reason: string }
+        Returns: Json
+      }
+      flag_missed_premieres: { Args: never; Returns: number }
+      apply_premiere_denial: {
+        Args: { p_days: number; p_note: string; p_updated_by: string }
         Returns: undefined
       }
       record_wishlist_purchase: {

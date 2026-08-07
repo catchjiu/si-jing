@@ -746,6 +746,12 @@ export type LocationRequest = {
 };
 
 export type TeaseMediaKind = "image" | "video";
+export type TeasePremiereKind = "burned" | "timed";
+export type TeaseBurnReason =
+  | "played"
+  | "early_exit"
+  | "looked_away"
+  | "missed_window";
 
 export type Tease = {
   id: string;
@@ -773,6 +779,12 @@ export type Tease = {
   reaction_score: number | null;
   reacted_at: string | null;
   view_count: number;
+  premiere_kind: TeasePremiereKind | null;
+  premiere_window_minutes: number | null;
+  premiere_closes_at: string | null;
+  premiere_denial_days: number;
+  burned_at: string | null;
+  burn_reason: TeaseBurnReason | null;
 };
 
 export type TeaseUnlockTask = {
