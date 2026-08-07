@@ -16,6 +16,10 @@ import {
   purchaseStatusNeedsPrice,
   recordWishlistPurchase,
 } from "@/lib/wishlist-budget";
+import {
+  fetchLockedWalletEnabled,
+  requestWishlistPurchaseApproval,
+} from "@/lib/locked-wallet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +49,46 @@ interface WishlistFormProps {
   onUpdated?: (item: WishlistItemWithSignedUrl) => void;
   onBudgetChange?: () => void;
   className?: string;
+}
+
+
+async function recordOrBegPurchase(
+  supabase: ReturnType<typeof createClient>,
+  opts: {
+    itemId: string;
+    priceUsd: number;
+    status: "ordered" | "fulfilled" | "revealed";
+    title?: string | null;
+  }
+) {
+  const locked = await fetchLockedWalletEnabled(supabase);
+  if (locked) {
+    await requestWishlistPurchaseApproval(supabase, {
+      itemId: opts.itemId,
+      priceUsd: opts.priceUsd,
+      status: opts.status,
+      begMessage: opts.title ? `Please approve: ${opts.title}` : null,
+    });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Wallet beg",
+        body: opts.title
+          ? `D wants approval to buy: ${opts.title}`
+          : "D wants approval to buy a wishlist item",
+        url: "/dashboard/wishlist",
+        target: "queen",
+        kind: "wallet_spend_request",
+      })
+    );
+    return "begged" as const;
+  }
+  await recordWishlistPurchase(supabase, {
+    itemId: opts.itemId,
+    priceUsd: opts.priceUsd,
+    status: opts.status,
+    fulfillmentNotes: null,
+  });
+  return "recorded" as const;
 }
 
 export function WishlistForm({
@@ -273,17 +317,24 @@ export function WishlistForm({
             .eq("id", editingItem.id);
           if (error) throw error;
 
-          await recordWishlistPurchase(supabase, {
+          const result = await recordOrBegPurchase(supabase, {
             itemId: editingItem.id,
             priceUsd,
             status: status as "ordered" | "fulfilled" | "revealed",
-            fulfillmentNotes: null,
+            title: title.trim() || editingItem.title,
           });
           toast.success(
-            status === "revealed"
-              ? "Gift revealed — visible under Gifts bought for Queen"
-              : "Gift updated — budget recorded"
+            result === "begged"
+              ? "Beg sent — waiting for Queen to approve"
+              : status === "revealed"
+                ? "Gift revealed — visible under Gifts bought for Queen"
+                : "Gift updated — budget recorded"
           );
+          if (result === "begged") {
+            onBudgetChange?.();
+            onCancelEdit?.();
+            return;
+          }
           onBudgetChange?.();
           onUpdated?.({
             ...editingItem,
@@ -367,18 +418,23 @@ export function WishlistForm({
           purchaseStatusCountsAgainstBudget(status) &&
           priceUsd != null
         ) {
-          await recordWishlistPurchase(supabase, {
+          const result = await recordOrBegPurchase(supabase, {
             itemId: data.id as string,
             priceUsd,
             status: status as "ordered" | "fulfilled" | "revealed",
-            fulfillmentNotes: null,
+            title: title.trim() || null,
           });
           onBudgetChange?.();
+          toast.success(
+            result === "begged"
+              ? "Gift saved — beg sent for Queen to approve purchase"
+              : "Gift idea added for Queen"
+          );
+        } else {
+          toast.success(
+            isSlaveGift ? "Gift idea added for Queen" : "Wishlist item added"
+          );
         }
-
-        toast.success(
-          isSlaveGift ? "Gift idea added for Queen" : "Wishlist item added"
-        );
         if (isSlaveGift) {
           void import("@/lib/push-client").then(({ notifyPush }) =>
             notifyPush({

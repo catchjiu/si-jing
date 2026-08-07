@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RivalFantasyPanel } from "@/components/jealousy/rival-fantasy-panel";
 
 function sourceHref(m: JealousyMission): string {
   if (m.source_type === "flirt_guy") return flirtPageHref(m.source_id);
@@ -110,15 +111,19 @@ function JealousyPageInner() {
       <div>
         <h1 className="font-heading flex items-center gap-3 text-2xl text-ivory sm:text-3xl">
           <HeartCrack className="h-7 w-7 text-gold" />
-          Jealousy missions
+          Jealousy
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Assigned from Flirt or Dates — written reactions that feed denial"
+            ? "Rival fantasies and jealousy missions — written reactions that feed denial"
             : "Answer Queen’s prompts. Completing may add denial days or edge debt."}
         </p>
       </div>
 
+      {isQueen && <RivalFantasyPanel onCreated={() => void load()} />}
+
+      <section className="space-y-4">
+        <h2 className="font-heading text-xl text-gold">Missions</h2>
       {items.length === 0 ? (
         <div className="rounded-xl border border-gold/15 bg-charcoal/60 px-6 py-10 text-center text-sm text-muted-foreground">
           No jealousy missions yet.
@@ -224,6 +229,7 @@ function JealousyPageInner() {
           ))}
         </ul>
       )}
+      </section>
     </div>
   );
 }

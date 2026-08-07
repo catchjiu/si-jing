@@ -13,6 +13,7 @@ import { WishlistSizeChart } from "@/components/wishlist/wishlist-size-chart";
 import { WishlistBudgetPanel } from "@/components/wishlist/wishlist-budget-panel";
 import { WishlistApartmentFundPanel } from "@/components/wishlist/wishlist-apartment-fund-panel";
 import { WishlistTotalSpentPanel } from "@/components/wishlist/wishlist-total-spent-panel";
+import { LockedWalletPanel } from "@/components/wishlist/locked-wallet-panel";
 import {
   fetchWishlistItems,
   isWishlistGiftBought,
@@ -152,6 +153,13 @@ function WishlistPageInner() {
       <WishlistSizeChart />
 
       <WishlistBudgetPanel refreshKey={budgetRefresh} />
+
+      <LockedWalletPanel
+        onChanged={() => {
+          setBudgetRefresh((n) => n + 1);
+          void load();
+        }}
+      />
 
       {isQueen && (
         <WishlistForm

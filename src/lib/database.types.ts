@@ -1556,6 +1556,79 @@ export type Database = {
           },
         ]
       }
+      wallet_spend_requests: {
+        Row: {
+          id: string
+          requested_by: string
+          kind: string
+          status: string
+          wishlist_item_id: string | null
+          price_usd: number | null
+          target_status: string | null
+          fulfillment_notes: string | null
+          amount_ntd: number | null
+          note: string | null
+          beg_message: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          requested_by: string
+          kind: string
+          status?: string
+          wishlist_item_id?: string | null
+          price_usd?: number | null
+          target_status?: string | null
+          fulfillment_notes?: string | null
+          amount_ntd?: number | null
+          note?: string | null
+          beg_message?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          requested_by?: string
+          kind?: string
+          status?: string
+          wishlist_item_id?: string | null
+          price_usd?: number | null
+          target_status?: string | null
+          fulfillment_notes?: string | null
+          amount_ntd?: number | null
+          note?: string | null
+          beg_message?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_spend_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_spend_requests_wishlist_item_id_fkey"
+            columns: ["wishlist_item_id"]
+            isOneToOne: false
+            referencedRelation: "wishlist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_spend_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jealousy_missions: {
         Row: {
           id: string
@@ -3384,7 +3457,45 @@ export type Database = {
         }
         Returns: Json
       }
+      is_wallet_locked: { Args: never; Returns: boolean }
+      set_locked_wallet: { Args: { p_enabled: boolean }; Returns: boolean }
+      request_wallet_spend: {
+        Args: {
+          p_kind: string
+          p_wishlist_item_id?: string | null
+          p_price_usd?: number | null
+          p_target_status?: string | null
+          p_fulfillment_notes?: string | null
+          p_amount_ntd?: number | null
+          p_note?: string | null
+          p_beg_message?: string | null
+        }
+        Returns: string
+      }
+      review_wallet_spend: {
+        Args: { p_request_id: string; p_approve: boolean }
+        Returns: string
+      }
+      admin_record_wishlist_purchase_for_slave: {
+        Args: {
+          p_slave_id: string
+          p_item_id: string
+          p_price_usd: number
+          p_status: string
+          p_fulfillment_notes?: string | null
+        }
+        Returns: undefined
+      }
       record_wishlist_purchase: {
+        Args: {
+          p_item_id: string
+          p_price_usd: number
+          p_status: string
+          p_fulfillment_notes?: string | null
+        }
+        Returns: Json
+      }
+      record_wishlist_purchase_unlocked: {
         Args: {
           p_item_id: string
           p_price_usd: number

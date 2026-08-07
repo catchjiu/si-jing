@@ -32,6 +32,10 @@ import {
   recordWishlistPurchase,
   formatUsdFromCents,
 } from "@/lib/wishlist-budget";
+import {
+  fetchLockedWalletEnabled,
+  requestWishlistPurchaseApproval,
+} from "@/lib/locked-wallet";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import type {
@@ -280,6 +284,28 @@ export function WishlistGallery({
         const priceUsd = parseUsdInput(purchasePrice);
         if (priceUsd == null || priceUsd <= 0) {
           toast.error("Enter the purchase price (USD)");
+          return;
+        }
+        const walletLocked = await fetchLockedWalletEnabled(supabase);
+        if (walletLocked) {
+          await requestWishlistPurchaseApproval(supabase, {
+            itemId: active.id,
+            priceUsd,
+            status: statusDraft as "ordered" | "fulfilled" | "revealed",
+            fulfillmentNotes: notes,
+            begMessage: notes,
+          });
+          toast.success("Beg sent — waiting for Queen to approve");
+          void import("@/lib/push-client").then(({ notifyPush }) =>
+            notifyPush({
+              title: "Wallet beg",
+              body: `D wants approval to buy: ${active.title}`,
+              url: "/dashboard/wishlist",
+              target: "queen",
+              kind: "wallet_spend_request",
+            })
+          );
+          onBudgetChange?.();
           return;
         }
         await recordWishlistPurchase(supabase, {

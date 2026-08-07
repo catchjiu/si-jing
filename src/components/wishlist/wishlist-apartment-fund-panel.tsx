@@ -23,6 +23,10 @@ import {
   updateQueenApartmentFundEntry,
   type QueenApartmentFundEntry,
 } from "@/lib/wishlist-apartment-fund";
+import {
+  fetchLockedWalletEnabled,
+  requestApartmentFundApproval,
+} from "@/lib/locked-wallet";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -158,6 +162,28 @@ export function WishlistApartmentFundPanel({
     setSaving(true);
     const supabase = createClient();
     try {
+      const walletLocked =
+        isSlave && (await fetchLockedWalletEnabled(supabase));
+      if (walletLocked) {
+        await requestApartmentFundApproval(supabase, {
+          amountNtd: amount,
+          note: noteInput,
+          begMessage: noteInput.trim() || `Please allow ${amount} NTD to the fund`,
+        });
+        setAmountInput("");
+        setNoteInput("");
+        toast.success("Beg sent — waiting for Queen to approve");
+        void import("@/lib/push-client").then(({ notifyPush }) =>
+          notifyPush({
+            title: "Wallet beg",
+            body: "D wants approval to add to the apartment fund",
+            url: "/dashboard/wishlist",
+            target: "queen",
+            kind: "wallet_spend_request",
+          })
+        );
+        return;
+      }
       const row = await addQueenApartmentFundEntry(supabase, {
         userId: profile.id,
         amountNtd: amount,
