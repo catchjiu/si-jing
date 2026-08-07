@@ -25,6 +25,11 @@ const FANTASY_TEMPLATES = [
   "Write the fantasy: {name} takes me home while you wait. Be specific, filthy, and grateful.",
   "Compare yourself to {name} in detail. End with why I should keep you as the weaker option.",
   "I text {name} that I’m wet for him. Write your reaction as a short story I’ll read to him.",
+  "Write {name} fucking me in a hotel I never tell you about — slow, possessive, like he’s rewriting my body so you never fit again.",
+  "Imagine I send you a photo of {name}’s hand on my thigh. Turn it into a short filthy story of what happens next without you.",
+  "Script the night I let {name} use my mouth. You’re listening on speaker — narrate every detail and your place in it.",
+  "Write how {name} ruins me better than you ever could. End with you asking permission to clean me up.",
+  "Write {name} whispering that I already belong to him while he finishes inside me — then him telling me to go home and act normal around you.",
 ];
 
 type RivalFantasyPanelProps = {
