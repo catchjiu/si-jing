@@ -544,7 +544,10 @@ export type BodyRatingSnapshot = {
   rated_at: string;
 };
 
-export type JealousyMissionSourceType = "flirt_guy" | "queen_date";
+export type JealousyMissionSourceType =
+  | "flirt_guy"
+  | "queen_date"
+  | "outfit_veto";
 export type JealousyMissionStatus = "open" | "completed" | "cancelled";
 
 export type JealousyMission = {
@@ -563,6 +566,34 @@ export type JealousyMission = {
   due_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type JealousyOutfitVetoStatus = "open" | "ranked" | "cancelled";
+
+export type JealousyOutfitOption = {
+  id: string;
+  image_path: string;
+  label?: string | null;
+};
+
+export type JealousyOutfitVeto = {
+  id: string;
+  created_by: string;
+  assigned_to: string;
+  status: JealousyOutfitVetoStatus;
+  options: JealousyOutfitOption[];
+  slave_rank_order: string[] | null;
+  winning_option_id: string | null;
+  mission_id: string | null;
+  prompt_template: string;
+  denial_days: number;
+  edge_debt: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JealousyOutfitVetoWithUrls = Omit<JealousyOutfitVeto, "options"> & {
+  options: (JealousyOutfitOption & { signedUrl?: string })[];
 };
 
 export type JealousyMissionComment = {

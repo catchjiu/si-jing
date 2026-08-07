@@ -11,6 +11,7 @@ export const STORAGE_BUCKETS = [
   "voice",
   "messages",
   "journal",
+  "jealousy",
 ] as const;
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];

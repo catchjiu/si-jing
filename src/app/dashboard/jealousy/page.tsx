@@ -18,10 +18,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RivalFantasyPanel } from "@/components/jealousy/rival-fantasy-panel";
+import { OutfitVetoPanel } from "@/components/jealousy/outfit-veto-panel";
 
-function sourceHref(m: JealousyMission): string {
+function sourceHref(m: JealousyMission): string | null {
   if (m.source_type === "flirt_guy") return flirtPageHref(m.source_id);
-  return datePageHref(m.source_id);
+  if (m.source_type === "queen_date") return datePageHref(m.source_id);
+  if (m.source_type === "outfit_veto") {
+    return `/dashboard/jealousy?veto=${m.source_id}`;
+  }
+  return null;
+}
+
+function sourceBadge(m: JealousyMission): string {
+  if (m.source_type === "flirt_guy") return "Flirt";
+  if (m.source_type === "queen_date") return "Date";
+  if (m.source_type === "outfit_veto") return "Outfit";
+  return m.source_type;
 }
 
 export default function JealousyPage() {
@@ -36,6 +48,7 @@ function JealousyPageInner() {
   const searchParams = useSearchParams();
   const focusId = searchParams.get("mission");
   const focusCommentId = searchParams.get("comment");
+  const focusVetoId = searchParams.get("veto");
   const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [items, setItems] = useState<JealousyMission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,12 +128,17 @@ function JealousyPageInner() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Rival fantasies and jealousy missions — written reactions that feed denial"
-            : "Answer Queen’s prompts. Completing may add denial days or edge debt."}
+            ? "Rival fantasies, outfit vetoes, and jealousy missions"
+            : "Rank outfits, answer Queen’s prompts. Completing may add denial or edges."}
         </p>
       </div>
 
       {isQueen && <RivalFantasyPanel onCreated={() => void load()} />}
+
+      <OutfitVetoPanel
+        focusVetoId={focusVetoId}
+        onChanged={() => void load()}
+      />
 
       <section className="space-y-4">
         <h2 className="font-heading text-xl text-gold">Missions</h2>
@@ -155,16 +173,19 @@ function JealousyPageInner() {
                   {m.status}
                 </Badge>
                 <Badge variant="outline" className="text-[10px] uppercase">
-                  {m.source_type === "flirt_guy" ? "Flirt" : "Date"}
+                  {sourceBadge(m)}
                 </Badge>
-                {m.source_label && (
-                  <Link
-                    href={sourceHref(m)}
-                    className="text-sm text-gold underline-offset-2 hover:underline"
-                  >
-                    {m.source_label}
-                  </Link>
-                )}
+                {m.source_label &&
+                  (sourceHref(m) ? (
+                    <Link
+                      href={sourceHref(m)!}
+                      className="text-sm text-gold underline-offset-2 hover:underline"
+                    >
+                      {m.source_label}
+                    </Link>
+                  ) : (
+                    <span className="text-sm text-gold">{m.source_label}</span>
+                  ))}
                 <span className="text-xs text-muted-foreground">
                   {formatRelative(m.created_at)}
                 </span>

@@ -1698,6 +1698,76 @@ export type Database = {
           },
         ]
       }
+      jealousy_outfit_vetoes: {
+        Row: {
+          id: string
+          created_by: string
+          assigned_to: string
+          status: string
+          options: Json
+          slave_rank_order: string[] | null
+          winning_option_id: string | null
+          mission_id: string | null
+          prompt_template: string
+          denial_days: number
+          edge_debt: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          assigned_to: string
+          status?: string
+          options: Json
+          slave_rank_order?: string[] | null
+          winning_option_id?: string | null
+          mission_id?: string | null
+          prompt_template: string
+          denial_days?: number
+          edge_debt?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          assigned_to?: string
+          status?: string
+          options?: Json
+          slave_rank_order?: string[] | null
+          winning_option_id?: string | null
+          mission_id?: string | null
+          prompt_template?: string
+          denial_days?: number
+          edge_debt?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jealousy_outfit_vetoes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jealousy_outfit_vetoes_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jealousy_outfit_vetoes_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "jealousy_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jealousy_mission_comments: {
         Row: {
           id: string
@@ -3321,6 +3391,19 @@ export type Database = {
           p_edge_debt?: number
           p_due_at?: string | null
         }
+        Returns: string
+      }
+      create_jealousy_outfit_veto: {
+        Args: {
+          p_options: Json
+          p_prompt_template: string
+          p_denial_days?: number
+          p_edge_debt?: number
+        }
+        Returns: string
+      }
+      rank_jealousy_outfit_veto: {
+        Args: { p_veto_id: string; p_rank_order: string[] }
         Returns: string
       }
       complete_jealousy_mission: {
