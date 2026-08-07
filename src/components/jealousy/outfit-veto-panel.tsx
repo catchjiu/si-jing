@@ -32,6 +32,17 @@ const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const DEFAULT_PROMPT =
   "I’m wearing {label} for {purpose} — the look you said would hurt most. Write what that does to you, filthy and grateful.";
 
+function rpcErrorMessage(err: unknown, fallback: string): string {
+  if (err && typeof err === "object") {
+    const row = err as { message?: string; hint?: string; details?: string };
+    if (row.message?.trim()) return row.message.trim();
+    if (row.hint?.trim()) return row.hint.trim();
+    if (row.details?.trim()) return row.details.trim();
+  }
+  if (err instanceof Error && err.message.trim()) return err.message.trim();
+  return fallback;
+}
+
 type DraftOption = {
   key: string;
   file: File | null;
@@ -122,9 +133,13 @@ export function OutfitVetoPanel({
     setRankOrders((prev) => {
       const next = { ...prev };
       for (const v of withUrls) {
-        if (!next[v.id]) {
-          next[v.id] = v.options.map((o) => o.id);
-        }
+        const ids = v.options.map((o) => o.id);
+        const existing = next[v.id];
+        const matches =
+          existing &&
+          existing.length === ids.length &&
+          ids.every((id) => existing.includes(id));
+        next[v.id] = matches ? existing : ids;
       }
       return next;
     });
@@ -248,7 +263,7 @@ export function OutfitVetoPanel({
       await load();
       onChanged?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create veto");
+      toast.error(rpcErrorMessage(err, "Could not create veto"));
     } finally {
       setSubmitting(false);
     }
@@ -267,7 +282,7 @@ export function OutfitVetoPanel({
       await load();
       onChanged?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not delete veto");
+      toast.error(rpcErrorMessage(err, "Could not delete veto"));
     } finally {
       setDeletingId(null);
     }
@@ -286,39 +301,48 @@ export function OutfitVetoPanel({
   };
 
   const submitRank = async (veto: JealousyOutfitVetoWithUrls) => {
-    const order = rankOrders[veto.id] ?? veto.options.map((o) => o.id);
-    if (order.length !== veto.options.length) {
+    const optionIds = veto.options.map((o) => o.id);
+    const order = (rankOrders[veto.id] ?? optionIds).filter(Boolean);
+    if (order.length !== optionIds.length) {
       toast.error("Rank every outfit");
       return;
     }
+    if (
+      new Set(order).size !== order.length ||
+      !optionIds.every((id) => order.includes(id))
+    ) {
+      toast.error("Each outfit must appear once in your ranking");
+      return;
+    }
+
     setRankingId(veto.id);
     const supabase = createClient();
-    try {
-      const { data, error } = await supabase.rpc("rank_jealousy_outfit_veto", {
-        p_veto_id: veto.id,
-        p_rank_order: order,
-      });
-      if (error) throw error;
-      const winner = veto.options.find((o) => o.id === order[0]);
-      toast.success(
-        `Locked for “${veto.purpose}” — she’ll wear ${winner?.label || "your #1"}`
-      );
-      void import("@/lib/push-client").then(({ notifyPush }) =>
-        notifyPush({
-          title: "Outfit veto ranked",
-          body: `${winner?.label || "Outfit"} for ${veto.purpose}`,
-          url: jealousyPageHref(data as string),
-          target: "queen",
-          kind: "outfit_veto_ranked",
-        })
-      );
-      await load();
-      onChanged?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not lock ranking");
-    } finally {
-      setRankingId(null);
+    const { data, error } = await supabase.rpc("rank_jealousy_outfit_veto", {
+      p_veto_id: veto.id,
+      p_rank_order: order,
+    });
+    setRankingId(null);
+
+    if (error) {
+      toast.error(rpcErrorMessage(error, "Could not lock ranking"));
+      return;
     }
+
+    const winner = veto.options.find((o) => o.id === order[0]);
+    toast.success(
+      `Locked for “${veto.purpose}” — she’ll wear ${winner?.label || "your #1"}`
+    );
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Outfit veto ranked",
+        body: `${winner?.label || "Outfit"} for ${veto.purpose}`,
+        url: jealousyPageHref(data as string),
+        target: "queen",
+        kind: "outfit_veto_ranked",
+      })
+    );
+    await load();
+    onChanged?.();
   };
 
   if (!isQueen && !isSlave) return null;

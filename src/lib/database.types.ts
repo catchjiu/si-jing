@@ -3416,7 +3416,7 @@ export type Database = {
         Returns: string
       }
       rank_jealousy_outfit_veto: {
-        Args: { p_veto_id: string; p_rank_order: string[] }
+        Args: { p_veto_id: string; p_rank_order: Json }
         Returns: string
       }
       cancel_jealousy_outfit_veto: {
