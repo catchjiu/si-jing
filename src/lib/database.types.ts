@@ -1381,6 +1381,8 @@ export type Database = {
           interest_level: number
           hotness_level: number
           jealousy_level: number
+          face_score: number
+          dick_size_cm: number
           created_at: string
           updated_at: string
         }
@@ -1394,6 +1396,8 @@ export type Database = {
           interest_level?: number
           hotness_level?: number
           jealousy_level?: number
+          face_score?: number
+          dick_size_cm?: number
           created_at?: string
           updated_at?: string
         }
@@ -1407,6 +1411,8 @@ export type Database = {
           interest_level?: number
           hotness_level?: number
           jealousy_level?: number
+          face_score?: number
+          dick_size_cm?: number
           created_at?: string
           updated_at?: string
         }

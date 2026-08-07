@@ -2,6 +2,10 @@
 
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import {
+  FLIRT_DICK_SIZE_MAX_CM,
+  FLIRT_DICK_SIZE_MIN_CM,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function FlirtLevelMeter({
@@ -196,5 +200,115 @@ export function FlirtJealousySlider({
       onChange={onChange}
       disabled={disabled}
     />
+  );
+}
+
+export function FlirtFaceScoreMeter({
+  value,
+  className,
+  compact,
+}: {
+  value: number;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <FlirtLevelMeter
+      label="Face"
+      value={value}
+      className={className}
+      compact={compact}
+      barClassName="bg-sky-400/80"
+    />
+  );
+}
+
+export function FlirtFaceScoreSlider({
+  value,
+  onChange,
+  disabled,
+  id = "flirt-face-score",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+  id?: string;
+}) {
+  return (
+    <FlirtLevelSlider
+      id={id}
+      label="Face score"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  );
+}
+
+export function FlirtDickSizeMeter({
+  value,
+  className,
+  compact,
+}: {
+  value: number;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={cn("space-y-1", className)}>
+      <p
+        className={cn(
+          "text-muted-foreground",
+          compact ? "text-[10px]" : "text-xs"
+        )}
+      >
+        Dick · {value} cm
+      </p>
+      <div className="h-1.5 overflow-hidden rounded-full bg-void/60">
+        <div
+          className="h-full rounded-full bg-amber-400/80 transition-[width]"
+          style={{
+            width: `${
+              ((Math.min(FLIRT_DICK_SIZE_MAX_CM, Math.max(FLIRT_DICK_SIZE_MIN_CM, value)) -
+                FLIRT_DICK_SIZE_MIN_CM) /
+                (FLIRT_DICK_SIZE_MAX_CM - FLIRT_DICK_SIZE_MIN_CM)) *
+              100
+            }%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function FlirtDickSizeSlider({
+  value,
+  onChange,
+  disabled,
+  id = "flirt-dick-size",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+  id?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor={id} className="text-sm text-ivory">
+          Dick size (Queen&apos;s guess)
+        </Label>
+        <span className="font-heading text-sm text-gold">{value} cm</span>
+      </div>
+      <Slider
+        id={id}
+        min={FLIRT_DICK_SIZE_MIN_CM}
+        max={FLIRT_DICK_SIZE_MAX_CM}
+        step={1}
+        value={[value]}
+        disabled={disabled}
+        onValueChange={(v) => onChange(v[0] ?? FLIRT_DICK_SIZE_MIN_CM)}
+      />
+    </div>
   );
 }

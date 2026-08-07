@@ -469,6 +469,9 @@ export type QueenDate = {
 
 export type FlirtStatus = "looked" | "chatting" | "fucked";
 
+export const FLIRT_DICK_SIZE_MIN_CM = 5;
+export const FLIRT_DICK_SIZE_MAX_CM = 30;
+
 export type FlirtGuy = {
   id: string;
   created_by: string;
@@ -479,6 +482,8 @@ export type FlirtGuy = {
   interest_level: number;
   hotness_level: number;
   jealousy_level: number;
+  face_score: number;
+  dick_size_cm: number;
   created_at: string;
   updated_at: string;
 };

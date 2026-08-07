@@ -24,6 +24,10 @@ import {
   FlirtStatusSelector,
 } from "@/components/flirt/flirt-status-badge";
 import {
+  FlirtDickSizeMeter,
+  FlirtDickSizeSlider,
+  FlirtFaceScoreMeter,
+  FlirtFaceScoreSlider,
   FlirtHotnessMeter,
   FlirtHotnessSlider,
   FlirtInterestMeter,
@@ -52,10 +56,14 @@ export default function FlirtDetailPage() {
   const [loading, setLoading] = useState(true);
   const [interestDraft, setInterestDraft] = useState(50);
   const [hotnessDraft, setHotnessDraft] = useState(50);
+  const [faceScoreDraft, setFaceScoreDraft] = useState(50);
+  const [dickSizeDraft, setDickSizeDraft] = useState(15);
   const [jealousyDraft, setJealousyDraft] = useState(50);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
   const [savingHotness, setSavingHotness] = useState(false);
+  const [savingFaceScore, setSavingFaceScore] = useState(false);
+  const [savingDickSize, setSavingDickSize] = useState(false);
   const [savingJealousy, setSavingJealousy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -77,6 +85,8 @@ export default function FlirtDetailPage() {
     setGuy(row);
     setInterestDraft(row?.interest_level ?? 50);
     setHotnessDraft(row?.hotness_level ?? 50);
+    setFaceScoreDraft(row?.face_score ?? 50);
+    setDickSizeDraft(row?.dick_size_cm ?? 15);
     setJealousyDraft(row?.jealousy_level ?? 50);
     if (row?.photo_path) {
       const url = await signObjectUrl({
@@ -187,6 +197,60 @@ export default function FlirtDetailPage() {
       })
     );
     toast.success("Hotness saved");
+  };
+
+  const saveFaceScore = async () => {
+    if (!isQueen || !guy) return;
+    if (faceScoreDraft === guy.face_score) return;
+    setSavingFaceScore(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("flirt_guys")
+      .update({ face_score: faceScoreDraft })
+      .eq("id", guy.id);
+    setSavingFaceScore(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGuy({ ...guy, face_score: faceScoreDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Flirt face score updated",
+        body: `${guy.name}: face ${faceScoreDraft}%`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "slave",
+        kind: "flirt_face_score",
+      })
+    );
+    toast.success("Face score saved");
+  };
+
+  const saveDickSize = async () => {
+    if (!isQueen || !guy) return;
+    if (dickSizeDraft === guy.dick_size_cm) return;
+    setSavingDickSize(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("flirt_guys")
+      .update({ dick_size_cm: dickSizeDraft })
+      .eq("id", guy.id);
+    setSavingDickSize(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGuy({ ...guy, dick_size_cm: dickSizeDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Flirt dick size updated",
+        body: `${guy.name}: ${dickSizeDraft} cm`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "slave",
+        kind: "flirt_dick_size",
+      })
+    );
+    toast.success("Dick size saved");
   };
 
   const saveJealousy = async () => {
@@ -410,6 +474,8 @@ export default function FlirtDetailPage() {
             <div className="mx-auto w-full max-w-xs space-y-3 sm:mx-0">
               <FlirtInterestMeter value={guy.interest_level} />
               <FlirtHotnessMeter value={guy.hotness_level} />
+              <FlirtFaceScoreMeter value={guy.face_score ?? 50} />
+              <FlirtDickSizeMeter value={guy.dick_size_cm ?? 15} />
               <div className="space-y-3 rounded-xl border border-gold/10 bg-void/40 p-4 text-left">
                 <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
                   How you feel
@@ -494,6 +560,48 @@ export default function FlirtDetailPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     "Save hotness"
+                  )}
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <FlirtFaceScoreSlider
+                  value={faceScoreDraft}
+                  onChange={setFaceScoreDraft}
+                  disabled={savingFaceScore}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    savingFaceScore || faceScoreDraft === guy.face_score
+                  }
+                  onClick={() => void saveFaceScore()}
+                >
+                  {savingFaceScore ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save face score"
+                  )}
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <FlirtDickSizeSlider
+                  value={dickSizeDraft}
+                  onChange={setDickSizeDraft}
+                  disabled={savingDickSize}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    savingDickSize || dickSizeDraft === guy.dick_size_cm
+                  }
+                  onClick={() => void saveDickSize()}
+                >
+                  {savingDickSize ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save dick size"
                   )}
                 </Button>
               </div>
