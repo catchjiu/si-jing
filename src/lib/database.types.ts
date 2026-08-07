@@ -1586,6 +1586,7 @@ export type Database = {
           amount_ntd?: number | null
           note?: string | null
           beg_message?: string | null
+          review_comment?: string | null
           reviewed_by?: string | null
           reviewed_at?: string | null
           created_at?: string
@@ -1602,6 +1603,7 @@ export type Database = {
           amount_ntd?: number | null
           note?: string | null
           beg_message?: string | null
+          review_comment?: string | null
           reviewed_by?: string | null
           reviewed_at?: string | null
           created_at?: string
