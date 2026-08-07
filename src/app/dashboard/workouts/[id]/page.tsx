@@ -5,7 +5,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Dumbbell, Loader2, Moon, Pencil, Play, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Dumbbell,
+  Loader2,
+  Moon,
+  Pencil,
+  Play,
+  Trash2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { BODY_PART_LABELS } from "@/lib/workout-exercises";
@@ -15,7 +24,11 @@ import {
   sessionVolume,
 } from "@/lib/workout-stats";
 import { signObjectUrl, removeObject } from "@/lib/storage/client";
-import { workoutStatusLabel } from "@/lib/workout-persist";
+import {
+  copyWorkoutAsPlanned,
+  fetchQueenId,
+  workoutStatusLabel,
+} from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
 import { WorkoutSessionSummary } from "@/components/workouts/workout-session-summary";
 import { WorkoutSessionEditor } from "@/components/workouts/workout-session-editor";
@@ -23,6 +36,8 @@ import { WorkoutQueenReaction } from "@/components/workouts/workout-queen-reacti
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type MediaView = WorkoutMedia & { signedUrl?: string };
 
@@ -37,6 +52,11 @@ export default function WorkoutDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyDate, setCopyDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [copying, setCopying] = useState(false);
 
   const load = useCallback(async () => {
     if (!profile || !id) return;
@@ -134,6 +154,32 @@ export default function WorkoutDetailPage() {
     }
     toast.success("Workout deleted");
     router.push("/dashboard/workouts");
+  };
+
+  const copyToDay = async () => {
+    if (!session || !isSlave || !profile) return;
+    if (!copyDate) {
+      toast.error("Pick a day");
+      return;
+    }
+    setCopying(true);
+    const supabase = createClient();
+    try {
+      const queenId = await fetchQueenId(supabase);
+      if (!queenId) throw new Error("Queen account not found");
+      const newId = await copyWorkoutAsPlanned(supabase, {
+        profileId: profile.id,
+        queenId,
+        sourceSessionId: session.id,
+        targetDate: copyDate,
+        notes: session.notes,
+      });
+      toast.success("Copied as planned workout — edit reps & weights");
+      router.push(`/dashboard/workouts/plan/${newId}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not copy workout");
+      setCopying(false);
+    }
   };
 
   if (authLoading || loading) {
@@ -270,6 +316,18 @@ export default function WorkoutDetailPage() {
                 Edit
               </Button>
             )}
+            {!isSkipped && sets.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setCopyOpen((o) => !o)}
+                className="border-gold/30 text-gold"
+              >
+                <Copy className="mr-1.5 h-4 w-4" />
+                Copy to day
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
@@ -287,6 +345,50 @@ export default function WorkoutDetailPage() {
           </div>
         )}
       </header>
+
+      {isSlave && copyOpen && !isSkipped && sets.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-gold/20 bg-charcoal/80 p-4 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="copy-workout-date">Copy as planned workout on</Label>
+            <Input
+              id="copy-workout-date"
+              type="date"
+              value={copyDate}
+              onChange={(e) => setCopyDate(e.target.value)}
+              className="border-gold/20 bg-void/60"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Same exercises &amp; sets — then edit reps and weights on the plan.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-gold/30"
+              disabled={copying}
+              onClick={() => setCopyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={copying}
+              onClick={() => void copyToDay()}
+              className="bg-gold text-void hover:bg-gold-muted"
+            >
+              {copying ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="mr-1.5 h-4 w-4" />
+              )}
+              Copy
+            </Button>
+          </div>
+        </div>
+      )}
 
       {!isSkipped && (
         <WorkoutSessionSummary

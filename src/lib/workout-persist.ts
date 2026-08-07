@@ -247,6 +247,106 @@ export async function savePlannedWorkout(
   if (error) throw error;
 }
 
+/** Group flat workout_sets rows into editable draft exercises (order preserved). */
+export function setsToDraftExercises(
+  sets: Array<{
+    body_part: string;
+    exercise_name: string;
+    reps: number;
+    weight: number | string;
+    sort_order?: number;
+    set_number?: number;
+  }>
+): DraftExercise[] {
+  const ordered = [...sets].sort((a, b) => {
+    const so = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    if (so !== 0) return so;
+    return (a.set_number ?? 0) - (b.set_number ?? 0);
+  });
+  const map = new Map<string, DraftExercise>();
+  const order: string[] = [];
+  for (const s of ordered) {
+    const key = `${s.body_part}::${s.exercise_name}`;
+    let ex = map.get(key);
+    if (!ex) {
+      ex = {
+        key: `${key}-${order.length}`,
+        body_part: s.body_part as WorkoutBodyPart,
+        exercise_name: s.exercise_name,
+        sets: [],
+      };
+      map.set(key, ex);
+      order.push(key);
+    }
+    ex.sets.push({
+      reps: s.reps,
+      weight: Number(s.weight) || 0,
+    });
+  }
+  return order.map((k) => map.get(k)!);
+}
+
+/** Copy a session's exercises/sets into a new planned workout on targetDate. */
+export async function copyWorkoutAsPlanned(
+  supabase: SupabaseClient,
+  opts: {
+    profileId: string;
+    queenId: string;
+    sourceSessionId: string;
+    targetDate: string;
+    notes?: string | null;
+  }
+): Promise<string> {
+  const { data: source, error: srcErr } = await supabase
+    .from("workout_sessions")
+    .select("id, notes, status")
+    .eq("id", opts.sourceSessionId)
+    .maybeSingle();
+  if (srcErr) throw srcErr;
+  if (!source) throw new Error("Source workout not found");
+  if ((source as { status: string }).status === "skipped") {
+    throw new Error("Can't copy a rest day");
+  }
+
+  const { data: setRows, error: setErr } = await supabase
+    .from("workout_sets")
+    .select("*")
+    .eq("session_id", opts.sourceSessionId)
+    .order("sort_order", { ascending: true })
+    .order("set_number", { ascending: true });
+  if (setErr) throw setErr;
+
+  const draft = setsToDraftExercises(
+    (setRows ?? []) as Array<{
+      body_part: string;
+      exercise_name: string;
+      reps: number;
+      weight: number | string;
+      sort_order?: number;
+      set_number?: number;
+    }>
+  );
+  if (draft.length === 0) {
+    throw new Error("Nothing to copy — add exercises first");
+  }
+
+  const notes =
+    opts.notes !== undefined
+      ? opts.notes
+      : ((source as { notes: string | null }).notes ?? null);
+
+  const newId = await createWorkoutSession(supabase, {
+    profileId: opts.profileId,
+    queenId: opts.queenId,
+    status: "planned",
+    performedAt: opts.targetDate,
+    notes,
+  });
+
+  await syncDraftSets(supabase, newId, draft, new Map(), false);
+  return newId;
+}
+
 export async function startPlannedSession(
   supabase: SupabaseClient,
   sessionId: string
