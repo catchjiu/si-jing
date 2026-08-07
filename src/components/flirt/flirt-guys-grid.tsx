@@ -9,6 +9,7 @@ import type { FlirtGuy, FlirtGuyWithSignedUrl, FlirtStatus } from "@/lib/types";
 import { FLIRT_STATUS_LABELS, FLIRT_STATUSES } from "@/lib/types";
 import { FlirtStatusBadge } from "@/components/flirt/flirt-status-badge";
 import {
+  FlirtBodyScoreMeter,
   FlirtDickSizeMeter,
   FlirtFaceScoreMeter,
   FlirtHotnessMeter,
@@ -150,6 +151,7 @@ export function FlirtGuysGrid({
                   <FlirtInterestMeter value={guy.interest_level} compact />
                   <FlirtHotnessMeter value={guy.hotness_level} compact />
                   <FlirtFaceScoreMeter value={guy.face_score ?? 50} compact />
+                  <FlirtBodyScoreMeter value={guy.body_score ?? 50} compact />
                   <FlirtDickSizeMeter value={guy.dick_size_cm ?? 15} compact />
                   <FlirtJealousyMeter value={guy.jealousy_level} compact />
                 </div>

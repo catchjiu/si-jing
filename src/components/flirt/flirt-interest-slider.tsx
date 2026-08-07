@@ -245,6 +245,48 @@ export function FlirtFaceScoreSlider({
   );
 }
 
+export function FlirtBodyScoreMeter({
+  value,
+  className,
+  compact,
+}: {
+  value: number;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <FlirtLevelMeter
+      label="Body"
+      value={value}
+      className={className}
+      compact={compact}
+      barClassName="bg-emerald-400/80"
+    />
+  );
+}
+
+export function FlirtBodyScoreSlider({
+  value,
+  onChange,
+  disabled,
+  id = "flirt-body-score",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+  id?: string;
+}) {
+  return (
+    <FlirtLevelSlider
+      id={id}
+      label="Overall body rating"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  );
+}
+
 export function FlirtDickSizeMeter({
   value,
   className,

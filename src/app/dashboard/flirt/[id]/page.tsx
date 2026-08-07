@@ -24,6 +24,8 @@ import {
   FlirtStatusSelector,
 } from "@/components/flirt/flirt-status-badge";
 import {
+  FlirtBodyScoreMeter,
+  FlirtBodyScoreSlider,
   FlirtDickSizeMeter,
   FlirtDickSizeSlider,
   FlirtFaceScoreMeter,
@@ -57,12 +59,14 @@ export default function FlirtDetailPage() {
   const [interestDraft, setInterestDraft] = useState(50);
   const [hotnessDraft, setHotnessDraft] = useState(50);
   const [faceScoreDraft, setFaceScoreDraft] = useState(50);
+  const [bodyScoreDraft, setBodyScoreDraft] = useState(50);
   const [dickSizeDraft, setDickSizeDraft] = useState(15);
   const [jealousyDraft, setJealousyDraft] = useState(50);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
   const [savingHotness, setSavingHotness] = useState(false);
   const [savingFaceScore, setSavingFaceScore] = useState(false);
+  const [savingBodyScore, setSavingBodyScore] = useState(false);
   const [savingDickSize, setSavingDickSize] = useState(false);
   const [savingJealousy, setSavingJealousy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -86,6 +90,7 @@ export default function FlirtDetailPage() {
     setInterestDraft(row?.interest_level ?? 50);
     setHotnessDraft(row?.hotness_level ?? 50);
     setFaceScoreDraft(row?.face_score ?? 50);
+    setBodyScoreDraft(row?.body_score ?? 50);
     setDickSizeDraft(row?.dick_size_cm ?? 15);
     setJealousyDraft(row?.jealousy_level ?? 50);
     if (row?.photo_path) {
@@ -224,6 +229,33 @@ export default function FlirtDetailPage() {
       })
     );
     toast.success("Face score saved");
+  };
+
+  const saveBodyScore = async () => {
+    if (!isQueen || !guy) return;
+    if (bodyScoreDraft === guy.body_score) return;
+    setSavingBodyScore(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("flirt_guys")
+      .update({ body_score: bodyScoreDraft })
+      .eq("id", guy.id);
+    setSavingBodyScore(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setGuy({ ...guy, body_score: bodyScoreDraft });
+    void import("@/lib/push-client").then(({ notifyPush }) =>
+      notifyPush({
+        title: "Flirt body rating updated",
+        body: `${guy.name}: body ${bodyScoreDraft}%`,
+        url: `/dashboard/flirt/${guy.id}`,
+        target: "slave",
+        kind: "flirt_body_score",
+      })
+    );
+    toast.success("Body rating saved");
   };
 
   const saveDickSize = async () => {
@@ -475,6 +507,7 @@ export default function FlirtDetailPage() {
               <FlirtInterestMeter value={guy.interest_level} />
               <FlirtHotnessMeter value={guy.hotness_level} />
               <FlirtFaceScoreMeter value={guy.face_score ?? 50} />
+              <FlirtBodyScoreMeter value={guy.body_score ?? 50} />
               <FlirtDickSizeMeter value={guy.dick_size_cm ?? 15} />
               <div className="space-y-3 rounded-xl border border-gold/10 bg-void/40 p-4 text-left">
                 <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
@@ -581,6 +614,27 @@ export default function FlirtDetailPage() {
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     "Save face score"
+                  )}
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <FlirtBodyScoreSlider
+                  value={bodyScoreDraft}
+                  onChange={setBodyScoreDraft}
+                  disabled={savingBodyScore}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    savingBodyScore || bodyScoreDraft === guy.body_score
+                  }
+                  onClick={() => void saveBodyScore()}
+                >
+                  {savingBodyScore ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save body rating"
                   )}
                 </Button>
               </div>

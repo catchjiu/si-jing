@@ -483,6 +483,7 @@ export type FlirtGuy = {
   hotness_level: number;
   jealousy_level: number;
   face_score: number;
+  body_score: number;
   dick_size_cm: number;
   created_at: string;
   updated_at: string;

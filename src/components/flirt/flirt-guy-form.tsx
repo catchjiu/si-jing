@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FlirtStatusSelector } from "@/components/flirt/flirt-status-badge";
 import {
+  FlirtBodyScoreSlider,
   FlirtDickSizeSlider,
   FlirtFaceScoreSlider,
   FlirtHotnessSlider,
@@ -35,6 +36,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
   const [interest, setInterest] = useState(50);
   const [hotness, setHotness] = useState(50);
   const [faceScore, setFaceScore] = useState(50);
+  const [bodyScore, setBodyScore] = useState(50);
   const [dickSizeCm, setDickSizeCm] = useState(15);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -97,6 +99,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
           interest_level: interest,
           hotness_level: hotness,
           face_score: faceScore,
+          body_score: bodyScore,
           dick_size_cm: dickSizeCm,
         })
         .select("id")
@@ -120,6 +123,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
       setInterest(50);
       setHotness(50);
       setFaceScore(50);
+      setBodyScore(50);
       setDickSizeCm(15);
       clearPhoto();
       onCreated(data.id as string);
@@ -162,6 +166,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
       <FlirtInterestSlider value={interest} onChange={setInterest} />
       <FlirtHotnessSlider value={hotness} onChange={setHotness} />
       <FlirtFaceScoreSlider value={faceScore} onChange={setFaceScore} />
+      <FlirtBodyScoreSlider value={bodyScore} onChange={setBodyScore} />
       <FlirtDickSizeSlider value={dickSizeCm} onChange={setDickSizeCm} />
 
       <div className="space-y-2">
