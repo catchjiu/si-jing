@@ -30,13 +30,12 @@ import { cn } from "@/lib/utils";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const DEFAULT_PROMPT =
-  "I’m wearing {label} — the outfit you said would hurt most. Write what that does to you, filthy and grateful.";
+  "I’m wearing {label} for {purpose} — the look you said would hurt most. Write what that does to you, filthy and grateful.";
 
 type DraftOption = {
   key: string;
   file: File | null;
   preview: string | null;
-  label: string;
 };
 
 type OutfitVetoPanelProps = {
@@ -70,14 +69,16 @@ export function OutfitVetoPanel({
   const [vetoes, setVetoes] = useState<JealousyOutfitVetoWithUrls[]>([]);
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<DraftOption[]>([
-    { key: "a", file: null, preview: null, label: "" },
-    { key: "b", file: null, preview: null, label: "" },
+    { key: "a", file: null, preview: null },
+    { key: "b", file: null, preview: null },
   ]);
+  const [purpose, setPurpose] = useState("");
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [denialDays, setDenialDays] = useState("0");
   const [edgeDebt, setEdgeDebt] = useState("1");
   const [submitting, setSubmitting] = useState(false);
   const [rankingId, setRankingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rankOrders, setRankOrders] = useState<Record<string, string[]>>({});
 
   const load = useCallback(async () => {
@@ -162,7 +163,7 @@ export function OutfitVetoPanel({
     if (drafts.length >= 3) return;
     setDrafts((prev) => [
       ...prev,
-      { key: `c-${Date.now()}`, file: null, preview: null, label: "" },
+      { key: `c-${Date.now()}`, file: null, preview: null },
     ]);
   };
 
@@ -183,6 +184,11 @@ export function OutfitVetoPanel({
       toast.error("Upload 2 or 3 outfit photos");
       return;
     }
+    const purposeTrimmed = purpose.trim();
+    if (!purposeTrimmed) {
+      toast.error("Say what this outfit veto is for");
+      return;
+    }
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
       toast.error("Write a mission prompt template");
@@ -192,7 +198,9 @@ export function OutfitVetoPanel({
     const supabase = createClient();
     try {
       const options: JealousyOutfitOption[] = [];
+      let outfitIndex = 0;
       for (const d of filled) {
+        outfitIndex += 1;
         const file = d.file!;
         const uploadFile = await downsizeImageIfNeeded(file);
         const ext = uploadFile.name.split(".").pop() || "jpg";
@@ -207,15 +215,15 @@ export function OutfitVetoPanel({
         options.push({
           id: optionId,
           image_path: imagePath,
-          label: d.label.trim()
-            ? formatRoleSpeech(d.label.trim(), "queen")
-            : null,
+          label: `Outfit ${outfitIndex}`,
         });
       }
 
+      const purposeSpeech = formatRoleSpeech(purposeTrimmed, "queen");
       const { data, error } = await supabase.rpc("create_jealousy_outfit_veto", {
         p_options: options,
         p_prompt_template: formatRoleSpeech(trimmedPrompt, "queen"),
+        p_purpose: purposeSpeech,
         p_denial_days: Math.max(0, parseInt(denialDays, 10) || 0),
         p_edge_debt: Math.max(0, parseInt(edgeDebt, 10) || 0),
       });
@@ -224,7 +232,7 @@ export function OutfitVetoPanel({
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Outfit veto",
-          body: "Rank which outfit would hurt most — Queen wears the winner.",
+          body: `Rank outfits for: ${purposeSpeech}`,
           url: `/dashboard/jealousy?veto=${data}`,
           target: "slave",
           kind: "outfit_veto",
@@ -232,9 +240,10 @@ export function OutfitVetoPanel({
       );
       toast.success("Outfit veto sent");
       setDrafts([
-        { key: "a", file: null, preview: null, label: "" },
-        { key: "b", file: null, preview: null, label: "" },
+        { key: "a", file: null, preview: null },
+        { key: "b", file: null, preview: null },
       ]);
+      setPurpose("");
       setPrompt(DEFAULT_PROMPT);
       await load();
       onChanged?.();
@@ -242,6 +251,25 @@ export function OutfitVetoPanel({
       toast.error(err instanceof Error ? err.message : "Could not create veto");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const deleteVeto = async (vetoId: string) => {
+    if (!isQueen) return;
+    setDeletingId(vetoId);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase.rpc("cancel_jealousy_outfit_veto", {
+        p_veto_id: vetoId,
+      });
+      if (error) throw error;
+      toast.success("Outfit veto deleted");
+      await load();
+      onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete veto");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -273,16 +301,12 @@ export function OutfitVetoPanel({
       if (error) throw error;
       const winner = veto.options.find((o) => o.id === order[0]);
       toast.success(
-        winner?.label
-          ? `Locked — she’ll wear “${winner.label}”`
-          : "Locked — she wears your #1 hurt pick"
+        `Locked for “${veto.purpose}” — she’ll wear ${winner?.label || "your #1"}`
       );
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Outfit veto ranked",
-          body: winner?.label
-            ? `D picked: ${winner.label}`
-            : "D ranked your outfits",
+          body: `${winner?.label || "Outfit"} for ${veto.purpose}`,
           url: jealousyPageHref(data as string),
           target: "queen",
           kind: "outfit_veto_ranked",
@@ -312,9 +336,21 @@ export function OutfitVetoPanel({
               Outfit veto
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Upload 2–3 outfits. D ranks which would hurt most — You wear #1
-              and lock a jealousy mission to that pick.
+              Say what it’s for, upload 2–3 looks. D ranks which would hurt most
+              — You wear #1 and lock a jealousy mission.
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="outfit-veto-purpose">What this is for</Label>
+            <Input
+              id="outfit-veto-purpose"
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              placeholder="e.g. Friday date with him / dinner downtown"
+              className="border-gold/20 bg-void/60"
+              required
+            />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
@@ -350,6 +386,7 @@ export function OutfitVetoPanel({
                       type="button"
                       onClick={() => setDraftFile(d.key, null)}
                       className="absolute right-1.5 top-1.5 rounded-full bg-void/80 p-1"
+                      aria-label="Clear photo"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -371,18 +408,6 @@ export function OutfitVetoPanel({
                     />
                   </label>
                 )}
-                <Input
-                  value={d.label}
-                  onChange={(e) =>
-                    setDrafts((prev) =>
-                      prev.map((x) =>
-                        x.key === d.key ? { ...x, label: e.target.value } : x
-                      )
-                    )
-                  }
-                  placeholder="Label (optional)"
-                  className="border-gold/20 bg-void/60 text-sm"
-                />
               </div>
             ))}
           </div>
@@ -408,7 +433,7 @@ export function OutfitVetoPanel({
               className="border-gold/20 bg-void/60"
             />
             <p className="text-[11px] text-muted-foreground">
-              Use {"{label}"} for the winning outfit name.
+              Use {"{purpose}"} for what it’s for and {"{label}"} for Outfit 1/2/3.
             </p>
           </div>
 
@@ -508,7 +533,29 @@ export function OutfitVetoPanel({
                         {v.edge_debt > 0 ? `+${v.edge_debt} edges` : ""}
                       </span>
                     )}
+                    {isQueen && v.status === "open" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-7 border-red-500/30 text-red-300 hover:bg-red-950/30"
+                        disabled={deletingId === v.id}
+                        onClick={() => void deleteVeto(v.id)}
+                      >
+                        {deletingId === v.id ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <X className="mr-1 h-3 w-3" />
+                        )}
+                        Delete
+                      </Button>
+                    )}
                   </div>
+
+                  <p className="text-sm text-ivory/90">
+                    For:{" "}
+                    <span className="text-gold">{v.purpose || "—"}</span>
+                  </p>
 
                   {v.status === "ranked" && winner && (
                     <p className="text-sm text-ivory/90">

@@ -581,6 +581,7 @@ export type JealousyOutfitVeto = {
   created_by: string;
   assigned_to: string;
   status: JealousyOutfitVetoStatus;
+  purpose: string;
   options: JealousyOutfitOption[];
   slave_rank_order: string[] | null;
   winning_option_id: string | null;

@@ -1704,6 +1704,7 @@ export type Database = {
           created_by: string
           assigned_to: string
           status: string
+          purpose: string
           options: Json
           slave_rank_order: string[] | null
           winning_option_id: string | null
@@ -1719,6 +1720,7 @@ export type Database = {
           created_by: string
           assigned_to: string
           status?: string
+          purpose: string
           options: Json
           slave_rank_order?: string[] | null
           winning_option_id?: string | null
@@ -1734,6 +1736,7 @@ export type Database = {
           created_by?: string
           assigned_to?: string
           status?: string
+          purpose?: string
           options?: Json
           slave_rank_order?: string[] | null
           winning_option_id?: string | null
@@ -3397,6 +3400,7 @@ export type Database = {
         Args: {
           p_options: Json
           p_prompt_template: string
+          p_purpose: string
           p_denial_days?: number
           p_edge_debt?: number
         }
@@ -3404,6 +3408,10 @@ export type Database = {
       }
       rank_jealousy_outfit_veto: {
         Args: { p_veto_id: string; p_rank_order: string[] }
+        Returns: string
+      }
+      cancel_jealousy_outfit_veto: {
+        Args: { p_veto_id: string }
         Returns: string
       }
       complete_jealousy_mission: {
