@@ -19,6 +19,7 @@ export type WalletSpendRequest = {
   amount_ntd: number | null;
   note: string | null;
   beg_message: string | null;
+  review_comment: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -116,11 +117,13 @@ export async function requestApartmentFundApproval(
 export async function reviewWalletSpendRequest(
   supabase: Supabase,
   requestId: string,
-  approve: boolean
+  approve: boolean,
+  reviewComment?: string | null
 ): Promise<void> {
   const { error } = await supabase.rpc("review_wallet_spend", {
     p_request_id: requestId,
     p_approve: approve,
+    p_review_comment: reviewComment?.trim() || null,
   });
   if (error) throw error;
 }

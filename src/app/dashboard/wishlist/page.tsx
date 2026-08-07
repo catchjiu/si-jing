@@ -141,6 +141,13 @@ function WishlistPageInner() {
         </p>
       </div>
 
+      <LockedWalletPanel
+        onChanged={() => {
+          setBudgetRefresh((n) => n + 1);
+          void load();
+        }}
+      />
+
       <WishlistApartmentFundPanel refreshKey={budgetRefresh} />
 
       <WishlistTotalSpentPanel
@@ -153,13 +160,6 @@ function WishlistPageInner() {
       <WishlistSizeChart />
 
       <WishlistBudgetPanel refreshKey={budgetRefresh} />
-
-      <LockedWalletPanel
-        onChanged={() => {
-          setBudgetRefresh((n) => n + 1);
-          void load();
-        }}
-      />
 
       {isQueen && (
         <WishlistForm

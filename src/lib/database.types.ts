@@ -1569,6 +1569,7 @@ export type Database = {
           amount_ntd: number | null
           note: string | null
           beg_message: string | null
+          review_comment: string | null
           reviewed_by: string | null
           reviewed_at: string | null
           created_at: string
@@ -3582,7 +3583,11 @@ export type Database = {
         Returns: string
       }
       review_wallet_spend: {
-        Args: { p_request_id: string; p_approve: boolean }
+        Args: {
+          p_request_id: string
+          p_approve: boolean
+          p_review_comment?: string | null
+        }
         Returns: string
       }
       admin_record_wishlist_purchase_for_slave: {

@@ -17,6 +17,8 @@ import { formatNtd } from "@/lib/wishlist-apartment-fund";
 import { formatRelative } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type LockedWalletPanelProps = {
@@ -34,6 +36,9 @@ export function LockedWalletPanel({
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>(
+    {}
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,20 +84,31 @@ export function LockedWalletPanel({
   const review = async (id: string, approve: boolean) => {
     setReviewing(id);
     const supabase = createClient();
+    const comment = reviewComments[id]?.trim() || null;
     try {
-      await reviewWalletSpendRequest(supabase, id, approve);
+      await reviewWalletSpendRequest(supabase, id, approve, comment);
       toast.success(approve ? "Approved" : "Denied");
+      const pushBody = approve
+        ? comment
+          ? `Queen approved your spend request. “${comment}”`
+          : "Queen approved your spend request."
+        : comment
+          ? `Queen denied your spend request. “${comment}”`
+          : "Queen denied your spend request.";
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: approve ? "Wallet beg approved" : "Wallet beg denied",
-          body: approve
-            ? "Queen approved your spend request."
-            : "Queen denied your spend request.",
+          body: pushBody,
           url: "/dashboard/wishlist",
           target: "slave",
           kind: approve ? "wallet_spend_approved" : "wallet_spend_denied",
         })
       );
+      setReviewComments((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       await load();
       onChanged?.();
     } catch (err) {
@@ -213,30 +229,58 @@ export function LockedWalletPanel({
                   “{r.beg_message}”
                 </p>
               )}
+              {r.review_comment && r.status !== "pending" && (
+                <p className="text-xs text-ivory/80 whitespace-pre-wrap">
+                  Queen: “{r.review_comment}”
+                </p>
+              )}
               {isQueen && r.status === "pending" && (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="bg-gold text-void hover:bg-gold-muted"
-                    disabled={reviewing === r.id}
-                    onClick={() => void review(r.id, true)}
-                  >
-                    {reviewing === r.id ? (
-                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    Approve
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="border-gold/30"
-                    disabled={reviewing === r.id}
-                    onClick={() => void review(r.id, false)}
-                  >
-                    Deny
-                  </Button>
+                <div className="space-y-2">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor={`wallet-review-comment-${r.id}`}
+                      className="text-[11px] text-muted-foreground"
+                    >
+                      Comment (optional)
+                    </Label>
+                    <Textarea
+                      id={`wallet-review-comment-${r.id}`}
+                      value={reviewComments[r.id] ?? ""}
+                      onChange={(e) =>
+                        setReviewComments((prev) => ({
+                          ...prev,
+                          [r.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Add a note with your approve or deny…"
+                      rows={2}
+                      className="min-h-0 resize-none border-gold/20 bg-void/60 text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-gold text-void hover:bg-gold-muted"
+                      disabled={reviewing === r.id}
+                      onClick={() => void review(r.id, true)}
+                    >
+                      {reviewing === r.id ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="border-gold/30"
+                      disabled={reviewing === r.id}
+                      onClick={() => void review(r.id, false)}
+                    >
+                      Deny
+                    </Button>
+                  </div>
                 </div>
               )}
             </li>
