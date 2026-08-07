@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
-import { presignAndUpload } from "@/lib/storage/client";
+import { presignAndUpload, removeObject } from "@/lib/storage/client";
 import type { WorkoutBodyPart } from "@/lib/workout-exercises";
 import {
   detectPr,
@@ -396,6 +396,26 @@ export function workoutStatusLabel(status: WorkoutSessionStatus): string {
     default:
       return "Completed";
   }
+}
+
+export async function deleteWorkoutSession(
+  supabase: SupabaseClient,
+  sessionId: string
+): Promise<void> {
+  const { data: mediaRows } = await supabase
+    .from("workout_media")
+    .select("file_path")
+    .eq("session_id", sessionId);
+  for (const m of (mediaRows ?? []) as { file_path: string }[]) {
+    await removeObject({ bucket: "workouts", path: m.file_path }).catch(
+      () => undefined
+    );
+  }
+  const { error } = await supabase
+    .from("workout_sessions")
+    .delete()
+    .eq("id", sessionId);
+  if (error) throw error;
 }
 
 export function formatWorkoutNotifyBody(

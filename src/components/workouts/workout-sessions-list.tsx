@@ -14,6 +14,7 @@ import {
 } from "@/lib/workout-stats";
 import { workoutStatusLabel } from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
+import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
 import { WorkoutExerciseSparkline } from "@/components/workouts/workout-exercise-sparkline";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +41,10 @@ function pickPreview(media: WorkoutMedia[]): WorkoutMedia | null {
 }
 
 export function WorkoutSessionsList({ className }: { className?: string }) {
-  const { profile, isSlave } = useAuth();
+  const { profile, isSlave, isQueen } = useAuth();
   const [items, setItems] = useState<SessionCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const canDelete = isSlave || isQueen;
 
   useEffect(() => {
     if (!profile) return;
@@ -139,7 +141,7 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
       {items.map((s, i) => (
         <li
           key={s.id}
-          className="animate-in fade-in slide-in-from-bottom-2"
+          className="animate-in fade-in slide-in-from-bottom-2 flex items-stretch gap-1"
           style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
         >
           <Link
@@ -149,7 +151,7 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
                 ? `/dashboard/workouts/log/${s.id}`
                 : `/dashboard/workouts/${s.id}`
             }
-            className="flex gap-3 rounded-xl border border-gold/15 bg-charcoal/80 p-4 transition hover:border-gold/40"
+            className="flex min-w-0 flex-1 gap-3 rounded-xl border border-gold/15 bg-charcoal/80 p-4 transition hover:border-gold/40"
           >
             <div className="w-1 shrink-0 rounded-full bg-gold/70" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -229,6 +231,16 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
               )}
             </div>
           </Link>
+          {canDelete && (
+            <WorkoutDeleteButton
+              sessionId={s.id}
+              status={s.status}
+              className="my-auto mr-1 shrink-0"
+              onDeleted={() =>
+                setItems((prev) => prev.filter((item) => item.id !== s.id))
+              }
+            />
+          )}
         </li>
       ))}
     </ul>

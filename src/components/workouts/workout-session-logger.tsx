@@ -40,6 +40,7 @@ import {
 } from "@/lib/workout-persist";
 import { WorkoutWeightDial } from "@/components/workouts/workout-weight-dial";
 import { WorkoutWheelPicker } from "@/components/workouts/workout-wheel-picker";
+import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import {
@@ -581,30 +582,37 @@ export function WorkoutSessionLogger({
     <div className={cn("space-y-6", className)}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-heading text-xl text-gold">{title}</h2>
-        <span
-          className={cn(
-            "flex items-center gap-1 text-[11px]",
-            saveState === "saving"
-              ? "text-muted-foreground"
-              : saveState === "saved"
-                ? "text-emerald-400"
-                : "text-muted-foreground/60"
-          )}
-        >
-          {saveState === "saving" ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Saving…
-            </>
-          ) : saveState === "saved" ? (
-            <>
-              <Check className="h-3 w-3" /> Saved
-            </>
-          ) : (
-            <>
-              <Cloud className="h-3 w-3" /> Auto-save on
-            </>
-          )}
-        </span>
+        <div className="flex items-center gap-1">
+          <span
+            className={cn(
+              "flex items-center gap-1 text-[11px]",
+              saveState === "saving"
+                ? "text-muted-foreground"
+                : saveState === "saved"
+                  ? "text-emerald-400"
+                  : "text-muted-foreground/60"
+            )}
+          >
+            {saveState === "saving" ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+              </>
+            ) : saveState === "saved" ? (
+              <>
+                <Check className="h-3 w-3" /> Saved
+              </>
+            ) : (
+              <>
+                <Cloud className="h-3 w-3" /> Auto-save on
+              </>
+            )}
+          </span>
+          <WorkoutDeleteButton
+            sessionId={sessionId}
+            status={session.status}
+            onDeleted={() => router.push("/dashboard/workouts")}
+          />
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground">

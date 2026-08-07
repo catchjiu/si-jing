@@ -13,7 +13,6 @@ import {
   Moon,
   Pencil,
   Play,
-  Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -23,13 +22,14 @@ import {
   sessionDurationMin,
   sessionVolume,
 } from "@/lib/workout-stats";
-import { signObjectUrl, removeObject } from "@/lib/storage/client";
+import { signObjectUrl } from "@/lib/storage/client";
 import {
   copyWorkoutAsPlanned,
   fetchQueenId,
   workoutStatusLabel,
 } from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
+import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
 import { WorkoutSessionSummary } from "@/components/workouts/workout-session-summary";
 import { WorkoutSessionEditor } from "@/components/workouts/workout-session-editor";
 import { WorkoutQueenReaction } from "@/components/workouts/workout-queen-reaction";
@@ -50,7 +50,6 @@ export default function WorkoutDetailPage() {
   const [sets, setSets] = useState<WorkoutSet[]>([]);
   const [media, setMedia] = useState<MediaView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyDate, setCopyDate] = useState(() =>
@@ -133,28 +132,8 @@ export default function WorkoutDetailPage() {
   const exerciseCount = grouped.length;
   const mins = session ? sessionDurationMin(session) : null;
 
-  const deleteSession = async () => {
-    if (!session || !isSlave) return;
-    if (!window.confirm("Delete this workout?")) return;
-    setDeleting(true);
-    const supabase = createClient();
-    for (const m of media) {
-      await removeObject({ bucket: "workouts", path: m.file_path }).catch(
-        () => undefined
-      );
-    }
-    const { error } = await supabase
-      .from("workout_sessions")
-      .delete()
-      .eq("id", session.id);
-    setDeleting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Workout deleted");
-    router.push("/dashboard/workouts");
-  };
+  const canDelete =
+    (isSlave && session?.created_by === profile?.id) || isQueen;
 
   const copyToDay = async () => {
     if (!session || !isSlave || !profile) return;
@@ -277,9 +256,9 @@ export default function WorkoutDetailPage() {
             <p className="mt-2 text-sm text-muted-foreground">No workout today.</p>
           )}
         </div>
-        {isSlave && (
+        {(isSlave || canDelete) && (
           <div className="flex flex-wrap items-center gap-1">
-            {isPlanned && (
+            {isSlave && isPlanned && (
               <>
                 <Button
                   asChild
@@ -304,7 +283,7 @@ export default function WorkoutDetailPage() {
                 </Button>
               </>
             )}
-            {isCompleted && (
+            {isSlave && isCompleted && (
               <Button
                 type="button"
                 size="sm"
@@ -316,7 +295,7 @@ export default function WorkoutDetailPage() {
                 Edit
               </Button>
             )}
-            {!isSkipped && sets.length > 0 && (
+            {isSlave && !isSkipped && sets.length > 0 && (
               <Button
                 type="button"
                 size="sm"
@@ -328,20 +307,13 @@ export default function WorkoutDetailPage() {
                 Copy to day
               </Button>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={deleting}
-              onClick={() => void deleteSession()}
-              className="text-muted-foreground hover:text-red-300"
-            >
-              {deleting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-            </Button>
+            {canDelete && (
+              <WorkoutDeleteButton
+                sessionId={session.id}
+                status={session.status}
+                onDeleted={() => router.push("/dashboard/workouts")}
+              />
+            )}
           </div>
         )}
       </header>

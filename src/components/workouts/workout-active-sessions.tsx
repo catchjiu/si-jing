@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { workoutStatusLabel } from "@/lib/workout-persist";
 import type { WorkoutSession } from "@/lib/types";
+import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -67,25 +68,34 @@ export function WorkoutActiveSessions() {
                 <p className="truncate text-xs text-muted-foreground">{s.notes}</p>
               )}
             </div>
-            <Button
-              asChild
-              size="sm"
-              className="bg-gold text-void hover:bg-gold-muted"
-            >
-              <Link href={`/dashboard/workouts/log/${s.id}`}>
-                {s.status === "planned" ? (
-                  <>
-                    <Play className="mr-1.5 h-3.5 w-3.5" />
-                    Start
-                  </>
-                ) : (
-                  <>
-                    <Dumbbell className="mr-1.5 h-3.5 w-3.5" />
-                    Continue
-                  </>
-                )}
-              </Link>
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                asChild
+                size="sm"
+                className="bg-gold text-void hover:bg-gold-muted"
+              >
+                <Link href={`/dashboard/workouts/log/${s.id}`}>
+                  {s.status === "planned" ? (
+                    <>
+                      <Play className="mr-1.5 h-3.5 w-3.5" />
+                      Start
+                    </>
+                  ) : (
+                    <>
+                      <Dumbbell className="mr-1.5 h-3.5 w-3.5" />
+                      Continue
+                    </>
+                  )}
+                </Link>
+              </Button>
+              <WorkoutDeleteButton
+                sessionId={s.id}
+                status={s.status}
+                onDeleted={() =>
+                  setItems((prev) => prev.filter((item) => item.id !== s.id))
+                }
+              />
+            </div>
           </li>
         ))}
       </ul>
