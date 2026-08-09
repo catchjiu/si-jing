@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { User } from "lucide-react";
 import { signObjectUrl } from "@/lib/storage/client";
 import type { FlirtGuy, FlirtGuyWithSignedUrl, FlirtStatus } from "@/lib/types";
 import { FLIRT_STATUS_LABELS, FLIRT_STATUSES } from "@/lib/types";
+import { rankFlirtGuys } from "@/lib/flirt-score";
 import { FlirtStatusBadge } from "@/components/flirt/flirt-status-badge";
 import {
   FlirtBodyScoreMeter,
@@ -58,8 +59,17 @@ export function FlirtGuysGrid({
     };
   }, [guys]);
 
-  const filtered =
-    filter === "all" ? rows : rows.filter((g) => g.status === filter);
+  const ranked = useMemo(() => rankFlirtGuys(rows), [rows]);
+
+  const filtered = useMemo(() => {
+    const list =
+      filter === "all"
+        ? ranked
+        : ranked.filter(
+            (r) => r.guy.status === filter || Boolean(r.guy.is_slave)
+          );
+    return list;
+  }, [ranked, filter]);
 
   const totalUnread = rows.reduce(
     (sum, guy) => sum + (unreadByGuy[guy.id] ?? 0),
@@ -102,62 +112,84 @@ export function FlirtGuysGrid({
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4">
-          {filtered.map((guy) => {
+          {filtered.map(({ guy, rank, score }) => {
             const unread = unreadByGuy[guy.id] ?? 0;
             return (
-            <li key={guy.id}>
-              <Link
-                href={`/dashboard/flirt/${guy.id}`}
-                className="group flex flex-col items-center text-center outline-none"
-              >
-                <div
-                  className={cn(
-                    "relative h-24 w-24 overflow-hidden rounded-full border-2 bg-void/50 transition group-hover:border-gold/60 group-focus-visible:border-gold sm:h-28 sm:w-28",
-                    unread > 0 ? "border-gold/50" : "border-gold/25"
-                  )}
+              <li key={guy.id}>
+                <Link
+                  href={`/dashboard/flirt/${guy.id}`}
+                  className="group flex flex-col items-center text-center outline-none"
                 >
-                  {unread > 0 && (
-                    <FlirtCountBadge
-                      count={unread}
-                      size="sm"
-                      className="absolute -right-0.5 -top-0.5 z-10 ring-2 ring-void"
-                    />
-                  )}
-                  {guy.signedUrl ? (
-                    <Image
-                      src={guy.signedUrl}
-                      alt={guy.name}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-charcoal text-muted-foreground">
-                      <span className="font-heading text-2xl text-gold/70">
-                        {guy.name.trim().charAt(0).toUpperCase() || (
-                          <User className="h-8 w-8" />
-                        )}
+                  <div
+                    className={cn(
+                      "relative h-24 w-24 overflow-hidden rounded-full border-2 bg-void/50 transition group-hover:border-gold/60 group-focus-visible:border-gold sm:h-28 sm:w-28",
+                      unread > 0 ? "border-gold/50" : "border-gold/25",
+                      guy.is_slave && "border-gold/55"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute -left-0.5 -top-0.5 z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[10px] font-heading ring-2 ring-void",
+                        rank === 1
+                          ? "bg-gold text-void"
+                          : "bg-charcoal text-gold"
+                      )}
+                    >
+                      #{rank}
+                    </span>
+                    {unread > 0 && (
+                      <FlirtCountBadge
+                        count={unread}
+                        size="sm"
+                        className="absolute -right-0.5 -top-0.5 z-10 ring-2 ring-void"
+                      />
+                    )}
+                    {guy.signedUrl ? (
+                      <Image
+                        src={guy.signedUrl}
+                        alt={guy.name}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-charcoal text-muted-foreground">
+                        <span className="font-heading text-2xl text-gold/70">
+                          {guy.name.trim().charAt(0).toUpperCase() || (
+                            <User className="h-8 w-8" />
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-2 max-w-full truncate font-heading text-sm text-ivory group-hover:text-gold sm:text-base">
+                    {guy.name}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-1">
+                    {guy.is_slave ? (
+                      <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-gold">
+                        Slave
                       </span>
-                    </div>
-                  )}
-                </div>
-                <p className="mt-2 max-w-full truncate font-heading text-sm text-ivory group-hover:text-gold sm:text-base">
-                  {guy.name}
-                </p>
-                <div className="mt-1">
-                  <FlirtStatusBadge status={guy.status} />
-                </div>
-                <div className="mt-2 w-full max-w-[7.5rem] space-y-1.5">
-                  <FlirtInterestMeter value={guy.interest_level} compact />
-                  <FlirtHotnessMeter value={guy.hotness_level} compact />
-                  <FlirtFaceScoreMeter value={guy.face_score ?? 50} compact />
-                  <FlirtBodyScoreMeter value={guy.body_score ?? 50} compact />
-                  <FlirtDickSizeMeter value={guy.dick_size_cm ?? 15} compact />
-                  <FlirtJealousyMeter value={guy.jealousy_level} compact />
-                </div>
-              </Link>
-            </li>
-          );
+                    ) : (
+                      <FlirtStatusBadge status={guy.status} />
+                    )}
+                    <span className="rounded-full border border-gold/20 px-2 py-0.5 text-[10px] text-muted-foreground">
+                      {score} overall
+                    </span>
+                  </div>
+                  <div className="mt-2 w-full max-w-[7.5rem] space-y-1.5">
+                    <FlirtInterestMeter value={guy.interest_level} compact />
+                    <FlirtHotnessMeter value={guy.hotness_level} compact />
+                    <FlirtFaceScoreMeter value={guy.face_score ?? 50} compact />
+                    <FlirtBodyScoreMeter value={guy.body_score ?? 50} compact />
+                    <FlirtDickSizeMeter value={guy.dick_size_cm ?? 19} compact />
+                    {!guy.is_slave && (
+                      <FlirtJealousyMeter value={guy.jealousy_level} compact />
+                    )}
+                  </div>
+                </Link>
+              </li>
+            );
           })}
         </ul>
       )}

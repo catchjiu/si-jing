@@ -1414,6 +1414,7 @@ export type Database = {
           face_score: number
           body_score: number
           dick_size_cm: number
+          is_slave: boolean
           created_at: string
           updated_at: string
         }
@@ -1430,6 +1431,7 @@ export type Database = {
           face_score?: number
           body_score?: number
           dick_size_cm?: number
+          is_slave?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -1446,6 +1448,7 @@ export type Database = {
           face_score?: number
           body_score?: number
           dick_size_cm?: number
+          is_slave?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -3476,6 +3479,11 @@ export type Database = {
           p_butt: number
         }
         Returns: Database["public"]["Tables"]["workout_weekly_pics"]["Row"]
+      }
+      ensure_slave_flirt_guy: { Args: never; Returns: string }
+      sync_slave_flirt_body_score: {
+        Args: { p_slave_id: string }
+        Returns: undefined
       }
       prompt_weekly_progress_pic: { Args: never; Returns: number }
       ensure_queen_slave_conversation: { Args: never; Returns: string }

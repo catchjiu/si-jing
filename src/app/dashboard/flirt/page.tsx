@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { FlirtGuy, FlirtStatus, Profile } from "@/lib/types";
 import { FlirtGuyForm } from "@/components/flirt/flirt-guy-form";
 import { FlirtGuysGrid } from "@/components/flirt/flirt-guys-grid";
+import { FlirtRankingBoard } from "@/components/flirt/flirt-ranking-board";
 import { FlirtCountBadge } from "@/components/flirt/flirt-count-badge";
 import { useFlirtUnread } from "@/components/flirt/use-flirt-unread";
 
@@ -22,6 +23,12 @@ export default function FlirtPage() {
     if (!profile) return;
     setLoading(true);
     const supabase = createClient();
+    try {
+      await supabase.rpc("ensure_slave_flirt_guy");
+    } catch (err) {
+      console.error(err);
+    }
+
     let query = supabase
       .from("flirt_guys")
       .select("*")
@@ -63,8 +70,8 @@ export default function FlirtPage() {
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {isQueen
-            ? "Guys you've flirted with — status, interest, hotness, and a dated timeline for D"
-            : "Guys Queen has flirted with — tap one to see the timeline"}
+            ? "Guys you've flirted with — ranked against D using interest, hotness, face, body, and dick size"
+            : "Guys Queen has flirted with — see where you rank against them"}
         </p>
       </div>
 
@@ -82,6 +89,8 @@ export default function FlirtPage() {
           No slave account found to assign flirts to.
         </p>
       )}
+
+      <FlirtRankingBoard guys={guys} />
 
       <section className="space-y-4">
         <h2 className="font-heading flex items-center gap-2 text-xl text-gold">

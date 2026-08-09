@@ -37,7 +37,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
   const [hotness, setHotness] = useState(50);
   const [faceScore, setFaceScore] = useState(50);
   const [bodyScore, setBodyScore] = useState(50);
-  const [dickSizeCm, setDickSizeCm] = useState(15);
+  const [dickSizeCm, setDickSizeCm] = useState(19);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -124,7 +124,7 @@ export function FlirtGuyForm({ recipient, onCreated }: Props) {
       setHotness(50);
       setFaceScore(50);
       setBodyScore(50);
-      setDickSizeCm(15);
+      setDickSizeCm(19);
       clearPhoto();
       onCreated(data.id as string);
     } catch (err) {

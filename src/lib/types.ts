@@ -485,6 +485,8 @@ export type FlirtGuy = {
   face_score: number;
   body_score: number;
   dick_size_cm: number;
+  /** Special card for D — body_score mirrors current progress-pic rating */
+  is_slave?: boolean;
   created_at: string;
   updated_at: string;
 };

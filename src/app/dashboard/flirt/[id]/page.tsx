@@ -60,7 +60,7 @@ export default function FlirtDetailPage() {
   const [hotnessDraft, setHotnessDraft] = useState(50);
   const [faceScoreDraft, setFaceScoreDraft] = useState(50);
   const [bodyScoreDraft, setBodyScoreDraft] = useState(50);
-  const [dickSizeDraft, setDickSizeDraft] = useState(15);
+  const [dickSizeDraft, setDickSizeDraft] = useState(19);
   const [jealousyDraft, setJealousyDraft] = useState(50);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingInterest, setSavingInterest] = useState(false);
@@ -91,7 +91,7 @@ export default function FlirtDetailPage() {
     setHotnessDraft(row?.hotness_level ?? 50);
     setFaceScoreDraft(row?.face_score ?? 50);
     setBodyScoreDraft(row?.body_score ?? 50);
-    setDickSizeDraft(row?.dick_size_cm ?? 15);
+    setDickSizeDraft(row?.dick_size_cm ?? 19);
     setJealousyDraft(row?.jealousy_level ?? 50);
     if (row?.photo_path) {
       const url = await signObjectUrl({
@@ -370,7 +370,7 @@ export default function FlirtDetailPage() {
   };
 
   const deleteGuy = async () => {
-    if (!isQueen || !guy) return;
+    if (!isQueen || !guy || guy.is_slave) return;
     if (!window.confirm(`Remove ${guy.name} and all entries?`)) return;
     setDeleting(true);
     const supabase = createClient();
@@ -483,8 +483,14 @@ export default function FlirtDetailPage() {
               <Flame className="h-6 w-6 text-gold" />
               {guy.name}
             </h1>
-            <FlirtStatusBadge status={guy.status} />
-            {isQueen && (
+            {guy.is_slave ? (
+              <span className="rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
+                Slave
+              </span>
+            ) : (
+              <FlirtStatusBadge status={guy.status} />
+            )}
+            {isQueen && !guy.is_slave && (
               <Button
                 type="button"
                 size="sm"
@@ -508,35 +514,41 @@ export default function FlirtDetailPage() {
               <FlirtHotnessMeter value={guy.hotness_level} />
               <FlirtFaceScoreMeter value={guy.face_score ?? 50} />
               <FlirtBodyScoreMeter value={guy.body_score ?? 50} />
-              <FlirtDickSizeMeter value={guy.dick_size_cm ?? 15} />
-              <div className="space-y-3 rounded-xl border border-gold/10 bg-void/40 p-4 text-left">
-                <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
-                  How you feel
+              <FlirtDickSizeMeter value={guy.dick_size_cm ?? 19} />
+              {guy.is_slave ? (
+                <p className="text-left text-xs text-muted-foreground">
+                  Body score comes from your current progress-pic rating.
                 </p>
-                <FlirtJealousySlider
-                  value={jealousyDraft}
-                  onChange={setJealousyDraft}
-                  disabled={savingJealousy}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={
-                    savingJealousy || jealousyDraft === guy.jealousy_level
-                  }
-                  onClick={() => void saveJealousy()}
-                  className="bg-gold text-void hover:bg-gold-muted"
-                >
-                  {savingJealousy ? (
-                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  Save jealousy
-                </Button>
-              </div>
+              ) : (
+                <div className="space-y-3 rounded-xl border border-gold/10 bg-void/40 p-4 text-left">
+                  <p className="text-xs font-medium uppercase tracking-wider text-gold/90">
+                    How you feel
+                  </p>
+                  <FlirtJealousySlider
+                    value={jealousyDraft}
+                    onChange={setJealousyDraft}
+                    disabled={savingJealousy}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      savingJealousy || jealousyDraft === guy.jealousy_level
+                    }
+                    onClick={() => void saveJealousy()}
+                    className="bg-gold text-void hover:bg-gold-muted"
+                  >
+                    {savingJealousy ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    Save jealousy
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
-          {isQueen && (
+          {isQueen && !guy.is_slave && (
             <div className="flex items-center gap-2 text-sm text-ivory">
               <HeartCrack className="h-4 w-4 text-violet-300" />
               Jealous ·{" "}
@@ -546,14 +558,22 @@ export default function FlirtDetailPage() {
 
           {isQueen && (
             <div className="space-y-4 rounded-xl border border-gold/15 bg-charcoal/70 p-4 text-left">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <FlirtStatusSelector
-                  value={guy.status}
-                  onChange={(s) => void saveStatus(s)}
-                  disabled={savingStatus}
-                />
-              </div>
+              {!guy.is_slave && (
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <FlirtStatusSelector
+                    value={guy.status}
+                    onChange={(s) => void saveStatus(s)}
+                    disabled={savingStatus}
+                  />
+                </div>
+              )}
+              {guy.is_slave && (
+                <p className="text-xs text-muted-foreground">
+                  Body score is locked to his current progress-pic rating.
+                  Adjust the other numbers for the ranking.
+                </p>
+              )}
               <div className="space-y-3">
                 <FlirtInterestSlider
                   value={interestDraft}
@@ -617,27 +637,36 @@ export default function FlirtDetailPage() {
                   )}
                 </Button>
               </div>
-              <div className="space-y-3">
-                <FlirtBodyScoreSlider
-                  value={bodyScoreDraft}
-                  onChange={setBodyScoreDraft}
-                  disabled={savingBodyScore}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={
-                    savingBodyScore || bodyScoreDraft === guy.body_score
-                  }
-                  onClick={() => void saveBodyScore()}
-                >
-                  {savingBodyScore ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Save body rating"
-                  )}
-                </Button>
-              </div>
+              {guy.is_slave ? (
+                <div className="space-y-2">
+                  <FlirtBodyScoreMeter value={guy.body_score ?? 50} />
+                  <p className="text-[11px] text-muted-foreground">
+                    Synced from Workouts → current progress pic
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <FlirtBodyScoreSlider
+                    value={bodyScoreDraft}
+                    onChange={setBodyScoreDraft}
+                    disabled={savingBodyScore}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      savingBodyScore || bodyScoreDraft === guy.body_score
+                    }
+                    onClick={() => void saveBodyScore()}
+                  >
+                    {savingBodyScore ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Save body rating"
+                    )}
+                  </Button>
+                </div>
+              )}
               <div className="space-y-3">
                 <FlirtDickSizeSlider
                   value={dickSizeDraft}
@@ -664,7 +693,7 @@ export default function FlirtDetailPage() {
         </div>
       </header>
 
-      {isQueen && (
+      {isQueen && !guy.is_slave && (
         <JealousyMissionForm
           sourceType="flirt_guy"
           sourceId={guy.id}
@@ -672,15 +701,17 @@ export default function FlirtDetailPage() {
         />
       )}
 
-      <section className="space-y-4">
-        <h2 className="font-heading text-xl text-gold">Timeline</h2>
-        <FlirtTimeline
-          guyId={guy.id}
-          guyName={guy.name}
-          canPost={!!isQueen}
-          focusEntryId={focusEntryId}
-        />
-      </section>
+      {!guy.is_slave && (
+        <section className="space-y-4">
+          <h2 className="font-heading text-xl text-gold">Timeline</h2>
+          <FlirtTimeline
+            guyId={guy.id}
+            guyName={guy.name}
+            canPost={!!isQueen}
+            focusEntryId={focusEntryId}
+          />
+        </section>
+      )}
     </div>
   );
 }
