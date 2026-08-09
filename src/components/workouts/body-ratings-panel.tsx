@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -10,19 +11,34 @@ import {
   BODY_PART_LABELS,
   type WorkoutBodyPart,
 } from "@/lib/workout-exercises";
-import type { BodyRatingSnapshot, BodyRatings, Profile } from "@/lib/types";
+import type {
+  BodyRatingSnapshot,
+  Profile,
+  WorkoutWeeklyPic,
+} from "@/lib/types";
 import { weekStartMonday } from "@/lib/workout-stats";
+import { signObjectUrl } from "@/lib/storage/client";
 import { BodyRatingRing } from "@/components/workouts/body-rating-ring";
 import { BodyRatingsSpider } from "@/components/workouts/body-ratings-spider";
 import { BodyRatingHistory } from "@/components/workouts/body-rating-history";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type Scores = {
   overall: number;
 } & Record<WorkoutBodyPart, number>;
+
+type PicOption = WorkoutWeeklyPic & { url?: string };
 
 const EMPTY: Scores = {
   overall: 0,
@@ -34,24 +50,49 @@ const EMPTY: Scores = {
   butt: 0,
 };
 
-function scoresFromRow(row: BodyRatings | null): Scores {
-  if (!row) return { ...EMPTY };
+function scoresFromPic(pic: WorkoutWeeklyPic | null): Scores {
+  if (!pic || pic.rating_overall == null) return { ...EMPTY };
   return {
-    overall: row.overall,
-    arms: row.arms,
-    shoulders: row.shoulders,
-    chest: row.chest,
-    abs: row.abs,
-    back: row.back,
-    butt: row.butt,
+    overall: pic.rating_overall ?? 0,
+    arms: pic.rating_arms ?? 0,
+    shoulders: pic.rating_shoulders ?? 0,
+    chest: pic.rating_chest ?? 0,
+    abs: pic.rating_abs ?? 0,
+    back: pic.rating_back ?? 0,
+    butt: pic.rating_butt ?? 0,
   };
+}
+
+function formatPicLabel(pic: WorkoutWeeklyPic) {
+  const ymd = pic.taken_on || pic.week_start;
+  try {
+    return new Date(`${ymd}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return ymd;
+  }
+}
+
+function pickDefaultPicId(pics: WorkoutWeeklyPic[], currentWeek: string) {
+  const unratedCurrent = pics.find(
+    (p) => p.week_start === currentWeek && p.rating_overall == null
+  );
+  if (unratedCurrent) return unratedCurrent.id;
+  const anyUnrated = pics.find((p) => p.rating_overall == null);
+  if (anyUnrated) return anyUnrated.id;
+  return pics[0]?.id ?? null;
 }
 
 export function BodyRatingsPanel({ className }: { className?: string }) {
   const { profile, isQueen, isSlave } = useAuth();
   const [scores, setScores] = useState<Scores>(EMPTY);
-  const [rowId, setRowId] = useState<string | null>(null);
   const [slave, setSlave] = useState<Profile | null>(null);
+  const [pics, setPics] = useState<PicOption[]>([]);
+  const [selectedPicId, setSelectedPicId] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<BodyRatingSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,9 +100,17 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
 
   const currentWeek = useMemo(() => weekStartMonday(), []);
 
+  const selectedPic = useMemo(
+    () => pics.find((p) => p.id === selectedPicId) ?? null,
+    [pics, selectedPicId]
+  );
+
   const ratedThisWeek = useMemo(
-    () => snapshots.some((s) => s.week_start === currentWeek),
-    [snapshots, currentWeek]
+    () =>
+      pics.some(
+        (p) => p.week_start === currentWeek && p.rating_overall != null
+      ) || snapshots.some((s) => s.week_start === currentWeek),
+    [pics, snapshots, currentWeek]
   );
 
   const load = useCallback(async () => {
@@ -80,19 +129,22 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
         setSlave((data as Profile | null) ?? null);
         if (!data) {
           setScores(EMPTY);
-          setRowId(null);
+          setPics([]);
+          setSelectedPicId(null);
           setSnapshots([]);
           return;
         }
         targetId = data.id;
       }
 
-      const [ratingRes, snapshotRes] = await Promise.all([
+      const [picRes, snapshotRes] = await Promise.all([
         supabase
-          .from("body_ratings")
+          .from("workout_weekly_pics")
           .select("*")
-          .eq("rated_for", targetId)
-          .maybeSingle(),
+          .eq("created_by", targetId)
+          .not("file_path", "is", null)
+          .order("week_start", { ascending: false })
+          .limit(52),
         supabase
           .from("body_rating_snapshots")
           .select("*")
@@ -101,24 +153,40 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
           .limit(104),
       ]);
 
-      if (ratingRes.error) throw ratingRes.error;
+      if (picRes.error) throw picRes.error;
       if (snapshotRes.error) throw snapshotRes.error;
 
-      const row = ratingRes.data as BodyRatings | null;
-      setRowId(row?.id ?? null);
-      setScores(scoresFromRow(row));
+      const rawPics = (picRes.data ?? []) as WorkoutWeeklyPic[];
+      const withUrls = await Promise.all(
+        rawPics.map(async (p) => {
+          const url = p.file_path
+            ? await signObjectUrl({ bucket: "workouts", path: p.file_path })
+            : null;
+          return { ...p, url: url ?? undefined };
+        })
+      );
+      setPics(withUrls);
       setSnapshots((snapshotRes.data ?? []) as BodyRatingSnapshot[]);
+
+      setSelectedPicId((prev) => {
+        if (prev && withUrls.some((p) => p.id === prev)) return prev;
+        return pickDefaultPicId(withUrls, currentWeek);
+      });
     } catch (err) {
       console.error(err);
       toast.error("Could not load body ratings");
     } finally {
       setLoading(false);
     }
-  }, [profile, isQueen]);
+  }, [profile, isQueen, currentWeek]);
 
   useEffect(() => {
     if (profile) void load();
   }, [profile, load]);
+
+  useEffect(() => {
+    if (isQueen) setScores(scoresFromPic(selectedPic));
+  }, [isQueen, selectedPic]);
 
   const partScores = useMemo(() => {
     const o = {} as Record<WorkoutBodyPart, number>;
@@ -127,43 +195,32 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
   }, [scores]);
 
   const save = async () => {
-    if (!isQueen || !profile || !slave) return;
+    if (!isQueen || !profile || !slave || !selectedPicId) return;
     setSaving(true);
     const supabase = createClient();
     try {
-      const payload = {
-        rated_by: profile.id,
-        rated_for: slave.id,
-        overall: scores.overall,
-        arms: scores.arms,
-        shoulders: scores.shoulders,
-        chest: scores.chest,
-        abs: scores.abs,
-        back: scores.back,
-        butt: scores.butt,
-      };
-      const { data, error } = rowId
-        ? await supabase
-            .from("body_ratings")
-            .update(payload)
-            .eq("id", rowId)
-            .select("*")
-            .single()
-        : await supabase.from("body_ratings").insert(payload).select("*").single();
+      const { data, error } = await supabase.rpc("rate_weekly_progress_pic", {
+        p_pic_id: selectedPicId,
+        p_overall: scores.overall,
+        p_arms: scores.arms,
+        p_shoulders: scores.shoulders,
+        p_chest: scores.chest,
+        p_abs: scores.abs,
+        p_back: scores.back,
+        p_butt: scores.butt,
+      });
       if (error) throw error;
-      const row = data as BodyRatings;
-      setRowId(row.id);
-      setScores(scoresFromRow(row));
+      const row = data as WorkoutWeeklyPic;
       void import("@/lib/push-client").then(({ notifyPush }) =>
         notifyPush({
           title: "Queen rated your body",
-          body: `Overall ${row.overall}/100`,
+          body: `${formatPicLabel(row)} · Overall ${row.rating_overall}/100`,
           url: "/dashboard/workouts",
           target: "slave",
           kind: "body_rating",
         })
       );
-      toast.success("Ratings saved");
+      toast.success("Rating saved to this progress pic");
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save");
@@ -198,27 +255,81 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
           Body ratings
         </p>
         <p className="font-heading text-lg text-ivory">
-          {isQueen ? "Rate his physique" : "Queen’s rating of you"}
+          {isQueen ? "Rate a progress pic" : "Queen’s rating of you"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {isQueen
+            ? "Each photo keeps its own scores — updating one won’t erase older weeks."
+            : "Swipe through ratings tied to each progress photo over time."}
         </p>
       </div>
 
-      {isQueen && !ratedThisWeek && slave && (
+      {isQueen && !ratedThisWeek && slave && pics.length > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
           <div className="min-w-0 text-sm">
             <p className="font-medium text-gold">Weekly rating due</p>
             <p className="text-muted-foreground">
-              Update {slave.username}&apos;s body scores for this week so he can
-              track progress over time.
+              Rate this week&apos;s progress pic for {slave.username} so the
+              timeline stays up to date.
             </p>
           </div>
         </div>
       )}
 
       {isSlave ? (
-        <BodyRatingHistory snapshots={snapshots} />
+        <BodyRatingHistory snapshots={snapshots} pics={pics} />
+      ) : pics.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No progress photos yet — once he uploads one, you can rate that week.
+        </p>
       ) : (
         <>
+          <div className="grid gap-4 sm:grid-cols-[120px_1fr] sm:items-start">
+            <div className="relative mx-auto aspect-[3/4] w-[120px] overflow-hidden rounded-lg border border-gold/20 bg-void/50">
+              {selectedPic?.url && selectedPic.file_path ? (
+                <WatermarkedFrame
+                  className="absolute inset-0"
+                  mediaPath={selectedPic.file_path}
+                >
+                  <Image
+                    src={selectedPic.url}
+                    alt={formatPicLabel(selectedPic)}
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                </WatermarkedFrame>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label>Progress pic</Label>
+              <Select
+                value={selectedPicId ?? undefined}
+                onValueChange={setSelectedPicId}
+              >
+                <SelectTrigger className="border-gold/20 bg-void/60">
+                  <SelectValue placeholder="Choose a photo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pics.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {formatPicLabel(p)}
+                      {p.rating_overall != null
+                        ? ` · ${p.rating_overall}/100`
+                        : " · unrated"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPic?.rating_overall != null && selectedPic.rated_at && (
+                <p className="text-[11px] text-muted-foreground">
+                  Already rated — saving updates this pic only, not older ones.
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:justify-center">
             <BodyRatingRing value={scores.overall} />
             <BodyRatingsSpider
@@ -284,14 +395,14 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
             </div>
             <Button
               type="button"
-              disabled={saving || !slave}
+              disabled={saving || !slave || !selectedPicId}
               onClick={() => void save()}
               className="bg-gold text-void hover:bg-gold-muted"
             >
               {saving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Save ratings
+              Save to this pic
             </Button>
             {!slave && (
               <p className="text-xs text-muted-foreground">
@@ -299,6 +410,15 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
               </p>
             )}
           </div>
+
+          {snapshots.length > 0 && (
+            <div className="border-t border-gold/10 pt-4">
+              <p className="mb-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+                History by week
+              </p>
+              <BodyRatingHistory snapshots={snapshots} pics={pics} />
+            </div>
+          )}
         </>
       )}
     </div>

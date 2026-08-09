@@ -286,7 +286,7 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
         </p>
         <p className="font-heading text-lg text-ivory">Pics over time</p>
         <p className="text-xs text-muted-foreground">
-          One photo a week — watch the timeline grow
+          One photo a week — each keeps Queen&apos;s body rating over time
         </p>
       </div>
 
@@ -349,6 +349,9 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
                   >
                     <p className="text-[10px] uppercase tracking-wider text-gold/90">
                       {label} · {formatDate(pic.taken_on || pic.week_start)}
+                      {pic.rating_overall != null
+                        ? ` · ${pic.rating_overall}/100`
+                        : ""}
                     </p>
                     <div className="relative aspect-[3/4] overflow-hidden rounded-md border border-gold/10 bg-void/50">
                       {pic.url && pic.file_path && (
@@ -364,6 +367,11 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
                             className="object-cover"
                           />
                         </WatermarkedFrame>
+                      )}
+                      {pic.rating_overall != null && (
+                        <span className="absolute bottom-1.5 left-1.5 rounded bg-void/80 px-1.5 py-0.5 text-[10px] font-medium text-gold">
+                          {pic.rating_overall}/100
+                        </span>
                       )}
                     </div>
                   </div>
@@ -426,6 +434,15 @@ export function WorkoutWeeklyProgress({ className }: { className?: string }) {
                               <Camera className="h-6 w-6 opacity-40" />
                             </div>
                           )}
+                          {entry.rating_overall != null ? (
+                            <span className="absolute bottom-1 left-1 rounded bg-void/85 px-1.5 py-0.5 text-[10px] font-medium text-gold">
+                              {entry.rating_overall}/100
+                            </span>
+                          ) : entry.file_path ? (
+                            <span className="absolute bottom-1 left-1 rounded bg-void/85 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                              Unrated
+                            </span>
+                          ) : null}
                         </div>
                       </button>
 

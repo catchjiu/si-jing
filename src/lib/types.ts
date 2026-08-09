@@ -548,6 +548,7 @@ export type BodyRatingSnapshot = {
   butt: number;
   week_start: string;
   rated_at: string;
+  weekly_pic_id?: string | null;
 };
 
 export type JealousyMissionSourceType =
@@ -689,6 +690,16 @@ export type WorkoutWeeklyPic = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Body rating attached to this progress pic (null until Queen rates it) */
+  rating_overall: number | null;
+  rating_arms: number | null;
+  rating_shoulders: number | null;
+  rating_chest: number | null;
+  rating_abs: number | null;
+  rating_back: number | null;
+  rating_butt: number | null;
+  rated_by: string | null;
+  rated_at: string | null;
 };
 
 export const FLIRT_STATUS_LABELS: Record<FlirtStatus, string> = {

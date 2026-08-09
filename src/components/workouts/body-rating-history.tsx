@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   BODY_PARTS,
   BODY_PART_LABELS,
   type WorkoutBodyPart,
 } from "@/lib/workout-exercises";
-import type { BodyRatingSnapshot } from "@/lib/types";
+import type { BodyRatingSnapshot, WorkoutWeeklyPic } from "@/lib/types";
 import { BodyRatingRing } from "@/components/workouts/body-rating-ring";
 import { BodyRatingsSpider } from "@/components/workouts/body-ratings-spider";
+import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +20,11 @@ const SWIPE_THRESHOLD = 48;
 type Scores = {
   overall: number;
 } & Record<WorkoutBodyPart, number>;
+
+type PicWithUrl = Pick<
+  WorkoutWeeklyPic,
+  "id" | "week_start" | "file_path" | "taken_on"
+> & { url?: string };
 
 function scoresFromSnapshot(row: BodyRatingSnapshot): Scores {
   return {
@@ -50,11 +57,25 @@ function formatWeekLabel(weekStart: string, ratedAt: string) {
   }
 }
 
+function picForSnapshot(
+  snap: BodyRatingSnapshot,
+  pics: PicWithUrl[]
+): PicWithUrl | null {
+  if (snap.weekly_pic_id) {
+    const byId = pics.find((p) => p.id === snap.weekly_pic_id);
+    if (byId) return byId;
+  }
+  return pics.find((p) => p.week_start === snap.week_start) ?? null;
+}
+
 export function BodyRatingHistory({
   snapshots,
+  pics = [],
   className,
 }: {
   snapshots: BodyRatingSnapshot[];
+  /** Progress pics used to show the photo attached to each rating */
+  pics?: PicWithUrl[];
   className?: string;
 }) {
   const sorted = useMemo(
@@ -78,6 +99,10 @@ export function BodyRatingHistory({
   }, [snapshots]);
 
   const current = sorted[index] ?? null;
+  const currentPic = useMemo(
+    () => (current ? picForSnapshot(current, pics) : null),
+    [current, pics]
+  );
   const scores = useMemo(
     () => (current ? scoresFromSnapshot(current) : null),
     [current]
@@ -207,6 +232,22 @@ export function BodyRatingHistory({
           )}
           style={{ transform: `translateX(${offset}px)` }}
         >
+          {currentPic?.url && currentPic.file_path && (
+            <div className="relative aspect-[3/4] w-[110px] shrink-0 overflow-hidden rounded-lg border border-gold/20 bg-void/50 sm:w-[128px]">
+              <WatermarkedFrame
+                className="absolute inset-0"
+                mediaPath={currentPic.file_path}
+              >
+                <Image
+                  src={currentPic.url}
+                  alt={`Progress ${week}`}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </WatermarkedFrame>
+            </div>
+          )}
           <BodyRatingRing value={scores.overall} />
           <BodyRatingsSpider
             scores={partScores}
@@ -252,7 +293,7 @@ export function BodyRatingHistory({
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Overall {scores.overall}/100 · updated by Queen
+        Overall {scores.overall}/100 · tied to that week&apos;s progress pic
         {sorted.length > 1 ? " · swipe for history" : ""}
       </p>
     </div>

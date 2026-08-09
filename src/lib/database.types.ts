@@ -1192,6 +1192,7 @@ export type Database = {
           butt: number
           week_start: string
           rated_at: string
+          weekly_pic_id: string | null
         }
         Insert: {
           id?: string
@@ -1206,6 +1207,7 @@ export type Database = {
           butt?: number
           week_start: string
           rated_at?: string
+          weekly_pic_id?: string | null
         }
         Update: {
           id?: string
@@ -1219,6 +1221,7 @@ export type Database = {
           back?: number
           butt?: number
           week_start?: string
+          weekly_pic_id?: string | null
           rated_at?: string
         }
         Relationships: []
@@ -1347,6 +1350,15 @@ export type Database = {
           notes: string | null
           created_at: string
           updated_at: string
+          rating_overall: number | null
+          rating_arms: number | null
+          rating_shoulders: number | null
+          rating_chest: number | null
+          rating_abs: number | null
+          rating_back: number | null
+          rating_butt: number | null
+          rated_by: string | null
+          rated_at: string | null
         }
         Insert: {
           id?: string
@@ -1357,6 +1369,15 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          rating_overall?: number | null
+          rating_arms?: number | null
+          rating_shoulders?: number | null
+          rating_chest?: number | null
+          rating_abs?: number | null
+          rating_back?: number | null
+          rating_butt?: number | null
+          rated_by?: string | null
+          rated_at?: string | null
         }
         Update: {
           id?: string
@@ -1367,6 +1388,15 @@ export type Database = {
           notes?: string | null
           created_at?: string
           updated_at?: string
+          rating_overall?: number | null
+          rating_arms?: number | null
+          rating_shoulders?: number | null
+          rating_chest?: number | null
+          rating_abs?: number | null
+          rating_back?: number | null
+          rating_butt?: number | null
+          rated_by?: string | null
+          rated_at?: string | null
         }
         Relationships: []
       }
@@ -3433,6 +3463,19 @@ export type Database = {
       ensure_body_inspection_week: {
         Args: { p_week_start?: string | null }
         Returns: string
+      }
+      rate_weekly_progress_pic: {
+        Args: {
+          p_pic_id: string
+          p_overall: number
+          p_arms: number
+          p_shoulders: number
+          p_chest: number
+          p_abs: number
+          p_back: number
+          p_butt: number
+        }
+        Returns: Database["public"]["Tables"]["workout_weekly_pics"]["Row"]
       }
       prompt_weekly_progress_pic: { Args: never; Returns: number }
       ensure_queen_slave_conversation: { Args: never; Returns: string }
