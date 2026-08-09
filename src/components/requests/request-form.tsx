@@ -20,6 +20,7 @@ import {
   formatDenialBlockReason,
   type DenialLedger,
 } from "@/lib/denial";
+import { fetchPointsBalance } from "@/lib/points";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
@@ -68,6 +69,7 @@ export function RequestForm({
   const [submitting, setSubmitting] = useState(false);
   const [contactBlocked, setContactBlocked] = useState(false);
   const [denialLedger, setDenialLedger] = useState<DenialLedger | null>(null);
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
 
   const label = useMemo(() => desireLabel(desire), [desire]);
   const orgasmBlocked =
@@ -103,6 +105,9 @@ export function RequestForm({
     void fetchDenialLedger(supabase)
       .then(setDenialLedger)
       .catch(() => setDenialLedger(null));
+    void fetchPointsBalance(supabase, profile.id)
+      .then(setPointsBalance)
+      .catch(() => setPointsBalance(null));
   }, [isSlave, profile]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -291,6 +296,11 @@ export function RequestForm({
           <p className="text-xs text-muted-foreground">
             Ask, and show how badly you want it
           </p>
+          {pointsBalance != null && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              You have {pointsBalance} points
+            </p>
+          )}
         </div>
       </div>
 

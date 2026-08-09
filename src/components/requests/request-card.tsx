@@ -7,11 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { DesireRequest } from "@/lib/types";
 import { desireColor, desireLabel, REQUEST_TYPE_LABELS } from "@/lib/requests";
+import { adjustPoints, fetchPointsBalance } from "@/lib/points";
 import { formatRelative } from "@/lib/format";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,7 @@ export function RequestCard({
 }: RequestCardProps) {
   const { profile } = useAuth();
   const [response, setResponse] = useState("");
+  const [pointCostInput, setPointCostInput] = useState("");
   const [busy, setBusy] = useState<
     "approve" | "deny" | "withdraw" | "respond" | "close" | "delete" | null
   >(null);
@@ -69,6 +72,27 @@ export function RequestCard({
     (request.requested_by === profile?.id || isQueen);
 
   const respond = async (decision: "approved" | "denied") => {
+    const parsedCost = Number.parseInt(pointCostInput, 10);
+    const charge =
+      decision === "approved" && Number.isFinite(parsedCost) && parsedCost > 0
+        ? parsedCost
+        : null;
+
+    if (charge != null && profile?.id) {
+      const supabase = createClient();
+      const balance = await fetchPointsBalance(supabase, request.requested_by);
+      if (balance < charge) {
+        toast.warning(`D only has ${balance} points`);
+        if (
+          !window.confirm(
+            `D only has ${balance} points. Charge ${charge} anyway? Balance can go negative.`
+          )
+        ) {
+          return;
+        }
+      }
+    }
+
     setBusy(decision === "approved" ? "approve" : "deny");
     const supabase = createClient();
     const { error } = await supabase
@@ -79,20 +103,42 @@ export function RequestCard({
           ? formatRoleSpeech(response.trim(), "queen")
           : null,
         responded_at: new Date().toISOString(),
+        ...(decision === "approved" ? { point_cost: charge } : {}),
       })
       .eq("id", request.id);
 
-    setBusy(null);
     if (error) {
+      setBusy(null);
       toast.error("Could not respond");
       return;
     }
+
+    if (charge != null && profile?.id) {
+      const pointsResult = await adjustPoints(supabase, {
+        userId: request.requested_by,
+        delta: -charge,
+        reason: `Charged for: ${request.title}`,
+        createdBy: profile.id,
+        entityType: "request",
+        entityId: request.id,
+      });
+      if (pointsResult.error) {
+        toast.error(pointsResult.error);
+      }
+    }
+
+    setBusy(null);
     toast.success(decision === "approved" ? "Request approved" : "Request denied");
     setResponse("");
+    setPointCostInput("");
+    const pushBody =
+      decision === "approved" && charge != null
+        ? `${request.title} — ${charge} points charged`
+        : request.title;
     void import("@/lib/push-client").then(({ notifyPush }) =>
       notifyPush({
         title: decision === "approved" ? "Request granted" : "Request denied",
-        body: request.title,
+        body: pushBody,
         url: "/dashboard/requests",
         target: "slave",
       })
@@ -220,6 +266,14 @@ export function RequestCard({
             >
               {request.status}
             </Badge>
+            {request.point_cost != null && request.point_cost > 0 && (
+              <Badge
+                variant="outline"
+                className="border-gold/40 text-[10px] uppercase tracking-wider text-gold"
+              >
+                − {request.point_cost} pts
+              </Badge>
+            )}
             <Badge
               variant="outline"
               className="border-muted text-[10px] uppercase tracking-wider text-muted-foreground"
@@ -400,7 +454,27 @@ export function RequestCard({
               className="border-gold/20 bg-void/60"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-28 space-y-1">
+              <Label
+                htmlFor={`charge-${request.id}`}
+                className="text-[10px] text-muted-foreground"
+              >
+                Charge points (optional)
+              </Label>
+              <Input
+                id={`charge-${request.id}`}
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={pointCostInput}
+                onChange={(e) => setPointCostInput(e.target.value)}
+                placeholder="0"
+                disabled={busy !== null}
+                className="h-9 border-gold/20 bg-void/60"
+              />
+            </div>
             <Button
               onClick={() => void respond("approved")}
               disabled={busy !== null}

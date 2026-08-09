@@ -705,6 +705,7 @@ export type Database = {
           assigned_to: string | null
           slave_response: string | null
           slave_responded_at: string | null
+          point_cost: number | null
         }
         Insert: {
           id?: string
@@ -723,6 +724,7 @@ export type Database = {
           assigned_to?: string | null
           slave_response?: string | null
           slave_responded_at?: string | null
+          point_cost?: number | null
         }
         Update: {
           id?: string
@@ -741,6 +743,7 @@ export type Database = {
           assigned_to?: string | null
           slave_response?: string | null
           slave_responded_at?: string | null
+          point_cost?: number | null
         }
         Relationships: [
           {

@@ -52,6 +52,8 @@ export async function adjustPoints(
     delta: number;
     reason: string;
     createdBy: string;
+    entityType?: string | null;
+    entityId?: string | null;
   }
 ): Promise<{ error?: string }> {
   if (opts.delta === 0) return { error: "Amount cannot be zero" };
@@ -60,6 +62,8 @@ export async function adjustPoints(
     delta: opts.delta,
     reason: opts.reason.trim() || (opts.delta > 0 ? "Queen award" : "Queen deduction"),
     created_by: opts.createdBy,
+    entity_type: opts.entityType ?? null,
+    entity_id: opts.entityId ?? null,
   });
   return error ? { error: error.message } : {};
 }
