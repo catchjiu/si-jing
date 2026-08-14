@@ -228,6 +228,7 @@ export async function fetchRecentActivity(
       apartmentFundEntries,
       edgeLogs,
       edgeLogComments,
+      flirtEntries,
       flirtMessages,
       flirtEntryComments,
       dateMessages,
@@ -438,6 +439,13 @@ export async function fetchRecentActivity(
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
       supabase
+        .from("flirt_entries")
+        .select(
+          "id, body, created_at, guy_id, media_kind, author_id, author:users!author_id(id, role, username), guy:flirt_guys!guy_id(name, assigned_to)"
+        )
+        .order("created_at", { ascending: false })
+        .limit(FETCH_LIMIT),
+      supabase
         .from("flirt_messages")
         .select(
           "id, content, image_path, created_at, guy_id, author_id, author:users!author_id(id, role, username), guy:flirt_guys!guy_id(name, assigned_to)"
@@ -601,6 +609,29 @@ export async function fetchRecentActivity(
         kind: "date_timeline",
         context: date?.title ?? null,
         author: dp.author as { id?: string; role?: string } | null,
+      });
+    }
+
+    for (const e of flirtEntries.data ?? []) {
+      const guy = e.guy as { name?: string; assigned_to?: string } | null;
+      if (
+        !isFromOtherParty(
+          e.author as { id?: string; role?: string } | null,
+          profile
+        )
+      ) {
+        continue;
+      }
+      const snippet =
+        (e.body as string | null)?.trim().slice(0, 80) ||
+        (e.media_kind === "image" ? "Photo" : "Update");
+      pushItem(items, {
+        id: `flirt-entry-${e.id}`,
+        at: e.created_at as string,
+        title: "Flirt update",
+        body: guy?.name ? `${guy.name} — ${snippet}` : snippet,
+        href: flirtPageHref(e.guy_id as string, { entryId: e.id as string }),
+        kind: "flirt_entry",
       });
     }
 
@@ -1325,7 +1356,7 @@ export async function fetchRecentActivity(
       supabase
         .from("flirt_entries")
         .select(
-          "id, body, created_at, guy_id, media_kind, guy:flirt_guys!guy_id(name, assigned_to)"
+          "id, body, created_at, guy_id, media_kind, author_id, author:users!author_id(id, role, username), guy:flirt_guys!guy_id(name, assigned_to)"
         )
         .order("created_at", { ascending: false })
         .limit(FETCH_LIMIT),
@@ -1812,6 +1843,14 @@ export async function fetchRecentActivity(
         assigned_to?: string;
       } | null;
       if (guy?.assigned_to && guy.assigned_to !== profile.id) continue;
+      if (
+        !isFromOtherParty(
+          e.author as { id?: string; role?: string } | null,
+          profile
+        )
+      ) {
+        continue;
+      }
       const snippet =
         (e.body as string | null)?.trim().slice(0, 80) ||
         (e.media_kind === "image" ? "Photo" : "Update");
