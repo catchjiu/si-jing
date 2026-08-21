@@ -28,7 +28,8 @@ export type MessageAttachmentType =
   | "worship"
   | "worship_assignment"
   | "denial"
-  | "jealousy_mission";
+  | "jealousy_mission"
+  | "story";
 
 export type MessageMediaType = "image" | "video";
 
@@ -572,6 +573,7 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     worship_assignment: "Worship assignment",
     denial: "Denial",
     jealousy_mission: "Jealousy mission",
+    story: "Story",
   };
   return labels[type];
 }

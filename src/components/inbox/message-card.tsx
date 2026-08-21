@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Ban,
   BookOpen,
+  BookMarked,
   CalendarHeart,
   Gift,
   Crown,
@@ -39,6 +40,7 @@ const ICONS: Record<
   request: HandHeart,
   date: CalendarHeart,
   journal: BookOpen,
+  story: BookMarked,
   wishlist: Heart,
   worship: Crown,
   worship_assignment: Sparkle,

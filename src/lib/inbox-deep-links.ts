@@ -81,6 +81,15 @@ export function flirtPageHref(
   return qs ? `${base}?${qs}` : base;
 }
 
+export function storyPageHref(
+  storyId: string,
+  opts?: { commentId?: string | null }
+): string {
+  const params = new URLSearchParams({ story: storyId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  return `/dashboard/story?${params.toString()}`;
+}
+
 export function rewardPageHref(rewardId: string): string {
   return `/dashboard/rewards?reward=${encodeURIComponent(rewardId)}`;
 }
@@ -174,6 +183,7 @@ export function messageAttachmentHref(opts: {
   if (type === "request") return requestPageHref(id);
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
+  if (type === "story") return storyPageHref(id);
   if (type === "wishlist") return wishlistDeepLink(id, anchor);
   if (type === "worship") return worshipDeepLink(id, anchor);
   if (type === "worship_assignment") return `/dashboard/worship`;

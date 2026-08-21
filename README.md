@@ -68,8 +68,12 @@ docker compose up --build
 | `/dashboard/tasks` | Task list + filters |
 | `/dashboard/tasks/new` | Queen: assign task |
 | `/dashboard/task/[id]` | Detail / submit / review |
+| `/dashboard/journal` | Shared journal |
+| `/dashboard/story` | Shared stories (rich text; slave Claude rewrite) |
 | `/dashboard/submissions/[id]` | Media, approve/reject, comments |
 | `/dashboard/profile` | Avatar + stats |
+
+Set `ANTHROPIC_API_KEY` for slave story rewrite via Claude.
 
 ## Supabase project
 

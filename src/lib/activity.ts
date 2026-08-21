@@ -15,6 +15,7 @@ import {
   teasePageHref,
   voiceNotePageHref,
   wishlistPageHref,
+  storyPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -95,6 +96,7 @@ const COMMENT_ATTACHMENT_TYPES = new Set([
   "wishlist",
   "worship",
   "denial",
+  "story",
 ]);
 
 function pushOtherPartyAdd(
@@ -1943,6 +1945,53 @@ export async function fetchRecentActivity(
         kind: "voice_note",
       });
     }
+  }
+
+  // Stories (shared between roles; drafts only visible to author via RLS)
+  const [storyRows, storyCommentRows] = await Promise.all([
+    supabase
+      .from("stories")
+      .select(
+        "id, title, status, created_at, author_id, author:users!author_id(id, role, username)"
+      )
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("story_comments")
+      .select(
+        "id, content, created_at, story_id, author_id, author:users!author_id(id, role, username), story:stories(title)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+  ]);
+
+  for (const s of storyRows.data ?? []) {
+    pushOtherPartyAdd(items, profile, {
+      id: `story-${s.id}`,
+      at: s.created_at as string,
+      where: "story",
+      body: (s.title as string) || "New story",
+      href: storyPageHref(s.id as string),
+      kind: "story",
+      author: s.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  for (const c of storyCommentRows.data ?? []) {
+    const story = c.story as { title?: string } | null;
+    pushOtherPartyComment(items, profile, {
+      id: `story-comment-${c.id}`,
+      at: c.created_at as string,
+      content: c.content as string,
+      where: "story",
+      href: storyPageHref(c.story_id as string, {
+        commentId: c.id as string,
+      }),
+      kind: "story_comment",
+      context: story?.title ?? null,
+      author: c.author as { id?: string; role?: string } | null,
+    });
   }
 
   // Dedupe by id, sort newest first, take limit

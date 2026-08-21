@@ -146,3 +146,61 @@
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* TipTap / story HTML */
+.story-prose .ProseMirror,
+.story-prose {
+  word-break: break-word;
+}
+.story-prose p {
+  margin: 0.55em 0;
+}
+.story-prose h2 {
+  margin: 0.9em 0 0.4em;
+  font-family: var(--font-playfair), serif;
+  font-size: 1.25rem;
+  color: #f5f5f5;
+}
+.story-prose h3 {
+  margin: 0.8em 0 0.35em;
+  font-family: var(--font-playfair), serif;
+  font-size: 1.05rem;
+  color: #f5f5f5;
+}
+.story-prose ul,
+.story-prose ol {
+  margin: 0.5em 0;
+  padding-left: 1.25rem;
+}
+.story-prose ul {
+  list-style: disc;
+}
+.story-prose ol {
+  list-style: decimal;
+}
+.story-prose blockquote {
+  margin: 0.7em 0;
+  border-left: 2px solid rgba(212, 175, 55, 0.45);
+  padding-left: 0.85rem;
+  color: rgba(245, 245, 245, 0.75);
+  font-style: italic;
+}
+.story-prose hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid rgba(212, 175, 55, 0.2);
+}
+.story-prose strong {
+  font-weight: 600;
+  color: #f5f5f5;
+}
+.story-prose em {
+  font-style: italic;
+}
+.story-prose .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #737373;
+}

@@ -259,7 +259,8 @@ export type MessageAttachmentType =
   | "wishlist"
   | "worship"
   | "worship_assignment"
-  | "denial";
+  | "denial"
+  | "story";
 export type MessageMediaType = "image" | "video";
 
 export type DirectMessage = {
@@ -365,6 +366,26 @@ export type JournalEntryWithSignedUrl = JournalEntry & {
 export type JournalComment = {
   id: string;
   entry_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+};
+
+export type StoryStatus = "draft" | "published";
+
+export type Story = {
+  id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  status: StoryStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StoryComment = {
+  id: string;
+  story_id: string;
   author_id: string;
   content: string;
   created_at: string;

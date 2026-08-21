@@ -167,6 +167,23 @@ async function loadPreview(
     };
   }
 
+  if (type === "story") {
+    const { data } = await supabase
+      .from("stories")
+      .select("id, title, body, status")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return null;
+    const plain = ((data.body as string) ?? "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return {
+      title: (data.title as string) || "Story",
+      body: plain.slice(0, 160) || null,
+    };
+  }
+
   if (type === "task") {
     const { data } = await supabase
       .from("tasks")
