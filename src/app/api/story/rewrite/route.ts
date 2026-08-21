@@ -105,10 +105,12 @@ export async function POST(request: Request) {
     .join("\n");
 
   const client = new Anthropic({ apiKey });
+  const model =
+    process.env.ANTHROPIC_STORY_MODEL?.trim() || "claude-sonnet-4-6";
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: 8192,
       system: [
         "You rewrite fiction drafts for a private writing app.",
@@ -156,8 +158,22 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ html: outHtml });
   } catch (err) {
-    const message =
+    let message =
       err instanceof Error ? err.message : "Claude rewrite failed";
+    // Surface Anthropic API error bodies cleanly (e.g. model not_found).
+    try {
+      const raw = typeof err === "object" && err && "error" in err
+        ? (err as { error?: { error?: { message?: string }; message?: string } })
+            .error
+        : null;
+      const apiMsg = raw?.error?.message || raw?.message;
+      if (apiMsg) message = apiMsg;
+    } catch {
+      // keep original
+    }
+    if (/not_found|model/i.test(message)) {
+      message = `Claude model unavailable (${model}). Check ANTHROPIC_API_KEY access or set ANTHROPIC_STORY_MODEL.`;
+    }
     console.error("story rewrite failed", err);
     return NextResponse.json({ error: message }, { status: 502 });
   }
