@@ -10,10 +10,12 @@ import {
   Tags,
   X,
 } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 import {
   STORY_REWRITE_PROMPTS,
   type StoryRewritePromptId,
 } from "@/lib/story-prompts";
+import { formatRoleSpeechHtml } from "@/lib/role-speech";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +39,7 @@ export function StoryRewritePanel({
   disabled,
   className,
 }: StoryRewritePanelProps) {
+  const { profile } = useAuth();
   const [provider, setProvider] = useState<StoryRewriteProvider>("claude");
   const [selected, setSelected] = useState<StoryRewritePromptId[]>([]);
   const [extraNote, setExtraNote] = useState("");
@@ -44,6 +47,7 @@ export function StoryRewritePanel({
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const providerLabel = provider === "grok" ? "Grok 4.5" : "Claude";
+  const authorRole = profile?.role;
 
   const toggle = (id: StoryRewritePromptId) => {
     setSelected((prev) =>
@@ -77,7 +81,9 @@ export function StoryRewritePanel({
       if (!data.html) {
         throw new Error("No rewritten story returned");
       }
-      setPreviewHtml(sanitizeStoryHtml(data.html));
+      setPreviewHtml(
+        formatRoleSpeechHtml(sanitizeStoryHtml(data.html), authorRole)
+      );
       toast.success(
         `${providerLabel} preview ready — accept it, or refine with more prompts`
       );
@@ -90,7 +96,7 @@ export function StoryRewritePanel({
 
   const acceptPreview = () => {
     if (!previewHtml) return;
-    onApply(previewHtml);
+    onApply(formatRoleSpeechHtml(previewHtml, authorRole));
     setPreviewHtml(null);
     setSelected([]);
     setExtraNote("");

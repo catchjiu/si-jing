@@ -42,6 +42,39 @@ export function formatRoleSpeech(
   ]);
 }
 
+/** Apply role speech only to text nodes; leave HTML tags untouched. */
+export function formatRoleSpeechHtml(
+  html: string,
+  role: UserRole | null | undefined
+): string {
+  if (!html || !role) return html;
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (match, tag: string, text: string) => {
+    if (tag) return tag;
+    return formatRoleSpeech(text, role);
+  });
+}
+
+/** Short instruction block for AI rewrites so they match site orthography. */
+export function roleSpeechAiInstructions(
+  role: UserRole | null | undefined
+): string {
+  if (role === "queen") {
+    return [
+      "Role-speech orthography (required):",
+      "Write as Queen. Capitalize self-references: I, Me, I'm, I'll, I've, I'd, Queen.",
+      "Lowercase when referring to the slave: you, slave.",
+    ].join(" ");
+  }
+  if (role === "slave") {
+    return [
+      "Role-speech orthography (required):",
+      "Write as the slave. Lowercase self-references: i, me, i'm, i'll, i've, i'd — except capitalize the role title Slave.",
+      "Capitalize Queen references: You, Queen, You're, You'll, You've, You'd.",
+    ].join(" ");
+  }
+  return "";
+}
+
 function applyReplacements(
   text: string,
   rules: [RegExp, string][]

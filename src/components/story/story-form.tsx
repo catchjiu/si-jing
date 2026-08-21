@@ -11,6 +11,7 @@ import {
   storyHtmlHasText,
   storyHtmlExcerpt,
 } from "@/lib/sanitize-html";
+import { formatRoleSpeech, formatRoleSpeechHtml } from "@/lib/role-speech";
 import { storyPageHref } from "@/lib/inbox-deep-links";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
@@ -53,8 +54,11 @@ export function StoryForm({
     e.preventDefault();
     if (!profile) return;
 
-    const trimmedTitle = title.trim();
-    const cleanBody = sanitizeStoryHtml(body);
+    const trimmedTitle = formatRoleSpeech(title.trim(), profile.role);
+    const cleanBody = formatRoleSpeechHtml(
+      sanitizeStoryHtml(body),
+      profile.role
+    );
 
     if (!trimmedTitle) {
       toast.error("Add a title");
@@ -166,8 +170,8 @@ export function StoryForm({
           </h3>
           <p className="text-xs text-muted-foreground">
             {isEdit
-              ? "Edit your story — only the author can change it"
-              : "Rich text draft — publish when ready for the other to read"}
+              ? "Edit your story — Queen/slave speech formatting applies on save"
+              : "Rich text draft — role speech formatting applies on save"}
           </p>
         </div>
       </div>
