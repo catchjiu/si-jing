@@ -73,8 +73,9 @@ docker compose up --build
 | `/dashboard/submissions/[id]` | Media, approve/reject, comments |
 | `/dashboard/profile` | Avatar + stats |
 
-Set `ANTHROPIC_API_KEY` for Claude story rewrite, and/or `XAI_API_KEY` for Grok 4.5.
-Optional overrides: `ANTHROPIC_STORY_MODEL` (default `claude-sonnet-4-6`), `XAI_STORY_MODEL` (default `grok-4.5`).
+Set `ANTHROPIC_API_KEY` for Claude story rewrite, and/or `XAI_API_KEY` for Grok rewrite + blog covers.
+Optional: `ANTHROPIC_STORY_MODEL`, `XAI_STORY_MODEL` (default `grok-4.5`), `XAI_IMAGINE_MODEL` (default `grok-imagine-image-2.0`).
+Upload Queen/slave **face reference** photos on Profile so Grok can match faces on story covers.
 
 ## Supabase project
 

@@ -2743,6 +2743,7 @@ export type Database = {
       users: {
         Row: {
           avatar_url: string | null
+          face_ref_path: string | null
           created_at: string
           email: string
           id: string
@@ -2751,6 +2752,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          face_ref_path?: string | null
           created_at?: string
           email: string
           id: string
@@ -2759,6 +2761,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          face_ref_path?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -2983,6 +2986,8 @@ export type Database = {
           title: string
           body: string
           status: string
+          cover_image_path: string | null
+          cover_prompt: string | null
           created_at: string
           updated_at: string
         }
@@ -2992,6 +2997,8 @@ export type Database = {
           title: string
           body?: string
           status?: string
+          cover_image_path?: string | null
+          cover_prompt?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -3001,6 +3008,8 @@ export type Database = {
           title?: string
           body?: string
           status?: string
+          cover_image_path?: string | null
+          cover_prompt?: string | null
           created_at?: string
           updated_at?: string
         }

@@ -15,6 +15,8 @@ export function shouldWatermarkUploadClient(opts: {
   if (!IMAGE_TYPES.has(type)) return false;
   const rel = (opts.relativePath ?? "").replace(/^\/+/, "").toLowerCase();
   if (rel.includes("/avatars/") || rel.startsWith("avatars/")) return false;
+  if (rel.includes("/face-refs/") || rel.startsWith("face-refs/")) return false;
+  if (rel.includes("/covers/") || rel.startsWith("covers/")) return false;
   return true;
 }
 

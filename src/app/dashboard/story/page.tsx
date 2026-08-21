@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { Profile, Story } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
+import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +18,13 @@ import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { StoryForm } from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
+import { StoryCoverButton } from "@/components/story/story-cover-button";
 
 type StoryAuthor = Pick<Profile, "id" | "username" | "role" | "avatar_url">;
 
 type StoryRow = Story & {
   author?: StoryAuthor | null;
+  coverSignedUrl?: string | null;
 };
 
 function authorInitials(name: string | undefined) {
@@ -66,7 +69,23 @@ function StoryPageInner() {
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setStories((data as StoryRow[]) ?? []);
+      const rows = (data as StoryRow[]) ?? [];
+      const withCovers = await Promise.all(
+        rows.map(async (story) => {
+          if (!story.cover_image_path) return { ...story, coverSignedUrl: null };
+          try {
+            const url = await signObjectUrl({
+              bucket: "stories",
+              path: story.cover_image_path,
+              expiresIn: 60 * 60,
+            });
+            return { ...story, coverSignedUrl: url };
+          } catch {
+            return { ...story, coverSignedUrl: null };
+          }
+        })
+      );
+      setStories(withCovers);
     } catch (err) {
       console.error("Failed to load stories", err);
       toast.error("Could not load stories");
@@ -125,8 +144,8 @@ function StoryPageInner() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isQueen
-              ? "Write or read shared stories — comment when something moves you"
-              : "Write stories with rich text, polish with Claude, share with Queen"}
+              ? "Blog-style stories with Grok covers — upload your face ref in Profile"
+              : "Write, polish with AI, and generate a Grok blog cover from your story"}
           </p>
         </div>
         {(isQueen || isSlave) && !showForm && !editingId && (
@@ -153,14 +172,13 @@ function StoryPageInner() {
         />
       )}
 
-      <section className="space-y-4">
-        <h2 className="font-heading text-xl text-gold">Stories</h2>
+      <section className="space-y-8">
         {stories.length === 0 ? (
           <div className="rounded-xl border border-gold/15 bg-charcoal/60 px-6 py-10 text-center text-sm text-muted-foreground">
             No stories yet. Write the first one.
           </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-10">
             {stories.map((story) => {
               const mine = story.author_id === profile?.id;
               const isQueenAuthor = story.author?.role === "queen";
@@ -177,118 +195,158 @@ function StoryPageInner() {
                   key={story.id}
                   id={`story-${story.id}`}
                   className={cn(
-                    "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
+                    "overflow-hidden rounded-xl border bg-charcoal/80",
                     story.id === highlightId || isEditing
                       ? "border-gold/40"
                       : "border-gold/15"
                   )}
                 >
-                  <div className="mb-4 flex flex-wrap items-start gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <Avatar className="shrink-0 ring-1 ring-gold/25">
-                        <SignedAvatarImage
-                          avatarUrl={story.author?.avatar_url}
-                          alt={displayName}
-                        />
-                        <AvatarFallback
-                          className={cn(
-                            "text-[11px]",
-                            isQueenAuthor
-                              ? "bg-gold/20 text-gold"
-                              : "bg-royal text-ivory/90"
-                          )}
-                        >
-                          {authorInitials(displayName)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p
-                          className={cn(
-                            "truncate text-sm font-medium",
-                            isQueenAuthor ? "text-gold" : "text-ivory"
-                          )}
-                        >
-                          {displayName}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {isQueenAuthor ? "Queen" : "Slave"} ·{" "}
-                          {formatRelative(story.updated_at)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[10px] uppercase tracking-wider",
-                          story.status === "draft"
-                            ? "border-muted text-muted-foreground"
-                            : "border-gold/40 text-gold"
-                        )}
-                      >
-                        {story.status}
-                      </Badge>
-                      {canEdit && !isEditing && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 border-gold/25 px-2 text-xs"
-                          onClick={() => {
-                            setShowForm(false);
-                            setEditingId(story.id);
-                          }}
-                        >
-                          <Pencil className="mr-1 h-3 w-3" />
-                          Edit
-                        </Button>
-                      )}
-                      {canDelete && !isEditing && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
-                          onClick={() => void removeStory(story)}
-                        >
-                          <Trash2 className="mr-1 h-3 w-3" />
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
                   {isEditing ? (
-                    <StoryForm
-                      key={story.id}
-                      story={story}
-                      onCancel={() => setEditingId(null)}
-                      onSuccess={(id) => {
-                        setEditingId(null);
-                        setHighlightId(id);
-                        void load();
-                      }}
-                    />
+                    <div className="p-4 sm:p-5">
+                      <StoryForm
+                        key={story.id}
+                        story={story}
+                        onCancel={() => setEditingId(null)}
+                        onSuccess={(id) => {
+                          setEditingId(null);
+                          setHighlightId(id);
+                          void load();
+                        }}
+                      />
+                    </div>
                   ) : (
-                    <>
-                      <h3 className="font-heading mb-3 text-xl text-ivory">
-                        {story.title}
-                      </h3>
-                      <StoryHtmlView html={safeHtml} />
+                    <article>
+                      {/* Blog cover / heading band */}
+                      <div className="relative">
+                        {story.coverSignedUrl ? (
+                          <div className="relative aspect-[16/9] w-full bg-void">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={story.coverSignedUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-void via-void/40 to-transparent" />
+                            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
+                              <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-gold/90">
+                                Story
+                              </p>
+                              <h2 className="font-heading text-2xl text-ivory sm:text-4xl">
+                                {story.title}
+                              </h2>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-b border-gold/10 bg-gradient-to-br from-royal/40 via-charcoal to-void px-4 py-8 sm:px-6 sm:py-10">
+                            <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-gold/90">
+                              Story
+                            </p>
+                            <h2 className="font-heading text-2xl text-ivory sm:text-4xl">
+                              {story.title}
+                            </h2>
+                          </div>
+                        )}
+                      </div>
 
-                      {story.status === "published" ? (
-                        <div className="mt-4">
+                      <div className="space-y-5 p-4 sm:p-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <Avatar className="shrink-0 ring-1 ring-gold/25">
+                              <SignedAvatarImage
+                                avatarUrl={story.author?.avatar_url}
+                                alt={displayName}
+                              />
+                              <AvatarFallback
+                                className={cn(
+                                  "text-[11px]",
+                                  isQueenAuthor
+                                    ? "bg-gold/20 text-gold"
+                                    : "bg-royal text-ivory/90"
+                                )}
+                              >
+                                {authorInitials(displayName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p
+                                className={cn(
+                                  "truncate text-sm font-medium",
+                                  isQueenAuthor ? "text-gold" : "text-ivory"
+                                )}
+                              >
+                                {displayName}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground">
+                                {isQueenAuthor ? "Queen" : "Slave"} ·{" "}
+                                {formatRelative(story.updated_at)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] uppercase tracking-wider",
+                                story.status === "draft"
+                                  ? "border-muted text-muted-foreground"
+                                  : "border-gold/40 text-gold"
+                              )}
+                            >
+                              {story.status}
+                            </Badge>
+                            {canEdit && (
+                              <>
+                                <StoryCoverButton
+                                  storyId={story.id}
+                                  hasCover={Boolean(story.cover_image_path)}
+                                  onGenerated={() => void load()}
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 border-gold/25 px-2 text-xs"
+                                  onClick={() => {
+                                    setShowForm(false);
+                                    setEditingId(story.id);
+                                  }}
+                                >
+                                  <Pencil className="mr-1 h-3 w-3" />
+                                  Edit
+                                </Button>
+                              </>
+                            )}
+                            {canDelete && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+                                onClick={() => void removeStory(story)}
+                              >
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                Delete
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="story-prose mx-auto max-w-2xl text-base leading-relaxed text-ivory/90">
+                          <StoryHtmlView html={safeHtml} />
+                        </div>
+
+                        {story.status === "published" ? (
                           <StoryCommentThread
                             storyId={story.id}
                             storyTitle={story.title}
                           />
-                        </div>
-                      ) : (
-                        <p className="mt-4 text-xs text-muted-foreground">
-                          Draft — only you can see this until you publish.
-                        </p>
-                      )}
-                    </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Draft — only you can see this until you publish.
+                          </p>
+                        )}
+                      </div>
+                    </article>
                   )}
                 </li>
               );

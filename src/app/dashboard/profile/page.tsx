@@ -15,7 +15,8 @@ import { PushEnableCard } from "@/components/push/push-enable";
 import { QueenWorkScheduleCard } from "@/components/status/queen-work-schedule";
 import { QueenCyclePanel } from "@/components/dashboard/queen-cycle-panel";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
-import { presignAndUpload } from "@/lib/storage/client";
+import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
+import { isR2Path } from "@/lib/storage/paths";
 
 export default function ProfilePage() {
   const { profile, role, isQueen, refreshProfile, loading: authLoading } = useAuth();
@@ -31,9 +32,40 @@ export default function ProfilePage() {
     pending: 0,
   });
 
+  const [facePreviewUrl, setFacePreviewUrl] = useState<string | null>(null);
+
   useEffect(() => {
     if (profile) setUsername(profile.username);
   }, [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      const path = profile?.face_ref_path;
+      if (!path) {
+        setFacePreviewUrl(null);
+        return;
+      }
+      if (!isR2Path(path)) {
+        setFacePreviewUrl(path);
+        return;
+      }
+      try {
+        const url = await signObjectUrl({
+          bucket: "submissions",
+          path,
+          expiresIn: 60 * 60,
+        });
+        if (!cancelled) setFacePreviewUrl(url);
+      } catch {
+        if (!cancelled) setFacePreviewUrl(null);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.face_ref_path]);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -146,6 +178,39 @@ export default function ProfilePage() {
     toast.success("Avatar updated");
   };
 
+  const onFaceRef = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !profile) return;
+
+    const supabase = createClient();
+    try {
+      const uploadFile = await downsizeImageIfNeeded(file);
+      const ext = uploadFile.name.split(".").pop() || "jpg";
+      const path = await presignAndUpload({
+        bucket: "submissions",
+        file: uploadFile,
+        contentType: uploadFile.type || "image/jpeg",
+        ext,
+        relativePath: `${profile.id}/face-refs/${Date.now()}.${ext}`,
+      });
+
+      const { error } = await supabase
+        .from("users")
+        .update({ face_ref_path: path })
+        .eq("id", profile.id);
+
+      if (error) throw error;
+      await refreshProfile();
+      toast.success("Face reference saved for story covers");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not save face reference"
+      );
+    } finally {
+      e.target.value = "";
+    }
+  };
+
   if (authLoading || !profile) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -225,6 +290,30 @@ export default function ProfilePage() {
               type="file"
               accept="image/*"
               onChange={onAvatar}
+              className="border-gold/20 bg-void/60"
+            />
+          </div>
+          <div className="space-y-2 border-t border-gold/10 pt-4">
+            <Label htmlFor="face-ref">Face reference (for story covers)</Label>
+            <p className="text-xs text-muted-foreground">
+              Clear front-facing photo of {isQueen ? "Queen" : "slave"} so Grok
+              can match faces on blog cover images. Separate from your avatar.
+            </p>
+            {facePreviewUrl && (
+              <div className="overflow-hidden rounded-lg border border-gold/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={facePreviewUrl}
+                  alt="Face reference"
+                  className="h-40 w-full object-cover object-top"
+                />
+              </div>
+            )}
+            <Input
+              id="face-ref"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => void onFaceRef(e)}
               className="border-gold/20 bg-void/60"
             />
           </div>

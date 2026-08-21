@@ -76,6 +76,24 @@ export async function putR2Object(opts: {
   );
 }
 
+export async function getR2ObjectBytes(key: string): Promise<{
+  body: Buffer;
+  contentType: string | undefined;
+}> {
+  const res = await getR2Client().send(
+    new GetObjectCommand({
+      Bucket: getR2Bucket(),
+      Key: key,
+    })
+  );
+  const bytes = await res.Body?.transformToByteArray();
+  if (!bytes) throw new Error("Empty R2 object");
+  return {
+    body: Buffer.from(bytes),
+    contentType: res.ContentType,
+  };
+}
+
 export async function removeR2Object(key: string): Promise<void> {
   await getR2Client().send(
     new DeleteObjectCommand({

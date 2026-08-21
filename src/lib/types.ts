@@ -379,6 +379,8 @@ export type Story = {
   title: string;
   body: string;
   status: StoryStatus;
+  cover_image_path?: string | null;
+  cover_prompt?: string | null;
   created_at: string;
   updated_at: string;
 };
