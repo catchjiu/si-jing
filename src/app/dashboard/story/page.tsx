@@ -324,6 +324,7 @@ function StoryPageInner() {
                                 <StoryCoverButton
                                   storyId={story.id}
                                   hasCover={Boolean(story.cover_image_path)}
+                                  lastPrompt={story.cover_prompt}
                                   onGenerated={() => void load()}
                                 />
                                 <Button

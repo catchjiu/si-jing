@@ -31,13 +31,10 @@ async function loadFaceDataUri(path: string | null | undefined): Promise<string 
   }
 }
 
-async function buildCoverPrompt(opts: {
-  title: string;
-  bodyHtml: string;
-  faces: FaceRef[];
-}): Promise<string> {
-  const excerpt = storyHtmlExcerpt(opts.bodyHtml, 500);
-  const faceLines = opts.faces
+const MAX_COVER_PROMPT_CHARS = 2_000;
+
+function faceLines(faces: FaceRef[]): string {
+  return faces
     .map((f, i) => {
       const who =
         f.role === "queen"
@@ -46,12 +43,35 @@ async function buildCoverPrompt(opts: {
       return who;
     })
     .join(". ");
+}
+
+function withCoverConstraints(prompt: string, faces: FaceRef[]): string {
+  const extras: string[] = [];
+  if (!/16\s*[:/]\s*9|widescreen|blog banner/i.test(prompt)) {
+    extras.push("Widescreen 16:9 blog banner.");
+  }
+  if (!/no text|no typography|no watermark/i.test(prompt)) {
+    extras.push("No text, no watermarks, no logos.");
+  }
+  if (faces.length && !prompt.includes("<IMAGE_0>")) {
+    extras.push(faceLines(faces));
+  }
+  return [prompt.trim(), ...extras].filter(Boolean).join(" ");
+}
+
+async function buildCoverPrompt(opts: {
+  title: string;
+  bodyHtml: string;
+  faces: FaceRef[];
+}): Promise<string> {
+  const excerpt = storyHtmlExcerpt(opts.bodyHtml, 500);
+  const facesNote = faceLines(opts.faces);
 
   const fallback = [
     `Cinematic blog header illustration for a private erotic romance story titled "${opts.title}".`,
     excerpt ? `Scene vibe from the story: ${excerpt}` : "",
     opts.faces.length
-      ? `Preserve likenesses from the reference faces. ${faceLines}.`
+      ? `Preserve likenesses from the reference faces. ${facesNote}.`
       : "Atmospheric, intimate, tasteful composition.",
     "Widescreen 16:9 blog banner, moody lighting, no text, no watermarks, no logos.",
   ]
@@ -86,7 +106,7 @@ async function buildCoverPrompt(opts: {
                 `Story title: ${opts.title}`,
                 `Story excerpt: ${excerpt || "(no excerpt)"}`,
                 opts.faces.length
-                  ? `Face references available: ${faceLines}. In the prompt, refer to them as <IMAGE_0>, <IMAGE_1> when telling the image model whose face to use.`
+                  ? `Face references available: ${facesNote}. In the prompt, refer to them as <IMAGE_0>, <IMAGE_1> when telling the image model whose face to use.`
                   : "No face references.",
                 "Write one prompt for a 16:9 blog cover: atmospheric, intimate, tasteful, no text overlays.",
               ].join("\n"),
@@ -119,7 +139,7 @@ async function buildCoverPrompt(opts: {
               `Story title: ${opts.title}`,
               `Story excerpt: ${excerpt || "(no excerpt)"}`,
               opts.faces.length
-                ? `Face references: ${faceLines}. Refer to them as <IMAGE_0>, <IMAGE_1> in the prompt.`
+                ? `Face references: ${facesNote}. Refer to them as <IMAGE_0>, <IMAGE_1> in the prompt.`
                 : "No face references.",
               "One 16:9 blog cover prompt: atmospheric, intimate, tasteful, no text.",
             ].join("\n"),
@@ -232,7 +252,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let payload: { storyId?: unknown };
+  let payload: { storyId?: unknown; prompt?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -243,6 +263,11 @@ export async function POST(request: Request) {
   if (!storyId) {
     return NextResponse.json({ error: "storyId required" }, { status: 400 });
   }
+
+  const userPrompt =
+    typeof payload.prompt === "string"
+      ? payload.prompt.trim().slice(0, MAX_COVER_PROMPT_CHARS)
+      : "";
 
   const { data: story, error: storyError } = await supabase
     .from("stories")
@@ -293,11 +318,13 @@ export async function POST(request: Request) {
   });
 
   try {
-    const prompt = await buildCoverPrompt({
-      title: story.title as string,
-      bodyHtml,
-      faces,
-    });
+    const prompt = userPrompt
+      ? withCoverConstraints(userPrompt, faces)
+      : await buildCoverPrompt({
+          title: story.title as string,
+          bodyHtml,
+          faces,
+        });
     const imageBuf = await generateCoverImage({ prompt, faces });
     const relativePath = `${user.id}/covers/${storyId}-${Date.now()}.jpg`;
     const storedPath = toR2StoredPath("stories", relativePath);
