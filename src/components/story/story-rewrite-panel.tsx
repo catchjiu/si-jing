@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label";
 import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 
+export type StoryRewriteProvider = "claude" | "grok";
+
 type StoryRewritePanelProps = {
   /** Current draft in the editor — only replaced when slave accepts a preview. */
   html: string;
@@ -35,10 +37,13 @@ export function StoryRewritePanel({
   disabled,
   className,
 }: StoryRewritePanelProps) {
+  const [provider, setProvider] = useState<StoryRewriteProvider>("claude");
   const [selected, setSelected] = useState<StoryRewritePromptId[]>([]);
   const [extraNote, setExtraNote] = useState("");
   const [rewriting, setRewriting] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  const providerLabel = provider === "grok" ? "Grok 4.5" : "Claude";
 
   const toggle = (id: StoryRewritePromptId) => {
     setSelected((prev) =>
@@ -62,6 +67,7 @@ export function StoryRewritePanel({
           html: sourceHtml,
           promptIds: selected,
           extraInstruction: extraNote.trim() || undefined,
+          provider,
         }),
       });
       const data = (await res.json()) as { html?: string; error?: string };
@@ -72,7 +78,9 @@ export function StoryRewritePanel({
         throw new Error("No rewritten story returned");
       }
       setPreviewHtml(sanitizeStoryHtml(data.html));
-      toast.success("Preview ready — accept it, or tag more prompts to refine");
+      toast.success(
+        `${providerLabel} preview ready — accept it, or refine with more prompts`
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Rewrite failed");
     } finally {
@@ -104,12 +112,44 @@ export function StoryRewritePanel({
       <div className="flex items-start gap-2">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
         <div>
-          <p className="text-sm font-medium text-ivory">Claude rewrite</p>
+          <p className="text-sm font-medium text-ivory">AI rewrite</p>
           <p className="text-xs text-muted-foreground">
             Tag prompts to improve the draft. You&apos;ll see a preview first —
             accept it, or send more prompts to refine before it touches your
             editor.
           </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Model</Label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={disabled || rewriting}
+            onClick={() => setProvider("claude")}
+            className={cn(
+              "rounded-md border px-3 py-1.5 text-xs transition-colors",
+              provider === "claude"
+                ? "border-gold/50 bg-gold/15 text-gold"
+                : "border-gold/15 bg-void/40 text-ivory/70 hover:border-gold/30 hover:text-ivory"
+            )}
+          >
+            Claude
+          </button>
+          <button
+            type="button"
+            disabled={disabled || rewriting}
+            onClick={() => setProvider("grok")}
+            className={cn(
+              "rounded-md border px-3 py-1.5 text-xs transition-colors",
+              provider === "grok"
+                ? "border-gold/50 bg-gold/15 text-gold"
+                : "border-gold/15 bg-void/40 text-ivory/70 hover:border-gold/30 hover:text-ivory"
+            )}
+          >
+            Grok 4.5
+          </button>
         </div>
       </div>
 
@@ -150,7 +190,7 @@ export function StoryRewritePanel({
           placeholder={
             previewHtml
               ? "e.g. Soften the ending / keep the dialogue / more teasing…"
-              : "Optional note for Claude…"
+              : `Optional note for ${providerLabel}…`
           }
           className="border-gold/20 bg-void/60 text-sm"
         />
@@ -172,7 +212,9 @@ export function StoryRewritePanel({
         ) : (
           <Sparkles className="mr-2 h-3.5 w-3.5" />
         )}
-        {previewHtml ? "Refine preview" : "Rewrite with Claude"}
+        {previewHtml
+          ? `Refine with ${providerLabel}`
+          : `Rewrite with ${providerLabel}`}
         {selected.length > 0 ? ` (${selected.length})` : ""}
       </Button>
 
@@ -180,7 +222,7 @@ export function StoryRewritePanel({
         <div className="space-y-3 rounded-lg border border-gold/30 bg-void/50 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] uppercase tracking-wider text-gold">
-              Claude preview — not saved yet
+              {providerLabel} preview — not saved yet
             </p>
             <div className="flex flex-wrap gap-1.5">
               <Button
@@ -223,8 +265,8 @@ export function StoryRewritePanel({
           </div>
           <StoryHtmlView html={previewHtml} className="max-h-80 overflow-y-auto" />
           <p className="text-[11px] text-muted-foreground">
-            Tag more prompts or add a fix note above, then hit Refine preview —
-            your original draft stays until you click Use this version.
+            Tag more prompts or add a fix note above, then refine — your
+            original draft stays until you click Use this version.
           </p>
         </div>
       )}

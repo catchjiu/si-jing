@@ -73,7 +73,8 @@ docker compose up --build
 | `/dashboard/submissions/[id]` | Media, approve/reject, comments |
 | `/dashboard/profile` | Avatar + stats |
 
-Set `ANTHROPIC_API_KEY` for slave story rewrite via Claude.
+Set `ANTHROPIC_API_KEY` for Claude story rewrite, and/or `XAI_API_KEY` for Grok 4.5.
+Optional overrides: `ANTHROPIC_STORY_MODEL` (default `claude-sonnet-4-6`), `XAI_STORY_MODEL` (default `grok-4.5`).
 
 ## Supabase project
 
