@@ -34,6 +34,15 @@ export function storyHtmlHasText(html: string): boolean {
   return text.length > 0;
 }
 
+/** Concatenate two sanitized story HTML fragments. */
+export function appendStoryHtml(existing: string, addition: string): string {
+  const a = sanitizeStoryHtml(existing);
+  const b = sanitizeStoryHtml(addition);
+  if (!a) return b;
+  if (!b) return a;
+  return `${a}${b}`;
+}
+
 /** Plain excerpt for notifications / previews. */
 export function storyHtmlExcerpt(html: string, max = 120): string {
   const text = sanitizeStoryHtml(html)

@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BookMarked, Pencil, Trash2 } from "lucide-react";
+import { BookMarked, Pencil, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -19,6 +19,7 @@ import { StoryForm } from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
 import { StoryCoverButton } from "@/components/story/story-cover-button";
+import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
 
 type StoryAuthor = Pick<Profile, "id" | "username" | "role" | "avatar_url">;
 
@@ -55,8 +56,10 @@ function StoryPageInner() {
   const [stories, setStories] = useState<StoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [promptFirst, setPromptFirst] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [extending, setExtending] = useState<StoryRow | null>(null);
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -144,28 +147,50 @@ function StoryPageInner() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isQueen
-              ? "Blog-style stories with Grok covers — upload your face ref in Profile"
-              : "Write, polish with AI, and generate a Grok blog cover from your story"}
+              ? "Write from a prompt, extend a story with direction, or generate Grok covers"
+              : "Prompt a full draft, polish with AI, extend with direction, and generate a cover"}
           </p>
         </div>
         {(isQueen || isSlave) && !showForm && !editingId && (
-          <Button
-            type="button"
-            className="bg-gold text-void hover:bg-gold-muted"
-            onClick={() => setShowForm(true)}
-          >
-            <BookMarked className="mr-2 h-4 w-4" />
-            New story
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-gold/30"
+              onClick={() => {
+                setPromptFirst(true);
+                setShowForm(true);
+              }}
+            >
+              <WandSparkles className="mr-2 h-4 w-4" />
+              Write from prompt
+            </Button>
+            <Button
+              type="button"
+              className="bg-gold text-void hover:bg-gold-muted"
+              onClick={() => {
+                setPromptFirst(false);
+                setShowForm(true);
+              }}
+            >
+              <BookMarked className="mr-2 h-4 w-4" />
+              New story
+            </Button>
+          </div>
         )}
       </div>
 
       {showForm && (
         <StoryForm
-          key="new-story"
-          onCancel={() => setShowForm(false)}
+          key={promptFirst ? "new-story-prompt" : "new-story"}
+          promptFirst={promptFirst}
+          onCancel={() => {
+            setShowForm(false);
+            setPromptFirst(false);
+          }}
           onSuccess={(id) => {
             setShowForm(false);
+            setPromptFirst(false);
             setHighlightId(id);
             void load();
           }}
@@ -306,6 +331,16 @@ function StoryPageInner() {
                                   size="sm"
                                   variant="outline"
                                   className="h-7 border-gold/25 px-2 text-xs"
+                                  onClick={() => setExtending(story)}
+                                >
+                                  <Sparkles className="mr-1 h-3 w-3" />
+                                  Extend
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 border-gold/25 px-2 text-xs"
                                   onClick={() => {
                                     setShowForm(false);
                                     setEditingId(story.id);
@@ -354,6 +389,22 @@ function StoryPageInner() {
           </ul>
         )}
       </section>
+
+      <StoryExtendDialog
+        open={Boolean(extending)}
+        onOpenChange={(open) => {
+          if (!open) setExtending(null);
+        }}
+        storyId={extending?.id}
+        title={extending?.title ?? ""}
+        html={extending?.body ?? ""}
+        persist
+        onApplied={() => {
+          if (extending) setHighlightId(extending.id);
+          setExtending(null);
+          void load();
+        }}
+      />
     </div>
   );
 }

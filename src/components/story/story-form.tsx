@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { BookMarked, Loader2, Save } from "lucide-react";
+import { BookMarked, Loader2, Save, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Story, StoryStatus } from "@/lib/types";
@@ -28,12 +28,16 @@ import {
 } from "@/components/ui/select";
 import { StoryRichTextEditor } from "@/components/story/story-rich-text-editor";
 import { StoryRewritePanel } from "@/components/story/story-rewrite-panel";
+import { StoryGeneratePanel } from "@/components/story/story-generate-panel";
+import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
 
 type StoryFormProps = {
   story?: Story | null;
   onSuccess?: (storyId: string) => void;
   onCancel?: () => void;
   className?: string;
+  /** Open with the write-from-prompt panel focused. */
+  promptFirst?: boolean;
 };
 
 export function StoryForm({
@@ -41,12 +45,14 @@ export function StoryForm({
   onSuccess,
   onCancel,
   className,
+  promptFirst = false,
 }: StoryFormProps) {
   const { profile, isQueen, isSlave } = useAuth();
   const [title, setTitle] = useState(story?.title ?? "");
   const [body, setBody] = useState(story?.body ?? "");
   const [status, setStatus] = useState<StoryStatus>(story?.status ?? "published");
   const [submitting, setSubmitting] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
 
   const isEdit = Boolean(story?.id);
 
@@ -166,15 +172,27 @@ export function StoryForm({
         <BookMarked className="h-6 w-6 text-gold" />
         <div>
           <h3 className="font-heading text-xl text-ivory">
-            {isEdit ? "Edit story" : "New story"}
+            {isEdit ? "Edit story" : promptFirst ? "Write from a prompt" : "New story"}
           </h3>
           <p className="text-xs text-muted-foreground">
             {isEdit
               ? "Edit your story — Queen/slave speech formatting applies on save"
-              : "Rich text draft — role speech formatting applies on save"}
+              : "Prompt a whole draft, or write it yourself. Role speech formatting applies on save."}
           </p>
         </div>
       </div>
+
+      {!isEdit && (
+        <StoryGeneratePanel
+          titleHint={title}
+          disabled={submitting}
+          autoFocus={promptFirst}
+          onGenerated={({ title: nextTitle, html }) => {
+            setTitle((current) => current.trim() || nextTitle);
+            setBody(html);
+          }}
+        />
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="story-title">Title</Label>
@@ -205,6 +223,29 @@ export function StoryForm({
           onApply={setBody}
         />
       )}
+
+      {storyHtmlHasText(body) && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={submitting}
+          className="border-gold/25"
+          onClick={() => setExtendOpen(true)}
+        >
+          <Sparkles className="mr-2 h-3.5 w-3.5" />
+          Extend story…
+        </Button>
+      )}
+
+      <StoryExtendDialog
+        open={extendOpen}
+        onOpenChange={setExtendOpen}
+        title={title.trim() || "Untitled"}
+        html={body}
+        persist={false}
+        onApplied={setBody}
+      />
 
       <div className="space-y-2">
         <Label>Status</Label>
