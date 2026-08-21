@@ -731,5 +731,15 @@ ALTER TABLE public.direct_messages
     )
   );
 
+-- Story blog covers + face refs for Grok Imagine
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS face_ref_path TEXT;
+
+ALTER TABLE public.stories
+  ADD COLUMN IF NOT EXISTS cover_image_path TEXT;
+
+ALTER TABLE public.stories
+  ADD COLUMN IF NOT EXISTS cover_prompt TEXT;
+
 -- Notify PostgREST to reload schema (Supabase picks up new tables)
 NOTIFY pgrst, 'reload schema';
