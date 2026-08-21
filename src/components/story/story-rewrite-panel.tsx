@@ -2,15 +2,27 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Sparkles, Tags } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Tags,
+  X,
+} from "lucide-react";
 import {
   STORY_REWRITE_PROMPTS,
   type StoryRewritePromptId,
 } from "@/lib/story-prompts";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
+import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 
 type StoryRewritePanelProps = {
+  /** Current draft in the editor — only replaced when slave accepts a preview. */
   html: string;
   onApply: (html: string) => void;
   disabled?: boolean;
@@ -24,7 +36,9 @@ export function StoryRewritePanel({
   className,
 }: StoryRewritePanelProps) {
   const [selected, setSelected] = useState<StoryRewritePromptId[]>([]);
+  const [extraNote, setExtraNote] = useState("");
   const [rewriting, setRewriting] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const toggle = (id: StoryRewritePromptId) => {
     setSelected((prev) =>
@@ -32,9 +46,11 @@ export function StoryRewritePanel({
     );
   };
 
+  const sourceHtml = previewHtml ?? html;
+
   const rewrite = async () => {
-    if (selected.length === 0) {
-      toast.error("Tag at least one writing prompt");
+    if (selected.length === 0 && !extraNote.trim()) {
+      toast.error("Tag a prompt or write a fix note");
       return;
     }
     setRewriting(true);
@@ -42,7 +58,11 @@ export function StoryRewritePanel({
       const res = await fetch("/api/story/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html, promptIds: selected }),
+        body: JSON.stringify({
+          html: sourceHtml,
+          promptIds: selected,
+          extraInstruction: extraNote.trim() || undefined,
+        }),
       });
       const data = (await res.json()) as { html?: string; error?: string };
       if (!res.ok) {
@@ -51,13 +71,27 @@ export function StoryRewritePanel({
       if (!data.html) {
         throw new Error("No rewritten story returned");
       }
-      onApply(data.html);
-      toast.success("Claude rewrote the draft — review before saving");
+      setPreviewHtml(sanitizeStoryHtml(data.html));
+      toast.success("Preview ready — accept it, or tag more prompts to refine");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Rewrite failed");
     } finally {
       setRewriting(false);
     }
+  };
+
+  const acceptPreview = () => {
+    if (!previewHtml) return;
+    onApply(previewHtml);
+    setPreviewHtml(null);
+    setSelected([]);
+    setExtraNote("");
+    toast.success("Applied to your draft — save the story when ready");
+  };
+
+  const discardPreview = () => {
+    setPreviewHtml(null);
+    toast.message("Preview discarded — your draft is unchanged");
   };
 
   return (
@@ -72,8 +106,9 @@ export function StoryRewritePanel({
         <div>
           <p className="text-sm font-medium text-ivory">Claude rewrite</p>
           <p className="text-xs text-muted-foreground">
-            Tag prompts, then ask Claude to improve this draft. Only you (slave)
-            can use this — Queen still sees the saved story.
+            Tag prompts to improve the draft. You&apos;ll see a preview first —
+            accept it, or send more prompts to refine before it touches your
+            editor.
           </p>
         </div>
       </div>
@@ -102,10 +137,33 @@ export function StoryRewritePanel({
         })}
       </div>
 
+      <div className="space-y-1.5">
+        <Label htmlFor="story-rewrite-note" className="text-xs text-muted-foreground">
+          Extra fix note (optional)
+        </Label>
+        <Textarea
+          id="story-rewrite-note"
+          value={extraNote}
+          onChange={(e) => setExtraNote(e.target.value)}
+          rows={2}
+          disabled={disabled || rewriting}
+          placeholder={
+            previewHtml
+              ? "e.g. Soften the ending / keep the dialogue / more teasing…"
+              : "Optional note for Claude…"
+          }
+          className="border-gold/20 bg-void/60 text-sm"
+        />
+      </div>
+
       <Button
         type="button"
         size="sm"
-        disabled={disabled || rewriting || selected.length === 0}
+        disabled={
+          disabled ||
+          rewriting ||
+          (selected.length === 0 && !extraNote.trim())
+        }
         onClick={() => void rewrite()}
         className="bg-gold text-void hover:bg-gold-muted"
       >
@@ -114,9 +172,62 @@ export function StoryRewritePanel({
         ) : (
           <Sparkles className="mr-2 h-3.5 w-3.5" />
         )}
-        Rewrite with Claude
+        {previewHtml ? "Refine preview" : "Rewrite with Claude"}
         {selected.length > 0 ? ` (${selected.length})` : ""}
       </Button>
+
+      {previewHtml && (
+        <div className="space-y-3 rounded-lg border border-gold/30 bg-void/50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[10px] uppercase tracking-wider text-gold">
+              Claude preview — not saved yet
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                disabled={disabled || rewriting}
+                onClick={acceptPreview}
+                className="h-7 bg-gold px-2 text-xs text-void hover:bg-gold-muted"
+              >
+                <Check className="mr-1 h-3 w-3" />
+                Use this version
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={disabled || rewriting}
+                onClick={discardPreview}
+                className="h-7 border-gold/25 px-2 text-xs"
+              >
+                <X className="mr-1 h-3 w-3" />
+                Discard
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={disabled || rewriting}
+                onClick={() => {
+                  setSelected([]);
+                  setExtraNote("");
+                }}
+                className="h-7 px-2 text-xs text-muted-foreground"
+                title="Clear selected tags"
+              >
+                <RotateCcw className="mr-1 h-3 w-3" />
+                Clear tags
+              </Button>
+            </div>
+          </div>
+          <StoryHtmlView html={previewHtml} className="max-h-80 overflow-y-auto" />
+          <p className="text-[11px] text-muted-foreground">
+            Tag more prompts or add a fix note above, then hit Refine preview —
+            your original draft stays until you click Use this version.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

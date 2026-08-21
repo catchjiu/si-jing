@@ -46,7 +46,11 @@ export async function POST(request: Request) {
     );
   }
 
-  let payload: { html?: unknown; promptIds?: unknown };
+  let payload: {
+    html?: unknown;
+    promptIds?: unknown;
+    extraInstruction?: unknown;
+  };
   try {
     payload = await request.json();
   } catch {
@@ -81,14 +85,19 @@ export async function POST(request: Request) {
     ),
   ];
 
-  if (promptIds.length === 0) {
+  const extraInstruction =
+    typeof payload.extraInstruction === "string"
+      ? payload.extraInstruction.trim().slice(0, 2000)
+      : "";
+
+  if (promptIds.length === 0 && !extraInstruction) {
     return NextResponse.json(
-      { error: "Select at least one rewrite prompt tag" },
+      { error: "Select at least one rewrite prompt tag or add a fix note" },
       { status: 400 }
     );
   }
 
-  const instructions = promptIds
+  const tagInstructions = promptIds
     .map((id, i) => {
       const prompt = STORY_REWRITE_PROMPT_MAP[id];
       return `${i + 1}. ${prompt.label}: ${prompt.instruction}`;
@@ -113,12 +122,18 @@ export async function POST(request: Request) {
         {
           role: "user",
           content: [
-            "Apply these writing-improvement tags:",
-            instructions,
+            tagInstructions
+              ? `Apply these writing-improvement tags:\n${tagInstructions}`
+              : "Apply a focused rewrite based on the author's note.",
+            extraInstruction
+              ? `\nAdditional author note:\n${extraInstruction}`
+              : "",
             "",
             "Rewrite this HTML story draft:",
             html,
-          ].join("\n"),
+          ]
+            .filter(Boolean)
+            .join("\n"),
         },
       ],
     });

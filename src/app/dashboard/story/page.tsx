@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BookMarked, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -10,15 +10,30 @@ import type { Profile, Story } from "@/lib/types";
 import { formatRelative } from "@/lib/format";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { StoryForm } from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
 
+type StoryAuthor = Pick<Profile, "id" | "username" | "role" | "avatar_url">;
+
 type StoryRow = Story & {
-  author?: Pick<Profile, "id" | "username" | "role"> | null;
+  author?: StoryAuthor | null;
 };
+
+function authorInitials(name: string | undefined) {
+  return (
+    name
+      ?.split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
+}
 
 export default function StoryPage() {
   return (
@@ -47,7 +62,7 @@ function StoryPageInner() {
     try {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, author:users!author_id(id, username, role)")
+        .select("*, author:users!author_id(id, username, role, avatar_url)")
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
@@ -78,11 +93,6 @@ function StoryPageInner() {
       }, 350);
     }
   }, [focusStoryId, focusCommentId, loading, stories]);
-
-  const editingStory = useMemo(
-    () => stories.find((s) => s.id === editingId) ?? null,
-    [stories, editingId]
-  );
 
   const removeStory = async (story: StoryRow) => {
     if (!profile) return;
@@ -131,16 +141,12 @@ function StoryPageInner() {
         )}
       </div>
 
-      {(showForm || editingStory) && (
+      {showForm && (
         <StoryForm
-          story={editingStory}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingId(null);
-          }}
+          key="new-story"
+          onCancel={() => setShowForm(false)}
           onSuccess={(id) => {
             setShowForm(false);
-            setEditingId(null);
             setHighlightId(id);
             void load();
           }}
@@ -162,8 +168,9 @@ function StoryPageInner() {
               const canDelete = mine || isQueen;
               const isEditing = editingId === story.id;
               const safeHtml = sanitizeStoryHtml(story.body);
-
-              if (isEditing) return null;
+              const displayName =
+                story.author?.username ??
+                (isQueenAuthor ? "Queen Sisi" : "D");
 
               return (
                 <li
@@ -171,43 +178,57 @@ function StoryPageInner() {
                   id={`story-${story.id}`}
                   className={cn(
                     "rounded-xl border bg-charcoal/80 p-4 sm:p-5",
-                    story.id === highlightId
+                    story.id === highlightId || isEditing
                       ? "border-gold/40"
                       : "border-gold/15"
                   )}
                 >
-                  <div className="mb-3 flex flex-wrap items-center gap-2">
-                    <h3 className="font-heading text-lg text-ivory">
-                      {story.title}
-                    </h3>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] uppercase tracking-wider",
-                        story.status === "draft"
-                          ? "border-muted text-muted-foreground"
-                          : "border-gold/40 text-gold"
-                      )}
-                    >
-                      {story.status}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] uppercase tracking-wider",
-                        isQueenAuthor
-                          ? "border-gold/40 text-gold"
-                          : "border-royal/50 text-ivory/80"
-                      )}
-                    >
-                      {story.author?.username ??
-                        (isQueenAuthor ? "Queen" : "D")}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {formatRelative(story.updated_at)}
-                    </span>
-                    <div className="ml-auto flex gap-1">
-                      {canEdit && (
+                  <div className="mb-4 flex flex-wrap items-start gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar className="shrink-0 ring-1 ring-gold/25">
+                        <SignedAvatarImage
+                          avatarUrl={story.author?.avatar_url}
+                          alt={displayName}
+                        />
+                        <AvatarFallback
+                          className={cn(
+                            "text-[11px]",
+                            isQueenAuthor
+                              ? "bg-gold/20 text-gold"
+                              : "bg-royal text-ivory/90"
+                          )}
+                        >
+                          {authorInitials(displayName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-medium",
+                            isQueenAuthor ? "text-gold" : "text-ivory"
+                          )}
+                        >
+                          {displayName}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {isQueenAuthor ? "Queen" : "Slave"} ·{" "}
+                          {formatRelative(story.updated_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] uppercase tracking-wider",
+                          story.status === "draft"
+                            ? "border-muted text-muted-foreground"
+                            : "border-gold/40 text-gold"
+                        )}
+                      >
+                        {story.status}
+                      </Badge>
+                      {canEdit && !isEditing && (
                         <Button
                           type="button"
                           size="sm"
@@ -222,7 +243,7 @@ function StoryPageInner() {
                           Edit
                         </Button>
                       )}
-                      {canDelete && (
+                      {canDelete && !isEditing && (
                         <Button
                           type="button"
                           size="sm"
@@ -237,19 +258,37 @@ function StoryPageInner() {
                     </div>
                   </div>
 
-                  <StoryHtmlView html={safeHtml} />
-
-                  {story.status === "published" ? (
-                    <div className="mt-4">
-                      <StoryCommentThread
-                        storyId={story.id}
-                        storyTitle={story.title}
-                      />
-                    </div>
+                  {isEditing ? (
+                    <StoryForm
+                      key={story.id}
+                      story={story}
+                      onCancel={() => setEditingId(null)}
+                      onSuccess={(id) => {
+                        setEditingId(null);
+                        setHighlightId(id);
+                        void load();
+                      }}
+                    />
                   ) : (
-                    <p className="mt-4 text-xs text-muted-foreground">
-                      Draft — only you can see this until you publish.
-                    </p>
+                    <>
+                      <h3 className="font-heading mb-3 text-xl text-ivory">
+                        {story.title}
+                      </h3>
+                      <StoryHtmlView html={safeHtml} />
+
+                      {story.status === "published" ? (
+                        <div className="mt-4">
+                          <StoryCommentThread
+                            storyId={story.id}
+                            storyTitle={story.title}
+                          />
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-xs text-muted-foreground">
+                          Draft — only you can see this until you publish.
+                        </p>
+                      )}
+                    </>
                   )}
                 </li>
               );

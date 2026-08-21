@@ -165,7 +165,9 @@ export function StoryForm({
             {isEdit ? "Edit story" : "New story"}
           </h3>
           <p className="text-xs text-muted-foreground">
-            Rich text draft — publish when ready for the other to read
+            {isEdit
+              ? "Edit your story — only the author can change it"
+              : "Rich text draft — publish when ready for the other to read"}
           </p>
         </div>
       </div>
