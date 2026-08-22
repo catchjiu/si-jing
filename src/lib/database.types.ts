@@ -954,6 +954,41 @@ export type Database = {
           },
         ]
       }
+      fart_entries: {
+        Row: {
+          id: string
+          created_by: string
+          audio_path: string
+          duration_ms: number | null
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          audio_path: string
+          duration_ms?: number | null
+          note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string
+          audio_path?: string
+          duration_ms?: number | null
+          note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fart_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_notes: {
         Row: {
           id: string
@@ -3669,6 +3704,8 @@ export type Database = {
       }
       increment_queen_love: { Args: never; Returns: Json }
       reset_queen_love: { Args: never; Returns: Json }
+      get_fart_likes: { Args: never; Returns: Json }
+      increment_fart_likes: { Args: never; Returns: Json }
       denial_balance_clear: { Args: never; Returns: boolean }
       can_request_orgasm: { Args: never; Returns: boolean }
       get_denial_ledger: { Args: never; Returns: Json }

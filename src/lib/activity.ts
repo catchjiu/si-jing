@@ -16,6 +16,7 @@ import {
   voiceNotePageHref,
   wishlistPageHref,
   storyPageHref,
+  fartPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -1991,6 +1992,26 @@ export async function fetchRecentActivity(
       kind: "story_comment",
       context: story?.title ?? null,
       author: c.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  const { data: fartRows } = await supabase
+    .from("fart_entries")
+    .select(
+      "id, note, created_at, created_by, author:users!created_by(id, role, username)"
+    )
+    .order("created_at", { ascending: false })
+    .limit(FETCH_LIMIT);
+
+  for (const f of fartRows ?? []) {
+    pushOtherPartyAdd(items, profile, {
+      id: `fart-${f.id}`,
+      at: f.created_at as string,
+      where: "Fart Tracker",
+      body: ((f.note as string | null) || "A fart was logged").slice(0, 80),
+      href: fartPageHref(f.id as string),
+      kind: "fart",
+      author: f.author as { id?: string; role?: string } | null,
     });
   }
 

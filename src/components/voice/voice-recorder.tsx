@@ -30,6 +30,9 @@ interface VoiceRecorderProps {
   onCaptured?: (voice: CapturedVoice | null) => void;
   className?: string;
   compact?: boolean;
+  /** Keep mic raw so quiet sounds (e.g. farts) are not filtered out. */
+  rawAudio?: boolean;
+  heading?: string;
 }
 
 export function VoiceRecorder({
@@ -41,6 +44,8 @@ export function VoiceRecorder({
   onCaptured,
   className,
   compact = false,
+  rawAudio = false,
+  heading,
 }: VoiceRecorderProps) {
   const { profile } = useAuth();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -85,10 +90,16 @@ export function VoiceRecorder({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
+        audio: rawAudio
+          ? {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            }
+          : {
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
       });
       const recorder = new MediaRecorder(stream, { mimeType: mime });
       chunksRef.current = [];
@@ -208,7 +219,7 @@ export function VoiceRecorder({
     >
       {!compact && (
         <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          Voice message
+          {heading ?? "Voice message"}
         </p>
       )}
 

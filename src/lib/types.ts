@@ -393,6 +393,15 @@ export type StoryComment = {
   created_at: string;
 };
 
+export type FartEntry = {
+  id: string;
+  created_by: string;
+  audio_path: string;
+  duration_ms: number | null;
+  note: string | null;
+  created_at: string;
+};
+
 export type QueenAvailability =
   | "working"
   | "busy"

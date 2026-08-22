@@ -27,6 +27,7 @@ import {
   Lock,
   Flame,
   HeartCrack,
+  Wind,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -88,6 +89,7 @@ const navLinks = [
   { href: "/dashboard/worship", label: "Worship", icon: Crown },
   { href: "/dashboard/journal", label: "Journal", icon: NotebookPen },
   { href: "/dashboard/story", label: "Story", icon: BookMarked },
+  { href: "/dashboard/fart", label: "Fart Tracker", icon: Wind },
   { href: "/dashboard/requests", label: "Requests", icon: HandHeart },
   { href: "/dashboard/denial", label: "Denial", icon: Lock },
   { href: "/dashboard/punishments", label: "Punishments", icon: Ban },

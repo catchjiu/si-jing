@@ -81,6 +81,11 @@ export function flirtPageHref(
   return qs ? `${base}?${qs}` : base;
 }
 
+export function fartPageHref(entryId?: string | null): string {
+  if (!entryId) return "/dashboard/fart";
+  return `/dashboard/fart?fart=${encodeURIComponent(entryId)}`;
+}
+
 export function storyPageHref(
   storyId: string,
   opts?: { commentId?: string | null }
