@@ -1,13 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Trash2, Wind } from "lucide-react";
+import { Loader2, Trash2, Upload, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { FartEntry } from "@/lib/types";
 import type { CapturedVoice } from "@/lib/voice";
-import { extensionForMime, normalizeVoiceBlob } from "@/lib/voice-format";
+import {
+  extensionForMime,
+  inferAudioMime,
+  isIosVoiceMemoUpload,
+  normalizeVoiceBlob,
+  readAudioDurationMs,
+} from "@/lib/voice-format";
 import { formatRelative } from "@/lib/format";
 import { fartPageHref } from "@/lib/inbox-deep-links";
 import { notifyPush } from "@/lib/push-client";
@@ -32,6 +38,10 @@ export function FartTrackerPanel({
   const [captured, setCaptured] = useState<CapturedVoice | null>(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [recorderKey, setRecorderKey] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,8 +75,14 @@ export function FartTrackerPanel({
     setSaving(true);
     const supabase = createClient();
     try {
-      const blob = await normalizeVoiceBlob(captured.blob);
-      const mime = blob.type || "audio/wav";
+      const blob = await normalizeVoiceBlob(
+        captured.blob,
+        captured.fileName
+      );
+      const mime = inferAudioMime({
+        name: captured.fileName,
+        type: blob.type,
+      });
       const ext = extensionForMime(mime);
       const path = await presignAndUpload({
         bucket: "voice",
@@ -98,6 +114,8 @@ export function FartTrackerPanel({
       });
       setCaptured(null);
       setNote("");
+      setRecorderKey((k) => k + 1);
+      if (fileRef.current) fileRef.current.value = "";
       void load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save fart");
@@ -127,6 +145,29 @@ export function FartTrackerPanel({
     void load();
   };
 
+  const onVoiceMemo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error("Voice memo is too large (max 25 MB)");
+      e.target.value = "";
+      return;
+    }
+    if (!isIosVoiceMemoUpload(file)) {
+      toast.error("Use an iPhone Voice Memo or audio file (.m4a, .wav, .mp3)");
+      e.target.value = "";
+      return;
+    }
+    const durationMs = await readAudioDurationMs(file);
+    setCaptured({
+      blob: file,
+      durationMs: durationMs || 200,
+      fileName: file.name,
+    });
+    setRecorderKey((k) => k + 1);
+    toast.success("Voice Memo attached — save it to the log");
+  };
+
   if (loading && entries.length === 0) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -138,16 +179,41 @@ export function FartTrackerPanel({
           <div>
             <h2 className="font-heading text-lg text-ivory">Record a fart</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Hold the phone close. Noise filters are off so the recording stays
-              raw.
+              Record here, or upload an iPhone Voice Memo (.m4a). Noise filters
+              are off for live recording.
             </p>
           </div>
           <VoiceRecorder
+            key={recorderKey}
             captureOnly
             rawAudio
             heading="Fart audio"
             onCaptured={setCaptured}
           />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="audio/*,.m4a,.mp4,.aac,.wav,.caf,.mp3"
+              className="sr-only"
+              onChange={(e) => void onVoiceMemo(e)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="border-gold/25"
+              disabled={saving}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Voice Memo
+            </Button>
+            {captured?.fileName && (
+              <span className="text-xs text-gold/80">
+                Attached · {captured.fileName}
+              </span>
+            )}
+          </div>
           <div className="space-y-1.5">
             <Label
               htmlFor="fart-note"

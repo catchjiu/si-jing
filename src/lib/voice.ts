@@ -6,6 +6,7 @@ import { presignAndUpload } from "@/lib/storage/client";
 export type CapturedVoice = {
   blob: Blob;
   durationMs: number;
+  fileName?: string;
 };
 
 export type UploadedVoiceNote = {

@@ -13,10 +13,81 @@ export function pickRecorderMimeType(): string | null {
 }
 
 export function extensionForMime(mime: string): string {
-  if (mime.includes("mp4") || mime.includes("aac")) return "m4a";
-  if (mime.includes("ogg")) return "ogg";
-  if (mime.includes("wav")) return "wav";
+  const type = mime.toLowerCase();
+  if (
+    type.includes("mp4") ||
+    type.includes("aac") ||
+    type.includes("m4a")
+  ) {
+    return "m4a";
+  }
+  if (type.includes("mpeg") || type.includes("mp3")) return "mp3";
+  if (type.includes("caf")) return "caf";
+  if (type.includes("ogg")) return "ogg";
+  if (type.includes("wav")) return "wav";
   return "webm";
+}
+
+/** iPhone Voice Memos are usually .m4a and often arrive with an empty MIME type. */
+export function inferAudioMime(file: { name?: string; type?: string }): string {
+  const type = (file.type || "").toLowerCase().split(";")[0]?.trim() ?? "";
+  if (
+    type.includes("mp4") ||
+    type.includes("m4a") ||
+    type.includes("aac")
+  ) {
+    return type || "audio/mp4";
+  }
+  if (type.includes("wav")) return "audio/wav";
+  if (type.includes("mpeg") || type.includes("mp3")) return "audio/mpeg";
+  if (type.includes("caf")) return "audio/x-caf";
+  if (type.includes("webm")) return "audio/webm";
+  if (type.includes("ogg")) return "audio/ogg";
+
+  const name = (file.name || "").toLowerCase();
+  if (name.endsWith(".m4a") || name.endsWith(".mp4") || name.endsWith(".aac")) {
+    return "audio/mp4";
+  }
+  if (name.endsWith(".wav")) return "audio/wav";
+  if (name.endsWith(".mp3")) return "audio/mpeg";
+  if (name.endsWith(".caf")) return "audio/x-caf";
+  if (name.endsWith(".webm")) return "audio/webm";
+  if (name.endsWith(".ogg")) return "audio/ogg";
+  return type || "application/octet-stream";
+}
+
+export function isIosVoiceMemoUpload(file: { name?: string; type?: string }): boolean {
+  const mime = inferAudioMime(file);
+  const name = (file.name || "").toLowerCase();
+  return (
+    mime.startsWith("audio/") ||
+    name.endsWith(".m4a") ||
+    name.endsWith(".mp4") ||
+    name.endsWith(".aac") ||
+    name.endsWith(".wav") ||
+    name.endsWith(".caf") ||
+    name.endsWith(".mp3")
+  );
+}
+
+export function readAudioDurationMs(blob: Blob): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio();
+    audio.preload = "metadata";
+    const finish = (ms: number) => {
+      URL.revokeObjectURL(url);
+      resolve(ms);
+    };
+    audio.onloadedmetadata = () => {
+      const sec = audio.duration;
+      finish(
+        Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : 0
+      );
+    };
+    audio.onerror = () => finish(0);
+    audio.src = url;
+  });
 }
 
 function writeString(view: DataView, offset: number, str: string) {
@@ -76,9 +147,26 @@ export function audioBufferToWav(buffer: AudioBuffer): Blob {
  * Convert recorder output to something iOS can play.
  * Chromium webm/ogg → WAV; mp4/aac left as-is.
  */
-export async function normalizeVoiceBlob(blob: Blob): Promise<Blob> {
-  const type = (blob.type || "").toLowerCase();
-  if (type.includes("mp4") || type.includes("aac") || type.includes("wav")) {
+export async function normalizeVoiceBlob(
+  blob: Blob,
+  fileName?: string
+): Promise<Blob> {
+  const type = inferAudioMime({
+    name: fileName,
+    type: blob.type,
+  }).toLowerCase();
+  if (
+    type.includes("mp4") ||
+    type.includes("aac") ||
+    type.includes("m4a") ||
+    type.includes("wav") ||
+    type.includes("mpeg") ||
+    type.includes("mp3") ||
+    type.includes("caf")
+  ) {
+    if (!blob.type || blob.type === "application/octet-stream") {
+      return new Blob([blob], { type });
+    }
     return blob;
   }
 
