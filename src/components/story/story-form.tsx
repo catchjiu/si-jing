@@ -7,6 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Story, StoryStatus } from "@/lib/types";
 import {
+  appendTrailingTbc,
+  continuationFingerprint,
+  nextStoryTimingFields,
+  parseStoryViewWindow,
+  STORY_VIEW_WINDOW_OPTIONS,
+  storyHasTbc,
+  storyViewWindowSelectValue,
+} from "@/lib/story-access";
+import {
   sanitizeStoryHtml,
   storyHtmlHasText,
   storyHtmlExcerpt,
@@ -38,6 +47,8 @@ type StoryFormProps = {
   className?: string;
   /** Open with the write-from-prompt panel focused. */
   promptFirst?: boolean;
+  /** Append a To be continued break at the end when opening the editor. */
+  startWithTbc?: boolean;
 };
 
 export function StoryForm({
@@ -46,11 +57,17 @@ export function StoryForm({
   onCancel,
   className,
   promptFirst = false,
+  startWithTbc = false,
 }: StoryFormProps) {
   const { profile, isQueen, isSlave } = useAuth();
   const [title, setTitle] = useState(story?.title ?? "");
-  const [body, setBody] = useState(story?.body ?? "");
+  const [body, setBody] = useState(() =>
+    startWithTbc ? appendTrailingTbc(story?.body ?? "") : (story?.body ?? "")
+  );
   const [status, setStatus] = useState<StoryStatus>(story?.status ?? "published");
+  const [viewWindow, setViewWindow] = useState(
+    storyViewWindowSelectValue(story?.view_window_minutes)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
 
@@ -77,7 +94,14 @@ export function StoryForm({
 
     setSubmitting(true);
     const supabase = createClient();
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const timing = nextStoryTimingFields({
+      previous: story ?? null,
+      nextStatus: status,
+      nextWindowMinutes: parseStoryViewWindow(viewWindow),
+      now,
+    });
 
     try {
       if (isEdit && story) {
@@ -87,15 +111,59 @@ export function StoryForm({
             title: trimmedTitle,
             body: cleanBody,
             status,
-            updated_at: now,
+            view_window_minutes: timing.view_window_minutes,
+            viewable_until: timing.viewable_until,
+            published_at: timing.published_at,
+            tbc_locked: storyHasTbc(cleanBody),
+            updated_at: nowIso,
           })
           .eq("id", story.id)
           .eq("author_id", profile.id);
 
         if (error) throw error;
 
-        toast.success("Story updated");
-        if (status === "published" && story.status === "draft") {
+        const tbcLocked = storyHasTbc(cleanBody);
+        const continuationChanged =
+          continuationFingerprint(story.body) !==
+          continuationFingerprint(cleanBody);
+        const tbcRelock =
+          status === "published" &&
+          tbcLocked &&
+          (continuationChanged || !story.tbc_locked);
+        const windowRestarted =
+          story.status !== "published" ||
+          (story.view_window_minutes ?? null) !== timing.view_window_minutes;
+        if (tbcRelock || (status === "published" && windowRestarted)) {
+          await supabase
+            .from("story_access_grants")
+            .delete()
+            .eq("story_id", story.id);
+          await supabase
+            .from("story_access_requests")
+            .delete()
+            .eq("story_id", story.id);
+        }
+
+        toast.success(
+          tbcRelock
+            ? "To be continued — they need to request access again"
+            : "Story updated"
+        );
+        if (tbcRelock) {
+          void notifyPush({
+            title: "To be continued",
+            body: `${trimmedTitle} — request access to keep reading`,
+            url: storyPageHref(story.id),
+            kind: "story",
+          });
+          void postToTopicThread(supabase, {
+            topic: "general",
+            senderId: profile.id,
+            content: `To be continued: ${trimmedTitle}`,
+            attachmentType: "story",
+            attachmentId: story.id,
+          });
+        } else if (status === "published" && story.status === "draft") {
           void notifyPush({
             title: isQueen ? "Queen published a story" : "New story published",
             body: trimmedTitle,
@@ -122,7 +190,11 @@ export function StoryForm({
           title: trimmedTitle,
           body: cleanBody,
           status,
-          updated_at: now,
+          view_window_minutes: timing.view_window_minutes,
+          viewable_until: timing.viewable_until,
+          published_at: timing.published_at,
+          tbc_locked: storyHasTbc(cleanBody),
+          updated_at: nowIso,
         })
         .select("id")
         .single();
@@ -150,6 +222,7 @@ export function StoryForm({
       setTitle("");
       setBody("");
       setStatus("published");
+      setViewWindow("none");
       onSuccess?.(storyId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save story");
@@ -214,6 +287,11 @@ export function StoryForm({
           editable={!submitting}
           placeholder="Begin the story…"
         />
+        <p className="text-[11px] text-muted-foreground">
+          Use <span className="text-gold">TBC</span> in the toolbar to drop a To
+          be continued break. They can read everything above it; what follows
+          stays locked until they request access again.
+        </p>
       </div>
 
       {isSlave && (
@@ -254,7 +332,7 @@ export function StoryForm({
           onValueChange={(v) => setStatus(v as StoryStatus)}
           disabled={submitting}
         >
-          <SelectTrigger className="border-gold/20 bg-void/60">
+          <SelectTrigger className="w-full border-gold/20 bg-void/60">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -262,6 +340,31 @@ export function StoryForm({
             <SelectItem value="draft">Draft (only you)</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Reading window</Label>
+        <Select
+          value={viewWindow}
+          onValueChange={setViewWindow}
+          disabled={submitting}
+        >
+          <SelectTrigger className="w-full border-gold/20 bg-void/60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STORY_VIEW_WINDOW_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          {status === "draft"
+            ? "The timer starts when you publish. After it ends they will see the cover with blurred text and can request access."
+            : "After the window closes, the other person sees the artwork with blurred text and a request-access button. You always keep the full story."}
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">

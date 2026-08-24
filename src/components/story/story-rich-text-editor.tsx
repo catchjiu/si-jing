@@ -18,6 +18,7 @@ import {
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StoryTbc } from "@/components/story/story-tbc-extension";
 
 type StoryRichTextEditorProps = {
   value: string;
@@ -118,6 +119,16 @@ function EditorToolbar({ editor }: { editor: Editor }) {
       >
         <Minus className="h-3.5 w-3.5" />
       </ToolbarButton>
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label="To be continued"
+        title="To be continued — lock everything after this until they request access"
+        onClick={() => editor.chain().focus().setStoryTbc().run()}
+        className="h-8 px-2 text-[10px] font-medium uppercase tracking-[0.14em] text-gold hover:bg-gold/10 hover:text-gold"
+      >
+        TBC
+      </Button>
       <span className="mx-1 h-4 w-px bg-gold/20" />
       <ToolbarButton
         label="Undo"
@@ -152,6 +163,7 @@ export function StoryRichTextEditor({
         code: false,
         codeBlock: false,
       }),
+      StoryTbc,
       Placeholder.configure({ placeholder }),
     ],
     content: value || "",

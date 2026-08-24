@@ -17,15 +17,22 @@ import { Button } from "@/components/ui/button";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { StoryForm } from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
-import { StoryHtmlView } from "@/components/story/story-rich-text-editor";
 import { StoryCoverButton } from "@/components/story/story-cover-button";
 import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
+import { StoryTimedBody } from "@/components/story/story-timed-body";
+import {
+  getStoryLockKind,
+  type StoryAccessGrant,
+  type StoryAccessRequest,
+} from "@/lib/story-access";
 
 type StoryAuthor = Pick<Profile, "id" | "username" | "role" | "avatar_url">;
 
 type StoryRow = Story & {
   author?: StoryAuthor | null;
   coverSignedUrl?: string | null;
+  access_grants?: StoryAccessGrant[] | null;
+  access_requests?: StoryAccessRequest[] | null;
 };
 
 function authorInitials(name: string | undefined) {
@@ -60,6 +67,8 @@ function StoryPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [extending, setExtending] = useState<StoryRow | null>(null);
+  const [tbcEditingId, setTbcEditingId] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     if (!profile) return;
@@ -68,7 +77,9 @@ function StoryPageInner() {
     try {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, author:users!author_id(id, username, role, avatar_url)")
+        .select(
+          "*, author:users!author_id(id, username, role, avatar_url), access_grants:story_access_grants(*), access_requests:story_access_requests(*)"
+        )
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
@@ -101,6 +112,34 @@ function StoryPageInner() {
   useEffect(() => {
     if (!authLoading && profile) void load();
   }, [authLoading, profile, load]);
+
+  useEffect(() => {
+    const timed = stories.some((s) => s.viewable_until);
+    if (!timed) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [stories]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel("story-access")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "story_access_grants" },
+        () => void load()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "story_access_requests" },
+        () => void load()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [profile, load]);
 
   useEffect(() => {
     if (!focusStoryId || loading) return;
@@ -147,8 +186,8 @@ function StoryPageInner() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {isQueen
-              ? "Write from a prompt, extend a story with direction, or generate Grok covers"
-              : "Prompt a full draft, polish with AI, extend with direction, and generate a cover"}
+              ? "Write from a prompt, time how long it can be read, extend with direction, or generate Grok covers"
+              : "Prompt a full draft, set a reading window, polish with AI, extend with direction, and generate a cover"}
           </p>
         </div>
         {(isQueen || isSlave) && !showForm && !editingId && (
@@ -210,6 +249,21 @@ function StoryPageInner() {
               const canEdit = mine;
               const canDelete = mine || isQueen;
               const isEditing = editingId === story.id;
+              const grants = story.access_grants ?? [];
+              const requests = story.access_requests ?? [];
+              const lockKind = profile
+                ? getStoryLockKind({
+                    authorId: story.author_id,
+                    status: story.status,
+                    viewableUntil: story.viewable_until,
+                    tbcLocked: story.tbc_locked,
+                    html: story.body,
+                    viewerId: profile.id,
+                    grants,
+                    now,
+                  })
+                : "none";
+              const locked = lockKind !== "none";
               const safeHtml = sanitizeStoryHtml(story.body);
               const displayName =
                 story.author?.username ??
@@ -229,11 +283,16 @@ function StoryPageInner() {
                   {isEditing ? (
                     <div className="p-4 sm:p-5">
                       <StoryForm
-                        key={story.id}
+                        key={`${story.id}-${tbcEditingId === story.id ? "tbc" : "edit"}`}
                         story={story}
-                        onCancel={() => setEditingId(null)}
+                        startWithTbc={tbcEditingId === story.id}
+                        onCancel={() => {
+                          setEditingId(null);
+                          setTbcEditingId(null);
+                        }}
                         onSuccess={(id) => {
                           setEditingId(null);
+                          setTbcEditingId(null);
                           setHighlightId(id);
                           void load();
                         }}
@@ -324,6 +383,7 @@ function StoryPageInner() {
                                 <StoryCoverButton
                                   storyId={story.id}
                                   hasCover={Boolean(story.cover_image_path)}
+                                  coverImagePath={story.cover_image_path}
                                   lastPrompt={story.cover_prompt}
                                   onGenerated={() => void load()}
                                 />
@@ -341,9 +401,23 @@ function StoryPageInner() {
                                   type="button"
                                   size="sm"
                                   variant="outline"
+                                  className="h-7 border-gold/25 px-2 text-xs text-gold"
+                                  onClick={() => {
+                                    setShowForm(false);
+                                    setTbcEditingId(story.id);
+                                    setEditingId(story.id);
+                                  }}
+                                >
+                                  TBC
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
                                   className="h-7 border-gold/25 px-2 text-xs"
                                   onClick={() => {
                                     setShowForm(false);
+                                    setTbcEditingId(null);
                                     setEditingId(story.id);
                                   }}
                                 >
@@ -367,15 +441,30 @@ function StoryPageInner() {
                           </div>
                         </div>
 
-                        <div className="story-prose mx-auto max-w-2xl text-base leading-relaxed text-ivory/90">
-                          <StoryHtmlView html={safeHtml} />
-                        </div>
+                        <StoryTimedBody
+                          storyId={story.id}
+                          storyTitle={story.title}
+                          html={safeHtml}
+                          authorId={story.author_id}
+                          status={story.status}
+                          viewWindowMinutes={story.view_window_minutes}
+                          viewableUntil={story.viewable_until}
+                          tbcLocked={story.tbc_locked}
+                          grants={grants}
+                          requests={requests}
+                          lockKind={lockKind}
+                          onChanged={() => void load()}
+                        />
 
-                        {story.status === "published" ? (
+                        {story.status === "published" && !locked ? (
                           <StoryCommentThread
                             storyId={story.id}
                             storyTitle={story.title}
                           />
+                        ) : story.status === "published" && locked ? (
+                          <p className="text-xs text-muted-foreground">
+                            Comments unlock with the story.
+                          </p>
                         ) : (
                           <p className="text-xs text-muted-foreground">
                             Draft — only you can see this until you publish.

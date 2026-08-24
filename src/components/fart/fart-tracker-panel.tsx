@@ -10,11 +10,10 @@ import type { CapturedVoice } from "@/lib/voice";
 import {
   extensionForMime,
   inferAudioMime,
-  isIosVoiceMemoUpload,
   normalizeVoiceBlob,
-  readAudioDurationMs,
 } from "@/lib/voice-format";
-import { formatRelative } from "@/lib/format";
+import { extractFartAudio, isFartMediaUpload } from "@/lib/extract-audio";
+import { formatFartDate, localDateInputValue } from "@/lib/fart";
 import { fartPageHref } from "@/lib/inbox-deep-links";
 import { notifyPush } from "@/lib/push-client";
 import { presignAndUpload, removeObject } from "@/lib/storage/client";
@@ -24,24 +23,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VoicePlayer } from "@/components/voice/voice-player";
 import { VoiceRecorder } from "@/components/voice/voice-recorder";
+import { FartCommentThread } from "@/components/fart/fart-comment-thread";
+import { FartRatingPanel } from "@/components/fart/fart-rating-panel";
 
 type FartRow = FartEntry;
 
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
 export function FartTrackerPanel({
   focusId,
+  focusCommentId,
 }: {
   focusId?: string | null;
+  focusCommentId?: string | null;
 }) {
   const { profile, isQueen, isSlave } = useAuth();
   const [entries, setEntries] = useState<FartRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [captured, setCaptured] = useState<CapturedVoice | null>(null);
   const [note, setNote] = useState("");
+  const [fartDate, setFartDate] = useState(localDateInputValue());
   const [saving, setSaving] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [pendingExtract, setPendingExtract] = useState<File | null>(null);
   const [recorderKey, setRecorderKey] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+  useEffect(() => {
+    if (!captured?.fileName) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(captured.blob);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [captured]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +66,7 @@ export function FartTrackerPanel({
     const { data, error } = await supabase
       .from("fart_entries")
       .select("*")
+      .order("fart_date", { ascending: false })
       .order("created_at", { ascending: false });
     if (error) {
       toast.error("Could not load fart log");
@@ -99,6 +117,7 @@ export function FartTrackerPanel({
           audio_path: path,
           duration_ms: captured.durationMs,
           note: note.trim() || null,
+          fart_date: fartDate || localDateInputValue(),
         })
         .select("id")
         .single();
@@ -107,13 +126,14 @@ export function FartTrackerPanel({
       toast.success("Fart logged");
       void notifyPush({
         title: "Queen logged a fart",
-        body: note.trim() || "New audio in Fart Tracker",
+        body: note.trim() || `Fart · ${formatFartDate(fartDate)}`,
         url: fartPageHref(data.id as string),
         target: "slave",
         kind: "fart",
       });
       setCaptured(null);
       setNote("");
+      setFartDate(localDateInputValue());
       setRecorderKey((k) => k + 1);
       if (fileRef.current) fileRef.current.value = "";
       void load();
@@ -145,27 +165,53 @@ export function FartTrackerPanel({
     void load();
   };
 
-  const onVoiceMemo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const applyExtracted = async (file: File) => {
+    setExtracting(true);
+    setPendingExtract(null);
+    try {
+      const extracted = await extractFartAudio(file);
+      setCaptured({
+        blob: extracted.blob,
+        durationMs: extracted.durationMs,
+        fileName: extracted.fileName,
+      });
+      setRecorderKey((k) => k + 1);
+      toast.success(
+        extracted.fromVideo
+          ? "Sound extracted from video — save it to the log"
+          : "Audio attached — save it to the log"
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      const blocked =
+        (err instanceof DOMException && err.name === "NotAllowedError") ||
+        /not allowed|user gesture|play\(\)/i.test(msg);
+      if (blocked) {
+        setPendingExtract(file);
+        toast.error("Tap Extract sound to pull audio from the video");
+      } else {
+        toast.error(msg || "Could not extract audio from that file");
+        if (fileRef.current) fileRef.current.value = "";
+      }
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const onMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error("Voice memo is too large (max 25 MB)");
+      toast.error("File is too large (max 50 MB)");
       e.target.value = "";
       return;
     }
-    if (!isIosVoiceMemoUpload(file)) {
-      toast.error("Use an iPhone Voice Memo or audio file (.m4a, .wav, .mp3)");
+    if (!isFartMediaUpload(file)) {
+      toast.error("Use audio or video (.m4a, .mp3, .ogg, .wav, .mp4, .mov, .hevc)");
       e.target.value = "";
       return;
     }
-    const durationMs = await readAudioDurationMs(file);
-    setCaptured({
-      blob: file,
-      durationMs: durationMs || 200,
-      fileName: file.name,
-    });
-    setRecorderKey((k) => k + 1);
-    toast.success("Voice Memo attached — save it to the log");
+    await applyExtracted(file);
   };
 
   if (loading && entries.length === 0) {
@@ -179,9 +225,22 @@ export function FartTrackerPanel({
           <div>
             <h2 className="font-heading text-lg text-ivory">Record a fart</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Record here, or upload an iPhone Voice Memo (.m4a). Noise filters
-              are off for live recording.
+              Record here, or upload audio or video. Video is converted to sound
+              automatically. Noise filters are off for live recording.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fart-date" className="text-xs text-muted-foreground">
+              Date of fart
+            </Label>
+            <Input
+              id="fart-date"
+              type="date"
+              value={fartDate}
+              onChange={(e) => setFartDate(e.target.value)}
+              className="w-auto border-gold/20 bg-void/60"
+              disabled={saving}
+            />
           </div>
           <VoiceRecorder
             key={recorderKey}
@@ -194,26 +253,45 @@ export function FartTrackerPanel({
             <input
               ref={fileRef}
               type="file"
-              accept="audio/*,.m4a,.mp4,.aac,.wav,.caf,.mp3"
+              accept="audio/*,video/*,audio/ogg,video/ogg,video/hevc,.m4a,.mp4,.mov,.m4v,.aac,.wav,.caf,.mp3,.webm,.ogg,.oga,.ogv,.hevc,.h265"
               className="sr-only"
-              onChange={(e) => void onVoiceMemo(e)}
+              onChange={(e) => void onMediaUpload(e)}
             />
             <Button
               type="button"
               variant="outline"
               className="border-gold/25"
-              disabled={saving}
+              disabled={saving || extracting}
               onClick={() => fileRef.current?.click()}
             >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Voice Memo
+              {extracting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              {extracting ? "Extracting sound…" : "Upload audio or video"}
             </Button>
             {captured?.fileName && (
               <span className="text-xs text-gold/80">
                 Attached · {captured.fileName}
               </span>
             )}
+            {pendingExtract && (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-gold/40 text-gold"
+                disabled={extracting}
+                onClick={() => void applyExtracted(pendingExtract)}
+              >
+                Extract sound
+              </Button>
+            )}
           </div>
+          {previewUrl && (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <audio controls src={previewUrl} className="h-9 max-w-full" />
+          )}
           <div className="space-y-1.5">
             <Label
               htmlFor="fart-note"
@@ -232,7 +310,7 @@ export function FartTrackerPanel({
           </div>
           <Button
             type="button"
-            disabled={!captured || saving}
+            disabled={!captured || saving || extracting}
             onClick={() => void save()}
             className="bg-gold text-void hover:bg-gold-muted"
           >
@@ -268,16 +346,16 @@ export function FartTrackerPanel({
                 key={entry.id}
                 id={`fart-${entry.id}`}
                 className={cn(
-                  "rounded-xl border bg-charcoal/80 p-4",
+                  "space-y-3 rounded-xl border bg-charcoal/80 p-4",
                   entry.id === focusId ? "border-gold/40" : "border-gold/15"
                 )}
               >
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs uppercase tracking-wider text-gold/80">
                     #{entries.length - index}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatRelative(entry.created_at)}
+                    {formatFartDate(entry.fart_date)}
                   </span>
                   {entry.note && (
                     <span className="text-sm text-ivory/90">{entry.note}</span>
@@ -299,13 +377,29 @@ export function FartTrackerPanel({
                   filePath={entry.audio_path}
                   durationMs={entry.duration_ms}
                 />
+                <FartRatingPanel
+                  entry={entry}
+                  onSaved={(next) => {
+                    setEntries((prev) =>
+                      prev.map((row) =>
+                        row.id === entry.id ? { ...row, ...next } : row
+                      )
+                    );
+                  }}
+                />
+                <FartCommentThread
+                  entryId={entry.id}
+                  highlightCommentId={
+                    entry.id === focusId ? focusCommentId : null
+                  }
+                />
               </li>
             ))}
           </ul>
         )}
         {isSlave && entries.length > 0 && (
           <p className="text-xs text-muted-foreground">
-            Listen when Queen logs one. Push will alert you.
+            Rate loudness and hotness, and leave a comment when Queen logs one.
           </p>
         )}
       </section>

@@ -961,6 +961,11 @@ export type Database = {
           audio_path: string
           duration_ms: number | null
           note: string | null
+          fart_date: string
+          loudness: number | null
+          hotness: number | null
+          rated_at: string | null
+          rated_by: string | null
           created_at: string
         }
         Insert: {
@@ -969,6 +974,11 @@ export type Database = {
           audio_path: string
           duration_ms?: number | null
           note?: string | null
+          fart_date?: string
+          loudness?: number | null
+          hotness?: number | null
+          rated_at?: string | null
+          rated_by?: string | null
           created_at?: string
         }
         Update: {
@@ -977,12 +987,203 @@ export type Database = {
           audio_path?: string
           duration_ms?: number | null
           note?: string | null
+          fart_date?: string
+          loudness?: number | null
+          hotness?: number | null
+          rated_at?: string | null
+          rated_by?: string | null
           created_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "fart_entries_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fart_entries_rated_by_fkey"
+            columns: ["rated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fart_comments: {
+        Row: {
+          id: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fart_comments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "fart_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fart_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creep_galleries: {
+        Row: {
+          id: string
+          created_by: string | null
+          title: string
+          slug: string
+          description: string | null
+          is_system: boolean
+          sort_order: number
+          viewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by?: string | null
+          title: string
+          slug: string
+          description?: string | null
+          is_system?: boolean
+          sort_order?: number
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          created_by?: string | null
+          title?: string
+          slug?: string
+          description?: string | null
+          is_system?: boolean
+          sort_order?: number
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creep_galleries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creep_entries: {
+        Row: {
+          id: string
+          gallery_id: string
+          created_by: string
+          title: string | null
+          description: string | null
+          image_path: string
+          media_kind: string
+          viewed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          gallery_id: string
+          created_by: string
+          title?: string | null
+          description?: string | null
+          image_path: string
+          media_kind?: string
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          gallery_id?: string
+          created_by?: string
+          title?: string | null
+          description?: string | null
+          image_path?: string
+          media_kind?: string
+          viewed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creep_entries_gallery_id_fkey"
+            columns: ["gallery_id"]
+            isOneToOne: false
+            referencedRelation: "creep_galleries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creep_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creep_comments: {
+        Row: {
+          id: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          entry_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          entry_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creep_comments_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "creep_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creep_comments_author_id_fkey"
+            columns: ["author_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -3023,6 +3224,10 @@ export type Database = {
           status: string
           cover_image_path: string | null
           cover_prompt: string | null
+          view_window_minutes: number | null
+          viewable_until: string | null
+          published_at: string | null
+          tbc_locked: boolean
           created_at: string
           updated_at: string
         }
@@ -3034,6 +3239,10 @@ export type Database = {
           status?: string
           cover_image_path?: string | null
           cover_prompt?: string | null
+          view_window_minutes?: number | null
+          viewable_until?: string | null
+          published_at?: string | null
+          tbc_locked?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -3045,6 +3254,10 @@ export type Database = {
           status?: string
           cover_image_path?: string | null
           cover_prompt?: string | null
+          view_window_minutes?: number | null
+          viewable_until?: string | null
+          published_at?: string | null
+          tbc_locked?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -3052,6 +3265,91 @@ export type Database = {
           {
             foreignKeyName: "stories_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_access_grants: {
+        Row: {
+          story_id: string
+          grantee_id: string
+          granted_by: string
+          granted_at: string
+        }
+        Insert: {
+          story_id: string
+          grantee_id: string
+          granted_by: string
+          granted_at?: string
+        }
+        Update: {
+          story_id?: string
+          grantee_id?: string
+          granted_by?: string
+          granted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_access_grants_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_access_grants_grantee_id_fkey"
+            columns: ["grantee_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      story_access_requests: {
+        Row: {
+          id: string
+          story_id: string
+          requester_id: string
+          status: string
+          created_at: string
+          responded_at: string | null
+        }
+        Insert: {
+          id?: string
+          story_id: string
+          requester_id: string
+          status?: string
+          created_at?: string
+          responded_at?: string | null
+        }
+        Update: {
+          id?: string
+          story_id?: string
+          requester_id?: string
+          status?: string
+          created_at?: string
+          responded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_access_requests_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_access_requests_requester_id_fkey"
+            columns: ["requester_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -3796,6 +4094,7 @@ export type Database = {
         Args: { p_tease_id: string; p_reason: string }
         Returns: Json
       }
+      story_readable_by_me: { Args: { p_story_id: string }; Returns: boolean }
       flag_missed_premieres: { Args: never; Returns: number }
       apply_premiere_denial: {
         Args: { p_days: number; p_note: string; p_updated_by: string }

@@ -260,7 +260,10 @@ export type MessageAttachmentType =
   | "worship"
   | "worship_assignment"
   | "denial"
-  | "story";
+  | "jealousy_mission"
+  | "story"
+  | "fart"
+  | "creep";
 export type MessageMediaType = "image" | "video";
 
 export type DirectMessage = {
@@ -381,6 +384,10 @@ export type Story = {
   status: StoryStatus;
   cover_image_path?: string | null;
   cover_prompt?: string | null;
+  view_window_minutes?: number | null;
+  viewable_until?: string | null;
+  published_at?: string | null;
+  tbc_locked?: boolean | null;
   created_at: string;
   updated_at: string;
 };
@@ -399,6 +406,66 @@ export type FartEntry = {
   audio_path: string;
   duration_ms: number | null;
   note: string | null;
+  fart_date: string;
+  loudness: number | null;
+  hotness: number | null;
+  rated_at: string | null;
+  rated_by: string | null;
+  created_at: string;
+};
+
+export type FartComment = {
+  id: string;
+  entry_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+};
+
+export type CreepMediaKind = "image" | "video";
+
+export type CreepGallery = {
+  id: string;
+  created_by: string | null;
+  title: string;
+  slug: string;
+  description: string | null;
+  is_system: boolean;
+  sort_order: number;
+  viewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreepEntry = {
+  id: string;
+  gallery_id: string;
+  created_by: string;
+  title: string | null;
+  description: string | null;
+  image_path: string;
+  media_kind: CreepMediaKind;
+  viewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreepEntryWithSignedUrl = CreepEntry & {
+  signedUrl?: string;
+};
+
+export type CreepGalleryWithMeta = CreepGallery & {
+  coverSignedUrl?: string;
+  coverMediaKind?: CreepMediaKind;
+  entryCount: number;
+  unviewedCount: number;
+};
+
+export type CreepComment = {
+  id: string;
+  entry_id: string;
+  author_id: string;
+  content: string;
   created_at: string;
 };
 

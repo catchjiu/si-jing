@@ -17,6 +17,7 @@ import {
   wishlistPageHref,
   storyPageHref,
   fartPageHref,
+  creepGalleryPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -98,6 +99,8 @@ const COMMENT_ATTACHMENT_TYPES = new Set([
   "worship",
   "denial",
   "story",
+  "fart",
+  "creep",
 ]);
 
 function pushOtherPartyAdd(
@@ -2034,15 +2037,24 @@ export async function fetchRecentActivity(
     });
   }
 
-  const { data: fartRows } = await supabase
-    .from("fart_entries")
-    .select(
-      "id, note, created_at, created_by, author:users!created_by(id, role, username)"
-    )
-    .order("created_at", { ascending: false })
-    .limit(FETCH_LIMIT);
+  const [fartRows, fartCommentRows] = await Promise.all([
+    supabase
+      .from("fart_entries")
+      .select(
+        "id, note, created_at, created_by, author:users!created_by(id, role, username)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("fart_comments")
+      .select(
+        "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username), entry:fart_entries(note)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+  ]);
 
-  for (const f of fartRows ?? []) {
+  for (const f of fartRows.data ?? []) {
     pushOtherPartyAdd(items, profile, {
       id: `fart-${f.id}`,
       at: f.created_at as string,
@@ -2051,6 +2063,92 @@ export async function fetchRecentActivity(
       href: fartPageHref(f.id as string),
       kind: "fart",
       author: f.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  for (const c of fartCommentRows.data ?? []) {
+    const entry = c.entry as { note?: string | null } | null;
+    pushOtherPartyComment(items, profile, {
+      id: `fart-comment-${c.id}`,
+      at: c.created_at as string,
+      content: c.content as string,
+      where: "Fart Tracker",
+      href: fartPageHref(c.entry_id as string, {
+        commentId: c.id as string,
+      }),
+      kind: "fart_comment",
+      context: entry?.note ?? null,
+      author: c.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  const [creepGalleries, creepEntries, creepComments] = await Promise.all([
+    supabase
+      .from("creep_galleries")
+      .select(
+        "id, title, created_at, created_by, is_system, author:users!created_by(id, role, username)"
+      )
+      .eq("is_system", false)
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("creep_entries")
+      .select(
+        "id, title, created_at, created_by, gallery_id, author:users!created_by(id, role, username), gallery:creep_galleries(title)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+    supabase
+      .from("creep_comments")
+      .select(
+        "id, content, created_at, entry_id, author_id, author:users!author_id(id, role, username), entry:creep_entries(title, gallery_id)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT),
+  ]);
+
+  for (const g of creepGalleries.data ?? []) {
+    pushOtherPartyAdd(items, profile, {
+      id: `creep-gallery-${g.id}`,
+      at: g.created_at as string,
+      where: "Creep",
+      body: (g.title as string) || "New gallery",
+      href: creepGalleryPageHref(g.id as string),
+      kind: "creep_gallery_add",
+      author: g.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  for (const e of creepEntries.data ?? []) {
+    const gallery = e.gallery as { title?: string } | null;
+    pushOtherPartyAdd(items, profile, {
+      id: `creep-entry-${e.id}`,
+      at: e.created_at as string,
+      where: gallery?.title ? `Creep · ${gallery.title}` : "Creep",
+      body: ((e.title as string | null) || "New photo or video").slice(0, 80),
+      href: creepGalleryPageHref(e.gallery_id as string, {
+        entryId: e.id as string,
+      }),
+      kind: "creep_entry",
+      author: e.author as { id?: string; role?: string } | null,
+    });
+  }
+
+  for (const c of creepComments.data ?? []) {
+    const entry = c.entry as { title?: string | null; gallery_id?: string } | null;
+    if (!entry?.gallery_id) continue;
+    pushOtherPartyComment(items, profile, {
+      id: `creep-comment-${c.id}`,
+      at: c.created_at as string,
+      content: c.content as string,
+      where: "Creep",
+      href: creepGalleryPageHref(entry.gallery_id, {
+        entryId: c.entry_id as string,
+        commentId: c.id as string,
+      }),
+      kind: "creep_comment",
+      context: entry.title ?? null,
+      author: c.author as { id?: string; role?: string } | null,
     });
   }
 

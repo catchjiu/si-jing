@@ -23,6 +23,7 @@ import {
   Upload,
   Video,
   Wind,
+  Ghost,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -87,6 +88,11 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   story: BookMarked,
   story_comment: MessageSquare,
   fart: Wind,
+  fart_comment: MessageSquare,
+  creep: Ghost,
+  creep_gallery_add: Ghost,
+  creep_entry: Ghost,
+  creep_comment: MessageSquare,
   submission_comment: MessageSquare,
   wishlist: Gift,
   wishlist_add: Gift,

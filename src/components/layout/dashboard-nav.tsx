@@ -27,6 +27,7 @@ import {
   Lock,
   Flame,
   HeartCrack,
+  Ghost,
   Wind,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
@@ -38,6 +39,9 @@ import { SignedAvatarImage } from "@/components/ui/signed-avatar-image"
 import { Separator } from "@/components/ui/separator"
 import { BrandLogo } from "@/components/brand-logo"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { useCreepGalleries } from "@/components/creep/use-creep-galleries"
+import { creepFartHref, creepGalleryHref } from "@/lib/creep"
+import { RoleSpeech } from "@/components/ui/role-speech"
 import {
   useInboxUnread,
 } from "@/components/inbox/use-inbox-unread"
@@ -61,7 +65,9 @@ function featureNavHref(
   if (
     m?.attachment_type &&
     m.attachment_id &&
-    (m.attachment_type === "tease" || m.attachment_type === "worship")
+    (m.attachment_type === "tease" ||
+      m.attachment_type === "worship" ||
+      m.attachment_type === "creep")
   ) {
     return attachmentHref(
       m.attachment_type as MessageAttachmentType,
@@ -89,7 +95,7 @@ const navLinks = [
   { href: "/dashboard/worship", label: "Worship", icon: Crown },
   { href: "/dashboard/journal", label: "Journal", icon: NotebookPen },
   { href: "/dashboard/story", label: "Story", icon: BookMarked },
-  { href: "/dashboard/fart", label: "Fart Tracker", icon: Wind },
+  { href: "/dashboard/creep", label: "Creep", icon: Ghost },
   { href: "/dashboard/requests", label: "Requests", icon: HandHeart },
   { href: "/dashboard/denial", label: "Denial", icon: Lock },
   { href: "/dashboard/punishments", label: "Punishments", icon: Ban },
@@ -121,6 +127,7 @@ export function DashboardNav() {
   const unread = useInboxUnread()
   const flirtUnread = useFlirtUnread()
   const unreadTotal = unread.total
+  const creep = useCreepGalleries()
 
   useEffect(() => {
     if (!mobileOpen) return
@@ -191,28 +198,70 @@ export function DashboardNav() {
           (href !== "/dashboard" && pathname.startsWith(href))
         const isInbox = href === "/dashboard/inbox"
         const isFlirt = href === "/dashboard/flirt"
+        const isCreep = href === "/dashboard/creep"
         const topic = NAV_TOPIC_BY_HREF[href]
         const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
         const flirtNavUnread = isFlirt ? flirtUnread.total : 0
         const linkHref = featureNavHref(href, unread.threads)
 
         return (
-          <Link
-            key={href}
-            href={linkHref}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
-              isActive
-                ? "border border-gold/30 bg-gold/10 text-gold"
-                : "text-ivory/60 hover:bg-charcoal hover:text-ivory"
+          <div key={href}>
+            <Link
+              href={linkHref}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
+                isActive
+                  ? "border border-gold/30 bg-gold/10 text-gold"
+                  : "text-ivory/60 hover:bg-charcoal hover:text-ivory"
+              )}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+              {isInbox && <InboxBadge count={unreadTotal} />}
+              {isFlirt && <TopicBadge count={flirtNavUnread} />}
+              {!isInbox && !isFlirt && <TopicBadge count={topicUnread} />}
+            </Link>
+            {isCreep && (
+              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gold/10 pl-2">
+                <p className="px-2 py-1.5 font-heading text-[10px] italic leading-snug text-gold/70">
+                  <RoleSpeech
+                    text="slave loving things about his Queen, she doesn't love about Herself."
+                    role="slave"
+                  />
+                </p>
+                <Link
+                  href={creepFartHref()}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    pathname.startsWith("/dashboard/creep/fart")
+                      ? "text-gold"
+                      : "text-ivory/50 hover:text-ivory"
+                  )}
+                >
+                  <Wind className="size-3 shrink-0" />
+                  Fart Tracker
+                </Link>
+                {creep.galleries.map((gallery) => {
+                  const galleryHref = creepGalleryHref(gallery.id)
+                  const galleryActive = pathname.startsWith(galleryHref)
+                  return (
+                    <Link
+                      key={gallery.id}
+                      href={galleryHref}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                        galleryActive
+                          ? "text-gold"
+                          : "text-ivory/50 hover:text-ivory"
+                      )}
+                    >
+                      <span className="truncate">{gallery.title}</span>
+                    </Link>
+                  )
+                })}
+              </div>
             )}
-          >
-            <Icon className="size-4 shrink-0" />
-            {label}
-            {isInbox && <InboxBadge count={unreadTotal} />}
-            {isFlirt && <TopicBadge count={flirtNavUnread} />}
-            {!isInbox && !isFlirt && <TopicBadge count={topicUnread} />}
-          </Link>
+          </div>
         )
       })}
     </nav>

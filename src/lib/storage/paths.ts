@@ -13,6 +13,7 @@ export const STORAGE_BUCKETS = [
   "journal",
   "jealousy",
   "stories",
+  "creep",
 ] as const;
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[number];

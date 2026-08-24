@@ -20,7 +20,8 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import {
   MAX_VIDEO_BYTES,
   prepareVideoForUpload,
-  VIDEO_TYPES,
+  VIDEO_ACCEPT,
+  isAcceptedVideoUpload,
 } from "@/lib/video-compress";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { getCurrentPosition, resolveImageLocation } from "@/lib/location";
@@ -152,7 +153,7 @@ export function DateTimeline({
     clearMedia();
     if (!f) return;
     const isImage = IMAGE_TYPES.includes(f.type);
-    const isVideo = VIDEO_TYPES.includes(f.type as (typeof VIDEO_TYPES)[number]);
+    const isVideo = isAcceptedVideoUpload(f);
     if (!isImage && !isVideo) {
       toast.error("Use an image or video file");
       return;
@@ -257,9 +258,7 @@ export function DateTimeline({
         : null;
 
       if (file) {
-        const isVideo = VIDEO_TYPES.includes(
-          file.type as (typeof VIDEO_TYPES)[number]
-        );
+        const isVideo = isAcceptedVideoUpload(file);
         let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
         let uploadFile = file;
         if (isVideo) {
@@ -564,9 +563,7 @@ export function DateTimeline({
 
           {preview && file ? (
             <div className="relative overflow-hidden rounded-md border border-gold/15">
-              {VIDEO_TYPES.includes(
-                file.type as (typeof VIDEO_TYPES)[number]
-              ) ? (
+              {isAcceptedVideoUpload(file) ? (
                 <video
                   src={preview}
                   controls
@@ -611,7 +608,7 @@ export function DateTimeline({
                 Video
                 <input
                   type="file"
-                  accept={VIDEO_TYPES.join(",")}
+                  accept={VIDEO_ACCEPT}
                   className="sr-only"
                   onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
                 />

@@ -12,6 +12,8 @@ import {
   type MessageAttachmentType,
 } from "@/lib/inbox";
 import { isWishlistSecretForQueen } from "@/lib/wishlist";
+import { getStoryLockKind, splitStoryAtLastTbc } from "@/lib/story-access";
+import { formatFartDate } from "@/lib/fart";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { MessageCard } from "@/components/inbox/message-card";
 import { InboxTeaseEmbed } from "@/components/inbox/inbox-tease-embed";
@@ -26,7 +28,9 @@ type StorageBucket =
   | "wishlist"
   | "messages"
   | "voice"
-  | "journal";
+  | "journal"
+  | "stories"
+  | "creep";
 
 type Preview = {
   title: string;
@@ -35,6 +39,18 @@ type Preview = {
   bucket?: StorageBucket;
   mediaKind?: "image" | "video";
 };
+
+function creepEntryIdFromAnchor(anchor?: string | null): string | null {
+  if (!anchor) return null;
+  if (anchor.startsWith("creep_entry:")) {
+    return anchor.slice("creep_entry:".length) || null;
+  }
+  if (anchor.startsWith("creep_photo_comment:")) {
+    const rest = anchor.slice("creep_photo_comment:".length);
+    return rest.split(":")[0] || null;
+  }
+  return null;
+}
 
 function worshipEntryIdFromAnchor(anchor?: string | null): string | null {
   if (!anchor) return null;
@@ -52,7 +68,8 @@ async function loadPreview(
   type: MessageAttachmentType,
   id: string,
   anchor: string | null | undefined,
-  isQueen: boolean
+  isQueen: boolean,
+  viewerId?: string | null
 ): Promise<Preview | null> {
   const supabase = createClient();
 
@@ -170,17 +187,49 @@ async function loadPreview(
   if (type === "story") {
     const { data } = await supabase
       .from("stories")
-      .select("id, title, body, status")
+      .select(
+        "id, title, body, status, author_id, viewable_until, tbc_locked, cover_image_path, access_grants:story_access_grants(grantee_id)"
+      )
       .eq("id", id)
       .maybeSingle();
     if (!data) return null;
-    const plain = ((data.body as string) ?? "")
+    const lockKind = viewerId
+      ? getStoryLockKind({
+          authorId: data.author_id as string,
+          status: data.status as string,
+          viewableUntil: data.viewable_until as string | null,
+          tbcLocked: data.tbc_locked as boolean | null,
+          html: data.body as string,
+          viewerId,
+          grants: (data.access_grants as { grantee_id: string }[] | null) ?? [],
+        })
+      : "none";
+    if (lockKind === "full") {
+      return {
+        title: (data.title as string) || "Story",
+        body: "Reading window closed — request access",
+        imagePath: (data.cover_image_path as string | null) ?? null,
+        bucket: "stories",
+        mediaKind: "image",
+      };
+    }
+    const sourceHtml =
+      lockKind === "tbc"
+        ? splitStoryAtLastTbc((data.body as string) ?? "").preview
+        : ((data.body as string) ?? "");
+    const plain = sourceHtml
       .replace(/<[^>]+>/g, " ")
       .replace(/\s+/g, " ")
       .trim();
     return {
       title: (data.title as string) || "Story",
-      body: plain.slice(0, 160) || null,
+      body:
+        lockKind === "tbc"
+          ? `${plain.slice(0, 120)}${plain ? " " : ""}To be continued — request access`
+          : plain.slice(0, 160) || null,
+      imagePath: (data.cover_image_path as string | null) ?? null,
+      bucket: "stories",
+      mediaKind: "image",
     };
   }
 
@@ -236,6 +285,71 @@ async function loadPreview(
     };
   }
 
+  if (type === "fart") {
+    const { data } = await supabase
+      .from("fart_entries")
+      .select("id, note, fart_date")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return null;
+    return {
+      title: data.fart_date
+        ? `Fart · ${formatFartDate(data.fart_date as string)}`
+        : "Fart",
+      body: ((data.note as string | null) || "Open in Fart Tracker").slice(0, 160),
+    };
+  }
+
+  if (type === "creep") {
+    const entryId = creepEntryIdFromAnchor(anchor);
+    if (entryId) {
+      const { data } = await supabase
+        .from("creep_entries")
+        .select("id, title, description, image_path, media_kind")
+        .eq("id", entryId)
+        .maybeSingle();
+      if (data) {
+        return {
+          title: (data.title as string) || "Creep",
+          body: (data.description as string | null) ?? null,
+          imagePath: data.image_path as string,
+          bucket: "creep",
+          mediaKind:
+            (data.media_kind as string) === "video" ? "video" : "image",
+        };
+      }
+    }
+    const { data: gallery } = await supabase
+      .from("creep_galleries")
+      .select("id, title")
+      .eq("id", id)
+      .maybeSingle();
+    const { data: latest } = await supabase
+      .from("creep_entries")
+      .select("id, title, description, image_path, media_kind")
+      .eq("gallery_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest) {
+      return {
+        title:
+          (latest.title as string) ||
+          (gallery?.title as string) ||
+          "Creep",
+        body: (latest.description as string | null) ?? null,
+        imagePath: latest.image_path as string,
+        bucket: "creep",
+        mediaKind:
+          (latest.media_kind as string) === "video" ? "video" : "image",
+      };
+    }
+    if (gallery) {
+      return { title: (gallery.title as string) || "Creep" };
+    }
+    return null;
+  }
+
   return null;
 }
 
@@ -255,7 +369,7 @@ export function InboxAttachmentEmbed({
   summary,
   className,
 }: Props) {
-  const { isQueen } = useAuth();
+  const { isQueen, profile } = useAuth();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -263,7 +377,7 @@ export function InboxAttachmentEmbed({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const next = await loadPreview(type, id, anchor, isQueen);
+      const next = await loadPreview(type, id, anchor, isQueen, profile?.id);
       setPreview(next);
       if (next?.imagePath && next.bucket) {
         try {
@@ -285,7 +399,7 @@ export function InboxAttachmentEmbed({
     } finally {
       setLoading(false);
     }
-  }, [type, id, anchor, isQueen]);
+  }, [type, id, anchor, isQueen, profile?.id]);
 
   useEffect(() => {
     void load();

@@ -18,7 +18,7 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { hasPunishmentEffect } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
-import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
+import { prepareVideoForUpload, VIDEO_TYPES, VIDEO_ACCEPT_EXTS, isAcceptedVideoUpload } from "@/lib/video-compress";
 import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import { teasePageHref } from "@/lib/inbox-deep-links";
 import {
@@ -88,12 +88,12 @@ import {
 } from "lucide-react";
 
 const ACCEPTED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const ACCEPTED_MEDIA = [...ACCEPTED_IMAGE, ...VIDEO_TYPES];
+const ACCEPTED_MEDIA = [...ACCEPTED_IMAGE, ...VIDEO_TYPES, ...VIDEO_ACCEPT_EXTS];
 /** Blur applied on slave card previews for Queen-revealed teases. */
 const SLAVE_CARD_PREVIEW_BLUR = 20;
 
 function isVideoFile(file: File) {
-  return VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number]);
+  return isAcceptedVideoUpload(file);
 }
 
 /** Map 0–100 → CSS blur px (100 ≈ heavy soft veil, still some shape). */
@@ -1318,7 +1318,7 @@ function TeasesPageInner() {
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f && ACCEPTED_MEDIA.includes(f.type)) setImage(f);
+                    if (f && (ACCEPTED_IMAGE.includes(f.type) || isAcceptedVideoUpload(f))) setImage(f);
                   }}
                 />
               </label>

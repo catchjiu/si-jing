@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { resolveImageLocation } from "@/lib/location";
-import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress";
+import { prepareVideoForUpload, VIDEO_TYPES, VIDEO_ACCEPT_EXTS, isAcceptedVideoUpload } from "@/lib/video-compress";
 import { presignAndUpload } from "@/lib/storage/client";
 import { computePremiereClosesAt } from "@/lib/tease-premiere";
 import { formatDeadline } from "@/lib/format";
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MEDIA_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
+const MEDIA_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES, ...VIDEO_ACCEPT_EXTS];
 
 interface InboxTeaseFormProps {
   recipientId: string;
@@ -85,9 +85,7 @@ export function InboxTeaseForm({
       let mediaKind: TeaseMediaKind = "image";
       let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null;
       if (file) {
-        const isVideo = VIDEO_TYPES.includes(
-          file.type as (typeof VIDEO_TYPES)[number]
-        );
+        const isVideo = isAcceptedVideoUpload(file);
         mediaKind = isVideo ? "video" : "image";
         let uploadFile = file;
         if (isVideo) {

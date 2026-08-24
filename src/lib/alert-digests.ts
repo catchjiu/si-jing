@@ -21,6 +21,11 @@ function digestKey(n: AppNotification): string | null {
   const href = n.href || "";
   const day = n.created_at.slice(0, 10);
 
+  if (kind.includes("creep") || title.includes("creep")) {
+    if (title.includes("gallery")) return `creep-gallery:${day}`;
+    if (title.includes("comment")) return `creep-comment:${day}`;
+    return `creep:${day}`;
+  }
   if (kind.includes("worship") || title.includes("worship")) {
     if (title.includes("photo")) return `worship-photo:${day}`;
     if (title.includes("gallery")) return `worship-gallery:${day}`;
@@ -48,6 +53,15 @@ function digestKey(n: AppNotification): string | null {
 }
 
 function digestTitle(key: string, count: number, sample: AppNotification): string {
+  if (key.startsWith("creep-gallery")) {
+    return count === 1 ? sample.title : `${count} new Creep galleries`;
+  }
+  if (key.startsWith("creep-comment")) {
+    return count === 1 ? sample.title : `${count} Creep comments`;
+  }
+  if (key.startsWith("creep")) {
+    return count === 1 ? sample.title : `${count} Creep updates`;
+  }
   if (key.startsWith("worship-photo")) {
     return count === 1 ? sample.title : `${count} new worship photos`;
   }

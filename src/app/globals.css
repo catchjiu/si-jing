@@ -185,10 +185,19 @@
   color: rgba(245, 245, 245, 0.75);
   font-style: italic;
 }
-.story-prose hr {
-  margin: 1rem 0;
-  border: 0;
-  border-top: 1px solid rgba(212, 175, 55, 0.2);
+.story-prose aside[data-tbc] {
+  margin: 1.4rem 0;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  font-family: var(--font-playfair), serif;
+  font-size: 0.85rem;
+  font-style: italic;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #d4af37;
+  background: rgba(0, 0, 0, 0.28);
 }
 .story-prose strong {
   font-weight: 600;

@@ -1,6 +1,43 @@
-const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"] as const;
+const VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/hevc",
+  "video/h265",
+  "video/x-m4v",
+  "video/ogg",
+  "application/ogg",
+  "audio/ogg",
+] as const;
+const VIDEO_ACCEPT_EXTS = [
+  ".mp4",
+  ".m4v",
+  ".mov",
+  ".webm",
+  ".hevc",
+  ".h265",
+  ".hev",
+  ".ogg",
+  ".ogv",
+  ".oga",
+] as const;
+const VIDEO_EXT =
+  /\.(mp4|m4v|mov|webm|qt|avi|hevc|h265|hev|ogg|ogv|oga)$/i;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const COMPRESS_THRESHOLD = 15 * 1024 * 1024;
+
+/** MIME types + extensions for `<input accept>`. */
+export const VIDEO_ACCEPT = [...VIDEO_TYPES, ...VIDEO_ACCEPT_EXTS].join(",");
+
+export function isAcceptedVideoUpload(file: {
+  name?: string;
+  type?: string;
+}): boolean {
+  const type = (file.type || "").toLowerCase().split(";")[0]?.trim() ?? "";
+  if ((VIDEO_TYPES as readonly string[]).includes(type)) return true;
+  if (type.startsWith("video/")) return true;
+  return VIDEO_EXT.test(file.name || "");
+}
 
 export type PreparedVideo = {
   file: File;
@@ -30,7 +67,7 @@ function loadVideoMetadata(file: File): Promise<{ durationSec: number }> {
  * Best-effort; falls back to original file if unsupported or encoding fails.
  */
 async function tryCompressVideo(file: File): Promise<File | null> {
-  if (!VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])) {
+  if (!isAcceptedVideoUpload(file)) {
     return null;
   }
   if (typeof MediaRecorder === "undefined") return null;
@@ -119,14 +156,23 @@ async function tryCompressVideo(file: File): Promise<File | null> {
  * Validate and optionally compress a video before R2 upload.
  */
 export async function prepareVideoForUpload(file: File): Promise<PreparedVideo> {
-  if (!VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])) {
-    throw new Error("Unsupported video format — use MP4, WebM, or MOV");
+  if (!isAcceptedVideoUpload(file)) {
+    throw new Error(
+      "Unsupported video format — use MP4, HEVC, WebM, MOV, or OGG"
+    );
   }
   if (file.size > MAX_VIDEO_BYTES) {
     throw new Error("Video too large (max 50 MB)");
   }
 
-  const { durationSec } = await loadVideoMetadata(file);
+  let durationSec = 0;
+  try {
+    const meta = await loadVideoMetadata(file);
+    durationSec = meta.durationSec;
+  } catch {
+    // HEVC/OGG may not decode in this browser; still allow the original file.
+    return { file, durationSec: 0, compressed: false };
+  }
 
   if (file.size <= COMPRESS_THRESHOLD) {
     return { file, durationSec, compressed: false };
@@ -140,4 +186,4 @@ export async function prepareVideoForUpload(file: File): Promise<PreparedVideo> 
   return { file, durationSec, compressed: false };
 }
 
-export { VIDEO_TYPES, MAX_VIDEO_BYTES };
+export { VIDEO_TYPES, VIDEO_ACCEPT_EXTS, MAX_VIDEO_BYTES };

@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/auth-context";
+import { removeObject } from "@/lib/storage/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +21,7 @@ import { cn } from "@/lib/utils";
 type StoryCoverButtonProps = {
   storyId: string;
   hasCover?: boolean;
+  coverImagePath?: string | null;
   lastPrompt?: string | null;
   onGenerated?: () => void;
   className?: string;
@@ -26,13 +30,17 @@ type StoryCoverButtonProps = {
 export function StoryCoverButton({
   storyId,
   hasCover,
+  coverImagePath,
   lastPrompt,
   onGenerated,
   className,
 }: StoryCoverButtonProps) {
+  const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState(lastPrompt ?? "");
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const showCover = hasCover || Boolean(coverImagePath);
 
   useEffect(() => {
     if (open) setPrompt(lastPrompt ?? "");
@@ -69,29 +77,78 @@ export function StoryCoverButton({
     }
   };
 
+  const removeCover = async () => {
+    if (!profile || !coverImagePath) return;
+    if (!window.confirm("Delete this blog cover picture?")) return;
+
+    setRemoving(true);
+    const supabase = createClient();
+    try {
+      const { error } = await supabase
+        .from("stories")
+        .update({
+          cover_image_path: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", storyId)
+        .eq("author_id", profile.id);
+      if (error) throw error;
+
+      try {
+        await removeObject({ bucket: "stories", path: coverImagePath });
+      } catch {
+        // Row is cleared; storage cleanup is best-effort
+      }
+
+      toast.success("Cover picture deleted");
+      onGenerated?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete cover");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   return (
     <>
       <Button
         type="button"
         size="sm"
         variant="outline"
-        disabled={busy}
+        disabled={busy || removing}
         onClick={() => setOpen(true)}
-        className={cn("border-gold/25 text-xs", className)}
+        className={cn("h-7 border-gold/25 px-2 text-xs", className)}
       >
         {busy ? (
-          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
         ) : (
-          <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+          <ImagePlus className="mr-1 h-3 w-3" />
         )}
-        {hasCover ? "Regenerate cover" : "Generate cover"}
+        {showCover ? "Regenerate cover" : "Generate cover"}
       </Button>
+      {showCover && (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={busy || removing || !coverImagePath}
+          onClick={() => void removeCover()}
+          className="h-7 px-2 text-xs text-muted-foreground hover:bg-red-500/10 hover:text-red-400"
+        >
+          {removing ? (
+            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+          ) : (
+            <Trash2 className="mr-1 h-3 w-3" />
+          )}
+          Delete cover
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg" showCloseButton>
           <DialogHeader>
             <DialogTitle className="font-heading text-ivory">
-              {hasCover ? "Regenerate cover" : "Generate cover"}
+              {showCover ? "Regenerate cover" : "Generate cover"}
             </DialogTitle>
             <DialogDescription>
               Describe the image. Leave it blank to let Grok invent a cover from

@@ -1009,7 +1009,7 @@ export function WorkoutSessionLogger({
               Photo / video
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,video/hevc,video/ogg,.hevc,.h265,.ogg,.ogv"
                 multiple
                 className="hidden"
                 onChange={(e) => {

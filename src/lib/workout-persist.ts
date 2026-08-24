@@ -10,7 +10,7 @@ import {
 import {
   MAX_VIDEO_BYTES,
   prepareVideoForUpload,
-  VIDEO_TYPES,
+  isAcceptedVideoUpload,
 } from "@/lib/video-compress";
 import type { WorkoutSessionStatus } from "@/lib/types";
 
@@ -152,9 +152,7 @@ export async function uploadWorkoutMedia(
   profileId: string,
   file: File
 ): Promise<void> {
-  const isVideo = VIDEO_TYPES.includes(
-    file.type as (typeof VIDEO_TYPES)[number]
-  );
+  const isVideo = isAcceptedVideoUpload(file);
   let upload = file;
   if (isVideo) {
     if (file.size > MAX_VIDEO_BYTES) throw new Error("Video too large");

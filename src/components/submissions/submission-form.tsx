@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import { getYouTubeEmbedUrl, isValidYouTubeUrl } from "@/lib/youtube"
 import { downsizeImageIfNeeded } from "@/lib/image-compress"
-import { prepareVideoForUpload, VIDEO_TYPES } from "@/lib/video-compress"
+import { prepareVideoForUpload, VIDEO_TYPES, VIDEO_ACCEPT_EXTS, isAcceptedVideoUpload } from "@/lib/video-compress"
 import { resolveImageLocation } from "@/lib/location"
 import { presignAndUpload } from "@/lib/storage/client"
 import { formatRoleSpeech } from "@/lib/role-speech"
@@ -49,7 +49,7 @@ interface SubmissionFormProps {
 }
 
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...VIDEO_TYPES]
+const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...VIDEO_TYPES, ...VIDEO_ACCEPT_EXTS]
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormProps) {
@@ -78,11 +78,11 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
   const addFiles = useCallback((incoming: FileList | File[]) => {
     const valid = Array.from(incoming).filter((file) => {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
+      const isVideo = isAcceptedVideoUpload(file)
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type) && !isVideo) {
         toast.error(`${file.name}: unsupported file type`)
         return false
       }
-      const isVideo = VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])
       const maxSize = isVideo ? 50 * 1024 * 1024 : MAX_IMAGE_SIZE
       if (file.size > maxSize) {
         toast.error(
@@ -138,7 +138,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
 
       if (options.withMedia) {
         for (const file of files) {
-          const isVideo = VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number])
+          const isVideo = isAcceptedVideoUpload(file)
           let geo: Awaited<ReturnType<typeof resolveImageLocation>> = null
           let uploadFile = file
 
@@ -350,7 +350,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
             Drag & drop images or videos here, or click to browse
           </p>
           <p className="mt-1 text-xs text-[color:var(--white,#f5f5f5)]/30">
-            Images: JPEG, PNG, WebP, GIF — max 10MB · Videos: MP4, WebM, MOV — max 50MB
+            Images: JPEG, PNG, WebP, GIF — max 10MB · Videos: MP4, HEVC, WebM, MOV, OGG — max 50MB
           </p>
           <input
             id="file-input"
@@ -369,7 +369,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
                 key={`${file.name}-${index}`}
                 className="flex items-center gap-2 rounded-lg border border-[color:var(--purple,#2d1b69)]/30 bg-[color:var(--black,#0a0a0a)] px-3 py-2"
               >
-                {VIDEO_TYPES.includes(file.type as (typeof VIDEO_TYPES)[number]) ? (
+                {isAcceptedVideoUpload(file) ? (
                   <Film className="size-4 shrink-0 text-gold" />
                 ) : (
                   <ImagePlus className="size-4 shrink-0 text-[color:var(--gold,#d4af37)]" />

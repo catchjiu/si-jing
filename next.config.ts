@@ -36,6 +36,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/dashboard/fart",
+        destination: "/dashboard/creep/fart",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

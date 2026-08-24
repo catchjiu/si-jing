@@ -23,7 +23,7 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import {
   MAX_VIDEO_BYTES,
   prepareVideoForUpload,
-  VIDEO_TYPES,
+  isAcceptedVideoUpload,
 } from "@/lib/video-compress";
 import { presignAndUpload } from "@/lib/storage/client";
 import type { Profile } from "@/lib/types";
@@ -290,9 +290,7 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
       if (setErr) throw setErr;
 
       for (const file of files) {
-        const isVideo = VIDEO_TYPES.includes(
-          file.type as (typeof VIDEO_TYPES)[number]
-        );
+        const isVideo = isAcceptedVideoUpload(file);
         let upload = file;
         if (isVideo) {
           if (file.size > MAX_VIDEO_BYTES) throw new Error("Video too large");
@@ -528,7 +526,7 @@ export function WorkoutSessionForm({ className }: { className?: string }) {
             Photo / video
             <input
               type="file"
-              accept="image/*,video/*"
+              accept="image/*,video/*,video/hevc,video/ogg,.hevc,.h265,.ogg,.ogv"
               multiple
               className="hidden"
               onChange={(e) =>

@@ -14,13 +14,14 @@ const ALLOWED_TAGS = [
   "h2",
   "h3",
   "hr",
+  "aside",
 ];
 
 /** Sanitize TipTap HTML for safe storage/display. */
 export function sanitizeStoryHtml(html: string): string {
   return DOMPurify.sanitize(html ?? "", {
     ALLOWED_TAGS,
-    ALLOWED_ATTR: [],
+    ALLOWED_ATTR: ["data-tbc"],
   }).trim();
 }
 

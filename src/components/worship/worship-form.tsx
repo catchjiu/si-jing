@@ -10,6 +10,8 @@ import {
   MAX_VIDEO_BYTES,
   prepareVideoForUpload,
   VIDEO_TYPES,
+  VIDEO_ACCEPT_EXTS,
+  isAcceptedVideoUpload,
 } from "@/lib/video-compress";
 import { resolveImageLocation } from "@/lib/location";
 import { presignAndUpload, removeObject } from "@/lib/storage/client";
@@ -34,12 +36,8 @@ import { Slider } from "@/components/ui/slider";
 import type { WorshipEntryWithSignedUrl } from "@/lib/types";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const ACCEPTED_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
+const ACCEPTED_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES, ...VIDEO_ACCEPT_EXTS];
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
-
-function isVideoType(type: string): boolean {
-  return VIDEO_TYPES.includes(type as (typeof VIDEO_TYPES)[number]);
-}
 
 type PhotoMode = "upload" | "queen";
 
@@ -116,7 +114,7 @@ export function WorshipForm({
       setFile(next);
       setPreview(next ? URL.createObjectURL(next) : null);
       setPreviewMediaKind(
-        next && isVideoType(next.type) ? "video" : "image"
+        next && isAcceptedVideoUpload(next) ? "video" : "image"
       );
     },
     [preview]
@@ -125,11 +123,16 @@ export function WorshipForm({
   const pickFile = (incoming: FileList | File[] | null) => {
     const candidate = incoming?.[0];
     if (!candidate) return;
-    if (!ACCEPTED_TYPES.includes(candidate.type)) {
-      toast.error("Use a JPG, PNG, WebP, GIF, MP4, WebM, or MOV file");
+    if (
+      !IMAGE_TYPES.includes(candidate.type) &&
+      !isAcceptedVideoUpload(candidate)
+    ) {
+      toast.error(
+        "Use a JPG, PNG, WebP, GIF, MP4, HEVC, WebM, MOV, or OGG file"
+      );
       return;
     }
-    if (isVideoType(candidate.type)) {
+    if (isAcceptedVideoUpload(candidate)) {
       if (candidate.size > MAX_VIDEO_BYTES) {
         toast.error("Video must be under 50MB");
         return;
@@ -192,7 +195,7 @@ export function WorshipForm({
         mediaKind = selectedQueenPicture.mediaKind;
         signedUrl = selectedQueenPicture.signedUrl;
       } else if (file) {
-        const isVideo = isVideoType(file.type);
+        const isVideo = isAcceptedVideoUpload(file);
         mediaKind = isVideo ? "video" : "image";
 
         if (isVideo) {

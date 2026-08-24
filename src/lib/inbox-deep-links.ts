@@ -12,6 +12,10 @@ export const inboxAnchors = {
     `worship_gallery_comment:${messageId}`,
   worshipPhotoComment: (entryId: string, messageId: string) =>
     `worship_photo_comment:${entryId}:${messageId}`,
+  creepGallery: () => "creep_gallery",
+  creepEntry: (entryId: string) => `creep_entry:${entryId}`,
+  creepPhotoComment: (entryId: string, messageId: string) =>
+    `creep_photo_comment:${entryId}:${messageId}`,
   denialEdge: (edgeLogId: string) => `denial_edge:${edgeLogId}`,
   denialComment: (edgeLogId: string, commentId: string) =>
     `denial_comment:${edgeLogId}:${commentId}`,
@@ -81,9 +85,27 @@ export function flirtPageHref(
   return qs ? `${base}?${qs}` : base;
 }
 
-export function fartPageHref(entryId?: string | null): string {
-  if (!entryId) return "/dashboard/fart";
-  return `/dashboard/fart?fart=${encodeURIComponent(entryId)}`;
+export function fartPageHref(
+  entryId?: string | null,
+  opts?: { commentId?: string | null }
+): string {
+  if (!entryId) return "/dashboard/creep/fart";
+  const params = new URLSearchParams({ fart: entryId });
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  return `/dashboard/creep/fart?${params.toString()}`;
+}
+
+export function creepGalleryPageHref(
+  galleryId: string,
+  opts?: { entryId?: string | null; commentId?: string | null }
+): string {
+  const params = new URLSearchParams();
+  if (opts?.entryId) params.set("entry", opts.entryId);
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  const qs = params.toString();
+  return qs
+    ? `/dashboard/creep/gallery/${galleryId}?${qs}`
+    : `/dashboard/creep/gallery/${galleryId}`;
 }
 
 export function storyPageHref(
@@ -189,6 +211,8 @@ export function messageAttachmentHref(opts: {
   if (type === "date") return `/dashboard/dates`;
   if (type === "journal") return `/dashboard/journal`;
   if (type === "story") return storyPageHref(id);
+  if (type === "fart") return fartPageHref(id);
+  if (type === "creep") return creepDeepLink(id, anchor);
   if (type === "wishlist") return wishlistDeepLink(id, anchor);
   if (type === "worship") return worshipDeepLink(id, anchor);
   if (type === "worship_assignment") return `/dashboard/worship`;
@@ -271,6 +295,25 @@ function worshipDeepLink(galleryId: string, anchor?: string | null): string {
 
   const qs = params.toString();
   return qs ? `${base}?${qs}` : base;
+}
+
+function creepDeepLink(galleryId: string, anchor?: string | null): string {
+  if (!anchor) return creepGalleryPageHref(galleryId);
+  if (anchor === "creep_gallery") return creepGalleryPageHref(galleryId);
+  if (anchor.startsWith("creep_entry:")) {
+    return creepGalleryPageHref(galleryId, {
+      entryId: anchor.slice("creep_entry:".length) || null,
+    });
+  }
+  if (anchor.startsWith("creep_photo_comment:")) {
+    const rest = anchor.slice("creep_photo_comment:".length);
+    const [entryId, messageId] = rest.split(":");
+    return creepGalleryPageHref(galleryId, {
+      entryId: entryId || null,
+      commentId: messageId || null,
+    });
+  }
+  return creepGalleryPageHref(galleryId);
 }
 
 export function highlightMessageElement(messageId: string) {

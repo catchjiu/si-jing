@@ -29,7 +29,9 @@ export type MessageAttachmentType =
   | "worship_assignment"
   | "denial"
   | "jealousy_mission"
-  | "story";
+  | "story"
+  | "fart"
+  | "creep";
 
 export type MessageMediaType = "image" | "video";
 
@@ -280,6 +282,44 @@ export async function notifyWorshipThread(
     url: dm ? deepLink : deepLink,
     target: opts.notifyTarget,
     kind: "worship",
+  });
+}
+
+/** Mirror slave/Queen Creep gallery activity into inbox + notify. */
+export async function notifyCreepThread(
+  supabase: Supabase,
+  opts: {
+    senderId: string;
+    content: string;
+    galleryId: string;
+    attachmentAnchor?: string | null;
+    pushTitle: string;
+    pushBody: string;
+    notifyTarget: "queen" | "slave";
+  }
+): Promise<void> {
+  const dm = await postToTopicThread(supabase, {
+    topic: "general",
+    senderId: opts.senderId,
+    content: opts.content,
+    attachmentType: "creep",
+    attachmentId: opts.galleryId,
+    attachmentAnchor: opts.attachmentAnchor ?? null,
+  });
+
+  const deepLink = messageAttachmentHref({
+    type: "creep",
+    id: opts.galleryId,
+    anchor: opts.attachmentAnchor,
+  });
+
+  const { notifyPush } = await import("@/lib/push-client");
+  void notifyPush({
+    title: opts.pushTitle,
+    body: opts.pushBody,
+    url: dm ? deepLink : deepLink,
+    target: opts.notifyTarget,
+    kind: "creep",
   });
 }
 
@@ -574,6 +614,8 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     denial: "Denial",
     jealousy_mission: "Jealousy mission",
     story: "Story",
+    fart: "Fart",
+    creep: "Creep",
   };
   return labels[type];
 }

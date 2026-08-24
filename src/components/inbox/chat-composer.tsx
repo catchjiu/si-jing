@@ -19,7 +19,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
-import { prepareVideoForUpload } from "@/lib/video-compress";
+import { prepareVideoForUpload, VIDEO_ACCEPT, isAcceptedVideoUpload } from "@/lib/video-compress";
 import { presignAndUpload } from "@/lib/storage/client";
 import { normalizeVoiceBlob } from "@/lib/voice-format";
 import { pickRecorderMimeType } from "@/lib/voice-format";
@@ -47,7 +47,6 @@ import { PunishmentForm } from "@/components/punishments/punishment-form";
 import { InboxTeaseForm } from "@/components/inbox/inbox-tease-form";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
 interface ChatComposerProps {
   conversationId: string;
@@ -145,7 +144,7 @@ export function ChatComposer({
   const sendMedia = async (file: File) => {
     if (!profile || blocked) return;
     const isImage = IMAGE_TYPES.includes(file.type);
-    const isVideo = VIDEO_TYPES.includes(file.type);
+    const isVideo = isAcceptedVideoUpload(file);
     if (!isImage && !isVideo) {
       toast.error("Use an image or video file");
       return;
@@ -382,7 +381,7 @@ export function ChatComposer({
         <input
           ref={fileRef}
           type="file"
-          accept={[...IMAGE_TYPES, ...VIDEO_TYPES].join(",")}
+          accept={[...IMAGE_TYPES, VIDEO_ACCEPT].join(",")}
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];

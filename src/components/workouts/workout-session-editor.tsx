@@ -24,7 +24,7 @@ import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import {
   MAX_VIDEO_BYTES,
   prepareVideoForUpload,
-  VIDEO_TYPES,
+  isAcceptedVideoUpload,
 } from "@/lib/video-compress";
 import { presignAndUpload, removeObject } from "@/lib/storage/client";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
@@ -326,9 +326,7 @@ export function WorkoutSessionEditor({
       if (setErr) throw setErr;
 
       for (const file of newFiles) {
-        const isVideo = VIDEO_TYPES.includes(
-          file.type as (typeof VIDEO_TYPES)[number]
-        );
+        const isVideo = isAcceptedVideoUpload(file);
         let upload = file;
         if (isVideo) {
           if (file.size > MAX_VIDEO_BYTES) throw new Error("Video too large");
@@ -646,7 +644,7 @@ export function WorkoutSessionEditor({
               Add photo / video
               <input
                 type="file"
-                accept="image/*,video/*"
+                accept="image/*,video/*,video/hevc,video/ogg,.hevc,.h265,.ogg,.ogv"
                 multiple
                 className="hidden"
                 onChange={(e) =>
