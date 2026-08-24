@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
   GetObjectCommand,
@@ -74,6 +75,20 @@ export async function putR2Object(opts: {
       ContentType: opts.contentType,
     })
   );
+}
+
+export async function r2ObjectExists(key: string): Promise<boolean> {
+  try {
+    await getR2Client().send(
+      new HeadObjectCommand({
+        Bucket: getR2Bucket(),
+        Key: key,
+      })
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getR2ObjectBytes(key: string): Promise<{

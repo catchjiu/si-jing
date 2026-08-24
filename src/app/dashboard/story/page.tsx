@@ -19,6 +19,7 @@ import { StoryForm } from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryCoverButton } from "@/components/story/story-cover-button";
 import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
+import { StoryListenButton } from "@/components/story/story-listen-button";
 import { StoryTimedBody } from "@/components/story/story-timed-body";
 import {
   getStoryLockKind,
@@ -381,6 +382,10 @@ function StoryPageInner() {
                             >
                               {story.status}
                             </Badge>
+                            <StoryListenButton
+                              storyId={story.id}
+                              lockKind={lockKind}
+                            />
                             {canEdit && (
                               <>
                                 <StoryCoverButton
