@@ -184,26 +184,29 @@ function StoryPageInner() {
             <BookMarked className="h-7 w-7 text-gold" />
             Story
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {isQueen
-              ? "Write from a prompt, time how long it can be read, extend with direction, or generate Grok covers"
-              : "Prompt a full draft, set a reading window, polish with AI, extend with direction, and generate a cover"}
-          </p>
+          {isSlave && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Prompt a full draft, set a reading window, polish with AI, extend
+              with direction, and generate a cover
+            </p>
+          )}
         </div>
         {(isQueen || isSlave) && !showForm && !editingId && (
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="border-gold/30"
-              onClick={() => {
-                setPromptFirst(true);
-                setShowForm(true);
-              }}
-            >
-              <WandSparkles className="mr-2 h-4 w-4" />
-              Write from prompt
-            </Button>
+            {isSlave && (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-gold/30"
+                onClick={() => {
+                  setPromptFirst(true);
+                  setShowForm(true);
+                }}
+              >
+                <WandSparkles className="mr-2 h-4 w-4" />
+                Write from prompt
+              </Button>
+            )}
             <Button
               type="button"
               className="bg-gold text-void hover:bg-gold-muted"

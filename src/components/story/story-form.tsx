@@ -245,17 +245,23 @@ export function StoryForm({
         <BookMarked className="h-6 w-6 text-gold" />
         <div>
           <h3 className="font-heading text-xl text-ivory">
-            {isEdit ? "Edit story" : promptFirst ? "Write from a prompt" : "New story"}
+            {isEdit
+              ? "Edit story"
+              : isSlave && promptFirst
+                ? "Write from a prompt"
+                : "New story"}
           </h3>
           <p className="text-xs text-muted-foreground">
             {isEdit
               ? "Edit your story — Queen/slave speech formatting applies on save"
-              : "Prompt a whole draft, or write it yourself. Role speech formatting applies on save."}
+              : isSlave
+                ? "Prompt a whole draft, or write it yourself. Role speech formatting applies on save."
+                : "Write it yourself. Role speech formatting applies on save."}
           </p>
         </div>
       </div>
 
-      {!isEdit && (
+      {!isEdit && isSlave && (
         <StoryGeneratePanel
           titleHint={title}
           disabled={submitting}

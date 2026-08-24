@@ -107,6 +107,12 @@ export async function POST(request: Request) {
 
   try {
     if (mode === "create") {
+      if (role !== "slave") {
+        return NextResponse.json(
+          { error: "Only the slave can write from a prompt" },
+          { status: 403 }
+        );
+      }
       const prompt =
         typeof payload.prompt === "string" ? payload.prompt.trim() : "";
       if (!prompt) {
