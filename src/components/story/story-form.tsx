@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BookMarked, Loader2, Save, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +40,14 @@ import { StoryRewritePanel } from "@/components/story/story-rewrite-panel";
 import { StoryGeneratePanel } from "@/components/story/story-generate-panel";
 import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
 
+export type StoryFormDraftFields = {
+  title: string;
+  body: string;
+  status: StoryStatus;
+  viewWindow: string;
+  generatePrompt: string;
+};
+
 type StoryFormProps = {
   story?: Story | null;
   onSuccess?: (storyId: string) => void;
@@ -49,6 +57,10 @@ type StoryFormProps = {
   promptFirst?: boolean;
   /** Append a To be continued break at the end when opening the editor. */
   startWithTbc?: boolean;
+  /** Restored in-progress fields (survives remounts / scroll). */
+  draftFields?: Partial<StoryFormDraftFields> | null;
+  /** Called whenever composer fields change so the page can persist them. */
+  onDraftFieldsChange?: (fields: StoryFormDraftFields) => void;
 };
 
 export function StoryForm({
@@ -58,20 +70,44 @@ export function StoryForm({
   className,
   promptFirst = false,
   startWithTbc = false,
+  draftFields = null,
+  onDraftFieldsChange,
 }: StoryFormProps) {
   const { profile, isQueen, isSlave } = useAuth();
-  const [title, setTitle] = useState(story?.title ?? "");
-  const [body, setBody] = useState(() =>
-    startWithTbc ? appendTrailingTbc(story?.body ?? "") : (story?.body ?? "")
+  const [title, setTitle] = useState(
+    () => draftFields?.title ?? story?.title ?? ""
   );
-  const [status, setStatus] = useState<StoryStatus>(story?.status ?? "published");
+  const [body, setBody] = useState(() => {
+    if (draftFields?.body != null) return draftFields.body;
+    return startWithTbc
+      ? appendTrailingTbc(story?.body ?? "")
+      : (story?.body ?? "");
+  });
+  const [status, setStatus] = useState<StoryStatus>(
+    () => draftFields?.status ?? story?.status ?? "published"
+  );
   const [viewWindow, setViewWindow] = useState(
-    storyViewWindowSelectValue(story?.view_window_minutes)
+    () =>
+      draftFields?.viewWindow ??
+      storyViewWindowSelectValue(story?.view_window_minutes)
+  );
+  const [generatePrompt, setGeneratePrompt] = useState(
+    () => draftFields?.generatePrompt ?? ""
   );
   const [submitting, setSubmitting] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
 
   const isEdit = Boolean(story?.id);
+
+  useEffect(() => {
+    onDraftFieldsChange?.({
+      title,
+      body,
+      status,
+      viewWindow,
+      generatePrompt,
+    });
+  }, [title, body, status, viewWindow, generatePrompt, onDraftFieldsChange]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +259,7 @@ export function StoryForm({
       setBody("");
       setStatus("published");
       setViewWindow("none");
+      setGeneratePrompt("");
       onSuccess?.(storyId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save story");
@@ -266,6 +303,8 @@ export function StoryForm({
           titleHint={title}
           disabled={submitting}
           autoFocus={promptFirst}
+          promptValue={generatePrompt}
+          onPromptChange={setGeneratePrompt}
           onGenerated={({ title: nextTitle, html }) => {
             setTitle((current) => current.trim() || nextTitle);
             setBody(html);

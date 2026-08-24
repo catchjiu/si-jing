@@ -15,7 +15,7 @@ import {
   Undo2,
   Redo2,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { StoryTbc } from "@/components/story/story-tbc-extension";
@@ -156,8 +156,10 @@ export function StoryRichTextEditor({
   editable = true,
   minHeightClass = "min-h-[220px]",
 }: StoryRichTextEditorProps) {
-  const editor = useEditor({
-    extensions: [
+  // Stable extension instances — TipTap compares by reference and would
+  // call setOptions on every parent re-render if these were recreated.
+  const extensions = useMemo(
+    () => [
       StarterKit.configure({
         heading: { levels: [2, 3] },
         code: false,
@@ -166,9 +168,15 @@ export function StoryRichTextEditor({
       StoryTbc,
       Placeholder.configure({ placeholder }),
     ],
+    [placeholder]
+  );
+
+  const editor = useEditor({
+    extensions,
     content: value || "",
     editable,
     immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
     editorProps: {
       attributes: {
         class: cn(
@@ -183,7 +191,7 @@ export function StoryRichTextEditor({
   });
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     const current = editor.getHTML();
     if (value !== current) {
       editor.commands.setContent(value || "", { emitUpdate: false });
@@ -191,7 +199,7 @@ export function StoryRichTextEditor({
   }, [editor, value]);
 
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     editor.setEditable(editable);
   }, [editor, editable]);
 

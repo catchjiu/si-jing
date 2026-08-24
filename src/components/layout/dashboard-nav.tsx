@@ -52,6 +52,7 @@ import {
   type MessageAttachmentType,
   type TopicThreadSummary,
 } from "@/lib/inbox"
+import { clearStoryComposerDraftIfLeaving } from "@/lib/story-draft"
 
 function featureNavHref(
   href: string,
@@ -140,6 +141,10 @@ export function DashboardNav() {
 
   useEffect(() => {
     setMobileOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    clearStoryComposerDraftIfLeaving(pathname)
   }, [pathname])
 
   const initials = profile?.username

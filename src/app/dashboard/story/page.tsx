@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BookMarked, Pencil, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -11,11 +11,20 @@ import { formatRelative } from "@/lib/format";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 import { signObjectUrl } from "@/lib/storage/client";
 import { cn } from "@/lib/utils";
+import {
+  clearStoryComposerDraft,
+  readStoryComposerDraft,
+  writeStoryComposerDraft,
+  type StoryComposerDraft,
+} from "@/lib/story-draft";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
-import { StoryForm } from "@/components/story/story-form";
+import {
+  StoryForm,
+  type StoryFormDraftFields,
+} from "@/components/story/story-form";
 import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryCoverButton } from "@/components/story/story-cover-button";
 import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
@@ -23,6 +32,7 @@ import { StoryListenButton } from "@/components/story/story-listen-button";
 import { StoryTimedBody } from "@/components/story/story-timed-body";
 import {
   getStoryLockKind,
+  storyViewWindowSelectValue,
   type StoryAccessGrant,
   type StoryAccessRequest,
 } from "@/lib/story-access";
@@ -55,25 +65,95 @@ export default function StoryPage() {
   );
 }
 
+function emptyDraftFields(): StoryFormDraftFields {
+  return {
+    title: "",
+    body: "",
+    status: "published",
+    viewWindow: "none",
+    generatePrompt: "",
+  };
+}
+
+function readInitialComposerDraft(): StoryComposerDraft | null {
+  if (typeof window === "undefined") return null;
+  return readStoryComposerDraft();
+}
+
 function StoryPageInner() {
   const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const focusStoryId = searchParams.get("story");
   const focusCommentId = searchParams.get("comment");
 
+  const [initialDraft] = useState<StoryComposerDraft | null>(
+    readInitialComposerDraft
+  );
+  const restored = initialDraft;
+
   const [stories, setStories] = useState<StoryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [promptFirst, setPromptFirst] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const [showForm, setShowForm] = useState(
+    () => Boolean(restored?.showForm) && !restored?.editingId
+  );
+  const [promptFirst, setPromptFirst] = useState(
+    () => Boolean(restored?.promptFirst) && !restored?.editingId
+  );
+  const [editingId, setEditingId] = useState<string | null>(
+    () => restored?.editingId ?? null
+  );
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [extending, setExtending] = useState<StoryRow | null>(null);
-  const [tbcEditingId, setTbcEditingId] = useState<string | null>(null);
+  const [tbcEditingId, setTbcEditingId] = useState<string | null>(
+    () => restored?.tbcEditingId ?? null
+  );
+  const [draftFields, setDraftFields] = useState<StoryFormDraftFields>(() =>
+    restored
+      ? {
+          title: restored.title,
+          body: restored.body,
+          status: restored.status,
+          viewWindow: restored.viewWindow,
+          generatePrompt: restored.generatePrompt,
+        }
+      : emptyDraftFields()
+  );
   const [now, setNow] = useState(() => Date.now());
+  /** When true, forms should seed from draftFields (session restore). */
+  const [seedFromDraft, setSeedFromDraft] = useState(() =>
+    Boolean(restored?.editingId || restored?.showForm)
+  );
+
+  const handleDraftFieldsChange = useCallback(
+    (fields: StoryFormDraftFields) => {
+      writeStoryComposerDraft({
+        showForm,
+        promptFirst,
+        editingId,
+        tbcEditingId,
+        ...fields,
+      });
+    },
+    [showForm, promptFirst, editingId, tbcEditingId]
+  );
+
+  const discardComposer = useCallback(() => {
+    clearStoryComposerDraft();
+    setSeedFromDraft(false);
+    setShowForm(false);
+    setPromptFirst(false);
+    setEditingId(null);
+    setTbcEditingId(null);
+    setDraftFields(emptyDraftFields());
+  }, []);
 
   const load = useCallback(async () => {
     if (!profile) return;
-    setLoading(true);
+    // Keep the composer mounted on background refresh — flashing Loading
+    // destroys TipTap / form state (and looked like “scroll cleared my story”).
+    if (!hasLoadedRef.current) setLoading(true);
     const supabase = createClient();
     try {
       const { data, error } = await supabase
@@ -101,6 +181,8 @@ function StoryPageInner() {
         })
       );
       setStories(withCovers);
+      hasLoadedRef.current = true;
+      setHasLoaded(true);
     } catch (err) {
       console.error("Failed to load stories", err);
       toast.error("Could not load stories");
@@ -169,11 +251,15 @@ function StoryPageInner() {
       return;
     }
     toast.success("Story deleted");
-    if (editingId === story.id) setEditingId(null);
+    if (editingId === story.id) discardComposer();
     void load();
   };
 
-  if (authLoading || loading) {
+  const editingStillPresent =
+    !editingId || stories.some((story) => story.id === editingId);
+  const composerOpen = showForm || (Boolean(editingId) && editingStillPresent);
+
+  if (authLoading || (loading && !hasLoaded)) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
@@ -192,7 +278,7 @@ function StoryPageInner() {
             </p>
           )}
         </div>
-        {(isQueen || isSlave) && !showForm && !editingId && (
+        {(isQueen || isSlave) && !composerOpen && (
           <div className="flex flex-wrap gap-2">
             {isSlave && (
               <Button
@@ -200,8 +286,20 @@ function StoryPageInner() {
                 variant="outline"
                 className="border-gold/30"
                 onClick={() => {
+                  const fields = emptyDraftFields();
+                  setDraftFields(fields);
+                  setSeedFromDraft(false);
+                  setEditingId(null);
+                  setTbcEditingId(null);
                   setPromptFirst(true);
                   setShowForm(true);
+                  writeStoryComposerDraft({
+                    showForm: true,
+                    promptFirst: true,
+                    editingId: null,
+                    tbcEditingId: null,
+                    ...fields,
+                  });
                 }}
               >
                 <WandSparkles className="mr-2 h-4 w-4" />
@@ -212,8 +310,20 @@ function StoryPageInner() {
               type="button"
               className="bg-gold text-void hover:bg-gold-muted"
               onClick={() => {
+                const fields = emptyDraftFields();
+                setDraftFields(fields);
+                setSeedFromDraft(false);
+                setEditingId(null);
+                setTbcEditingId(null);
                 setPromptFirst(false);
                 setShowForm(true);
+                writeStoryComposerDraft({
+                  showForm: true,
+                  promptFirst: false,
+                  editingId: null,
+                  tbcEditingId: null,
+                  ...fields,
+                });
               }}
             >
               <BookMarked className="mr-2 h-4 w-4" />
@@ -227,13 +337,11 @@ function StoryPageInner() {
         <StoryForm
           key={promptFirst ? "new-story-prompt" : "new-story"}
           promptFirst={promptFirst}
-          onCancel={() => {
-            setShowForm(false);
-            setPromptFirst(false);
-          }}
+          draftFields={seedFromDraft ? draftFields : null}
+          onDraftFieldsChange={handleDraftFieldsChange}
+          onCancel={discardComposer}
           onSuccess={(id) => {
-            setShowForm(false);
-            setPromptFirst(false);
+            discardComposer();
             setHighlightId(id);
             void load();
           }}
@@ -290,13 +398,11 @@ function StoryPageInner() {
                         key={`${story.id}-${tbcEditingId === story.id ? "tbc" : "edit"}`}
                         story={story}
                         startWithTbc={tbcEditingId === story.id}
-                        onCancel={() => {
-                          setEditingId(null);
-                          setTbcEditingId(null);
-                        }}
+                        draftFields={seedFromDraft ? draftFields : null}
+                        onDraftFieldsChange={handleDraftFieldsChange}
+                        onCancel={discardComposer}
                         onSuccess={(id) => {
-                          setEditingId(null);
-                          setTbcEditingId(null);
+                          discardComposer();
                           setHighlightId(id);
                           void load();
                         }}
@@ -411,9 +517,28 @@ function StoryPageInner() {
                                   variant="outline"
                                   className="h-7 border-gold/25 px-2 text-xs text-gold"
                                   onClick={() => {
+                                    const nextFields: StoryFormDraftFields = {
+                                      title: story.title,
+                                      body: story.body,
+                                      status: story.status,
+                                      viewWindow: storyViewWindowSelectValue(
+                                        story.view_window_minutes
+                                      ),
+                                      generatePrompt: "",
+                                    };
+                                    setDraftFields(nextFields);
                                     setShowForm(false);
+                                    setPromptFirst(false);
+                                    setSeedFromDraft(false);
                                     setTbcEditingId(story.id);
                                     setEditingId(story.id);
+                                    writeStoryComposerDraft({
+                                      showForm: false,
+                                      promptFirst: false,
+                                      editingId: story.id,
+                                      tbcEditingId: story.id,
+                                      ...nextFields,
+                                    });
                                   }}
                                 >
                                   TBC
@@ -424,9 +549,28 @@ function StoryPageInner() {
                                   variant="outline"
                                   className="h-7 border-gold/25 px-2 text-xs"
                                   onClick={() => {
+                                    const nextFields: StoryFormDraftFields = {
+                                      title: story.title,
+                                      body: story.body,
+                                      status: story.status,
+                                      viewWindow: storyViewWindowSelectValue(
+                                        story.view_window_minutes
+                                      ),
+                                      generatePrompt: "",
+                                    };
+                                    setDraftFields(nextFields);
                                     setShowForm(false);
+                                    setPromptFirst(false);
+                                    setSeedFromDraft(false);
                                     setTbcEditingId(null);
                                     setEditingId(story.id);
+                                    writeStoryComposerDraft({
+                                      showForm: false,
+                                      promptFirst: false,
+                                      editingId: story.id,
+                                      tbcEditingId: null,
+                                      ...nextFields,
+                                    });
                                   }}
                                 >
                                   <Pencil className="mr-1 h-3 w-3" />
