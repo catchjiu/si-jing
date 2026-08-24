@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -20,49 +20,89 @@ type Props = {
   onSaved: (next: Pick<FartEntry, "loudness" | "hotness" | "rated_at">) => void;
 };
 
+function clampScore(n: number) {
+  return Math.min(100, Math.max(0, Math.round(Number.isFinite(n) ? n : 0)));
+}
+
 export function FartRatingPanel({ entry, onSaved }: Props) {
   const { isSlave } = useAuth();
   const [loudness, setLoudness] = useState(entry.loudness ?? 50);
   const [hotness, setHotness] = useState(entry.hotness ?? 50);
   const [saving, setSaving] = useState(false);
+  const loudnessRef = useRef(loudness);
+  const hotnessRef = useRef(hotness);
+  const saveTimer = useRef<number | null>(null);
+  const saveGen = useRef(0);
+  const notifiedRef = useRef(entry.rated_at != null);
   const rated = entry.loudness != null && entry.hotness != null;
+  loudnessRef.current = loudness;
+  hotnessRef.current = hotness;
 
   useEffect(() => {
     setLoudness(entry.loudness ?? 50);
     setHotness(entry.hotness ?? 50);
-  }, [entry.id, entry.loudness, entry.hotness]);
+    notifiedRef.current = entry.rated_at != null;
+  }, [entry.id]);
 
-  const save = async () => {
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+    };
+  }, []);
+
+  const persist = async (
+    nextLoudness: number,
+    nextHotness: number,
+    opts?: { toast?: boolean }
+  ) => {
     if (!isSlave) return;
+    const loud = clampScore(nextLoudness);
+    const hot = clampScore(nextHotness);
+    const firstRating = entry.loudness == null && entry.hotness == null;
+    const gen = ++saveGen.current;
     setSaving(true);
     const supabase = createClient();
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("fart_entries")
         .update({
-          loudness,
-          hotness,
+          loudness: loud,
+          hotness: hot,
         })
-        .eq("id", entry.id);
+        .eq("id", entry.id)
+        .select("loudness, hotness, rated_at")
+        .maybeSingle();
       if (error) throw error;
-      toast.success("Rating saved");
+      if (!data) throw new Error("Could not save rating");
+      if (gen !== saveGen.current) return;
+      if (opts?.toast) toast.success("Rating saved");
       onSaved({
-        loudness,
-        hotness,
-        rated_at: new Date().toISOString(),
+        loudness: data.loudness,
+        hotness: data.hotness,
+        rated_at: data.rated_at,
       });
-      void notifyPush({
-        title: "D rated a fart",
-        body: `Loudness ${loudness}% · Hotness ${hotness}%`,
-        url: fartPageHref(entry.id),
-        target: "queen",
-        kind: "fart",
-      });
+      if (firstRating && !notifiedRef.current) {
+        notifiedRef.current = true;
+        void notifyPush({
+          title: "D rated a fart",
+          body: `Loudness ${loud}% · Hotness ${hot}%`,
+          url: fartPageHref(entry.id),
+          target: "queen",
+          kind: "fart",
+        });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save rating");
     } finally {
-      setSaving(false);
+      if (gen === saveGen.current) setSaving(false);
     }
+  };
+
+  const schedulePersist = (nextLoudness: number, nextHotness: number) => {
+    if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void persist(nextLoudness, nextHotness);
+    }, 350);
   };
 
   if (!isSlave) {
@@ -109,7 +149,17 @@ export function FartRatingPanel({ entry, onSaved }: Props) {
           step={1}
           value={[loudness]}
           disabled={saving}
-          onValueChange={(v) => setLoudness(v[0] ?? 0)}
+          onValueChange={(v) => {
+            const n = clampScore(v[0] ?? 0);
+            setLoudness(n);
+            schedulePersist(n, hotnessRef.current);
+          }}
+          onValueCommit={(v) => {
+            const n = clampScore(v[0] ?? 0);
+            setLoudness(n);
+            if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+            void persist(n, hotnessRef.current);
+          }}
         />
       </div>
       <div className="space-y-2">
@@ -128,23 +178,46 @@ export function FartRatingPanel({ entry, onSaved }: Props) {
           step={1}
           value={[hotness]}
           disabled={saving}
-          onValueChange={(v) => setHotness(v[0] ?? 0)}
+          onValueChange={(v) => {
+            const n = clampScore(v[0] ?? 0);
+            setHotness(n);
+            schedulePersist(loudnessRef.current, n);
+          }}
+          onValueCommit={(v) => {
+            const n = clampScore(v[0] ?? 0);
+            setHotness(n);
+            if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+            void persist(loudnessRef.current, n);
+          }}
           className={cn("[&_[data-slot=slider-range]]:bg-rose-400/80")}
         />
       </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="border-gold/25"
-        disabled={saving}
-        onClick={() => void save()}
-      >
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="border-gold/25"
+          disabled={saving}
+          onClick={() =>
+            void persist(loudnessRef.current, hotnessRef.current, { toast: true })
+          }
+        >
+          {saving ? (
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          ) : null}
+          {rated ? "Update rating" : "Save rating"}
+        </Button>
         {saving ? (
-          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-        ) : null}
-        {rated ? "Update rating" : "Save rating"}
-      </Button>
+          <span className="text-[11px] text-muted-foreground">Saving…</span>
+        ) : rated ? (
+          <span className="text-[11px] text-gold/80">Saved</span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">
+            Moves save automatically
+          </span>
+        )}
+      </div>
     </div>
   );
 }
