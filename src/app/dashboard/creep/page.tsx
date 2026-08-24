@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Ghost } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -10,7 +11,7 @@ import { CreepGalleriesGrid } from "@/components/creep/creep-galleries-grid";
 import { CreepTopicForm } from "@/components/creep/creep-topic-form";
 
 export default function CreepHubPage() {
-  const { profile, isSlave, loading: authLoading } = useAuth();
+  const { profile, isQueen, isSlave, loading: authLoading } = useAuth();
   const [galleries, setGalleries] = useState<CreepGalleryWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +47,19 @@ export default function CreepHubPage() {
 
   return (
     <div className="space-y-8">
+      <div>
+        <h1 className="font-heading flex items-center gap-3 text-2xl text-ivory sm:text-3xl">
+          <Ghost className="h-7 w-7 text-gold" />
+          Creep
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          {isQueen
+            ? "Fart Tracker plus D’s galleries — Stretch Marks, Panties, and anything else he adds."
+            : isSlave
+              ? "Upload photos and videos to Stretch Marks, Panties, or a gallery you add. Queen logs farts here too."
+              : "Private Creep chamber."}
+        </p>
+      </div>
       {isSlave && (
         <CreepTopicForm
           existingSlugs={galleries.map((g) => g.slug)}

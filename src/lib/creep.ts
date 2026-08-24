@@ -1,3 +1,6 @@
+export const CREEP_QUOTE =
+  "slave loving things about his Queen, she doesn't love about Herself.";
+
 export const CREEP_RESERVED_SLUGS = new Set(["fart", "gallery"]);
 
 export function slugifyCreepTitle(title: string): string {

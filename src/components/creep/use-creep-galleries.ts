@@ -38,7 +38,7 @@ export function useCreepGalleries() {
     if (!profile) return;
     const supabase = createClient();
     const channel = supabase
-      .channel("creep-galleries-nav")
+      .channel(`creep-galleries-nav:${profile.id}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "creep_galleries" },

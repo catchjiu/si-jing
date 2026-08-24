@@ -29,6 +29,7 @@ import {
   HeartCrack,
   Ghost,
   Wind,
+  ChevronDown,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { cn } from "@/lib/utils"
@@ -41,7 +42,6 @@ import { BrandLogo } from "@/components/brand-logo"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { useCreepGalleries } from "@/components/creep/use-creep-galleries"
 import { creepFartHref, creepGalleryHref } from "@/lib/creep"
-import { RoleSpeech } from "@/components/ui/role-speech"
 import {
   useInboxUnread,
 } from "@/components/inbox/use-inbox-unread"
@@ -199,6 +199,7 @@ export function DashboardNav() {
         const isInbox = href === "/dashboard/inbox"
         const isFlirt = href === "/dashboard/flirt"
         const isCreep = href === "/dashboard/creep"
+        const creepOpen = isCreep && pathname.startsWith("/dashboard/creep")
         const topic = NAV_TOPIC_BY_HREF[href]
         const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
         const flirtNavUnread = isFlirt ? flirtUnread.total : 0
@@ -208,6 +209,7 @@ export function DashboardNav() {
           <div key={href}>
             <Link
               href={linkHref}
+              aria-expanded={isCreep ? creepOpen : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
                 isActive
@@ -217,18 +219,22 @@ export function DashboardNav() {
             >
               <Icon className="size-4 shrink-0" />
               {label}
+              {isCreep && (
+                <ChevronDown
+                  className={cn(
+                    "ml-auto size-3.5 shrink-0 opacity-60 transition-transform",
+                    creepOpen && "rotate-180"
+                  )}
+                />
+              )}
               {isInbox && <InboxBadge count={unreadTotal} />}
               {isFlirt && <TopicBadge count={flirtNavUnread} />}
-              {!isInbox && !isFlirt && <TopicBadge count={topicUnread} />}
+              {!isInbox && !isFlirt && !isCreep && (
+                <TopicBadge count={topicUnread} />
+              )}
             </Link>
-            {isCreep && (
+            {creepOpen && (
               <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gold/10 pl-2">
-                <p className="px-2 py-1.5 font-heading text-[10px] italic leading-snug text-gold/70">
-                  <RoleSpeech
-                    text="slave loving things about his Queen, she doesn't love about Herself."
-                    role="slave"
-                  />
-                </p>
                 <Link
                   href={creepFartHref()}
                   className={cn(
