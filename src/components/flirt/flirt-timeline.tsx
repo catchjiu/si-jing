@@ -10,7 +10,7 @@ import { formatRelative } from "@/lib/format";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { flirtPageHref } from "@/lib/inbox-deep-links";
-import type { FlirtEntry, FlirtEntryWithSignedUrl } from "@/lib/types";
+import type { FlirtEntryWithSignedUrl, Profile } from "@/lib/types";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
 import { FlirtEntryCommentThread } from "@/components/flirt/flirt-entry-comment-thread";
@@ -35,9 +35,13 @@ type Props = {
   focusEntryId?: string | null;
 };
 
+type FlirtEntryRow = FlirtEntryWithSignedUrl & {
+  author?: Pick<Profile, "id" | "username" | "role"> | null;
+};
+
 async function withSignedUrls(
-  entries: FlirtEntry[]
-): Promise<FlirtEntryWithSignedUrl[]> {
+  entries: FlirtEntryRow[]
+): Promise<FlirtEntryRow[]> {
   return Promise.all(
     entries.map(async (e) => {
       if (!e.file_path) return e;
@@ -65,8 +69,8 @@ function formatEntryDate(date: string) {
 }
 
 export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) {
-  const { profile } = useAuth();
-  const [entries, setEntries] = useState<FlirtEntryWithSignedUrl[]>([]);
+  const { profile, isQueen } = useAuth();
+  const [entries, setEntries] = useState<FlirtEntryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState("");
   const [entryDate, setEntryDate] = useState(
@@ -82,7 +86,7 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
     const supabase = createClient();
     const { data, error } = await supabase
       .from("flirt_entries")
-      .select("*")
+      .select("*, author:users!author_id(id, username, role)")
       .eq("guy_id", guyId)
       .order("entry_date", { ascending: false })
       .order("created_at", { ascending: false });
@@ -91,7 +95,7 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
       setLoading(false);
       return;
     }
-    const signed = await withSignedUrls((data ?? []) as FlirtEntry[]);
+    const signed = await withSignedUrls((data ?? []) as FlirtEntryRow[]);
     setEntries(signed);
     setLoading(false);
   }, [guyId]);
@@ -123,7 +127,7 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
   }, [guyId, load]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, FlirtEntryWithSignedUrl[]>();
+    const map = new Map<string, FlirtEntryRow[]>();
     for (const entry of entries) {
       const key = entry.entry_date;
       const list = map.get(key) ?? [];
@@ -201,7 +205,7 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
           title: "New flirt entry",
           body: `${guyName}${text ? `: ${text.slice(0, 80)}` : " · photo"}`,
           url: flirtPageHref(guyId, { entryId: row.id }),
-          target: "slave",
+          target: isQueen ? "slave" : "queen",
           kind: "flirt_entry",
         })
       );
@@ -218,8 +222,9 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
     }
   };
 
-  const remove = async (entry: FlirtEntryWithSignedUrl) => {
-    if (!canPost) return;
+  const remove = async (entry: FlirtEntryRow) => {
+    const canDelete = profile?.id === entry.author_id || !!isQueen;
+    if (!canDelete) return;
     setDeleting(entry.id);
     const supabase = createClient();
     try {
@@ -328,65 +333,84 @@ export function FlirtTimeline({ guyId, guyName, canPost, focusEntryId }: Props) 
                 {formatEntryDate(date)}
               </h3>
               <ul className="space-y-3">
-                {dayEntries.map((entry) => (
-                  <li
-                    key={entry.id}
-                    id={`flirt-entry-${entry.id}`}
-                    className={cn(
-                      "rounded-xl border bg-charcoal/70 p-4",
-                      focusEntryId === entry.id
-                        ? "border-gold/40 ring-1 ring-gold/20"
-                        : "border-gold/15"
-                    )}
-                  >
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        {formatRelative(entry.created_at)}
-                      </p>
-                      {canPost && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={deleting === entry.id}
-                          onClick={() => void remove(entry)}
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-red-300"
-                        >
-                          {deleting === entry.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
+                {dayEntries.map((entry) => {
+                  const canDelete =
+                    profile?.id === entry.author_id || !!isQueen;
+
+                  return (
+                    <li
+                      key={entry.id}
+                      id={`flirt-entry-${entry.id}`}
+                      className={cn(
+                        "rounded-xl border bg-charcoal/70 p-4",
+                        focusEntryId === entry.id
+                          ? "border-gold/40 ring-1 ring-gold/20"
+                          : "border-gold/15"
                       )}
-                    </div>
-                    {entry.body && (
-                      <p className="whitespace-pre-wrap text-sm text-ivory/90">
-                        <RoleSpeech text={entry.body} role="queen" />
-                      </p>
-                    )}
-                    {entry.media_kind === "image" && entry.signedUrl && (
-                      <WatermarkedFrame
-                        className="mt-3 aspect-[4/5] max-h-96 w-full rounded-lg border border-gold/15"
-                        mediaPath={entry.file_path}
-                      >
-                        <Image
-                          src={entry.signedUrl}
-                          alt="Flirt photo"
-                          fill
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </WatermarkedFrame>
-                    )}
-                    <FlirtEntryCommentThread
-                      entryId={entry.id}
-                      guyId={guyId}
-                      guyName={guyName}
-                      defaultExpanded={focusEntryId === entry.id}
-                    />
-                  </li>
-                ))}
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          <span
+                            className={
+                              entry.author?.role === "queen"
+                                ? "text-gold"
+                                : "text-ivory/70"
+                            }
+                          >
+                            {entry.author?.username ?? "Someone"}
+                            {entry.author?.role === "queen" ? " · Queen" : ""}
+                          </span>
+                          {" · "}
+                          {formatRelative(entry.created_at)}
+                        </p>
+                        {canDelete && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={deleting === entry.id}
+                            onClick={() => void remove(entry)}
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-red-300"
+                          >
+                            {deleting === entry.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {entry.body && (
+                        <p className="whitespace-pre-wrap text-sm text-ivory/90">
+                          <RoleSpeech
+                            text={entry.body}
+                            role={entry.author?.role}
+                          />
+                        </p>
+                      )}
+                      {entry.media_kind === "image" && entry.signedUrl && (
+                        <WatermarkedFrame
+                          className="mt-3 aspect-[4/5] max-h-96 w-full rounded-lg border border-gold/15"
+                          mediaPath={entry.file_path}
+                        >
+                          <Image
+                            src={entry.signedUrl}
+                            alt="Flirt photo"
+                            fill
+                            unoptimized
+                            className="object-cover"
+                          />
+                        </WatermarkedFrame>
+                      )}
+                      <FlirtEntryCommentThread
+                        entryId={entry.id}
+                        guyId={guyId}
+                        guyName={guyName}
+                        defaultExpanded={focusEntryId === entry.id}
+                      />
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

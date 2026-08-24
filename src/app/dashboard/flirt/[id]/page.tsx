@@ -707,7 +707,7 @@ export default function FlirtDetailPage() {
           <FlirtTimeline
             guyId={guy.id}
             guyName={guy.name}
-            canPost={!!isQueen}
+            canPost={!!isQueen || !!isSlave}
             focusEntryId={focusEntryId}
           />
         </section>
