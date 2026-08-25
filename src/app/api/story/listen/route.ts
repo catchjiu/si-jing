@@ -21,6 +21,7 @@ import {
   fishSlaveVoiceId,
   fishTextToSpeech,
   fishTtsModel,
+  fishTtsStabilityKey,
 } from "@/lib/fish-audio";
 import {
   getR2ObjectBytes,
@@ -177,6 +178,7 @@ export async function POST(request: Request) {
     queenVoice,
     slaveVoice,
     fishTtsModel(),
+    fishTtsStabilityKey(),
     lockKind,
     bodyHash,
     script.fishText,

@@ -7,6 +7,7 @@ import {
   fishQueenVoiceId,
   fishTextToSpeech,
   fishTtsModel,
+  fishTtsStabilityKey,
 } from "@/lib/fish-audio";
 import {
   getR2ObjectBytes,
@@ -90,7 +91,13 @@ export async function POST(
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const hash = cacheKey([insultId, queenVoice, fishTtsModel(), spoken]);
+  const hash = cacheKey([
+    insultId,
+    queenVoice,
+    fishTtsModel(),
+    fishTtsStabilityKey(),
+    spoken,
+  ]);
   const relativePath = `${user.id}/insults/${insultId}-${hash}.mp3`;
   const storedPath = toR2StoredPath("stories", relativePath);
   const key = r2ObjectKey(storedPath);
