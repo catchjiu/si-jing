@@ -2,6 +2,8 @@ import { createHash } from "crypto";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 import type { UserRole } from "@/lib/types";
 
+export { storyListenBodyHash } from "@/lib/story-listen-hash";
+
 export type StorySpeaker = "queen" | "slave";
 
 export type StoryListenSegment = {
@@ -48,6 +50,30 @@ export function otherStorySpeaker(role: StorySpeaker): StorySpeaker {
   return role === "queen" ? "slave" : "queen";
 }
 
+function stripOuterQuotes(text: string): string {
+  return text
+    .replace(/^[“"']+/, "")
+    .replace(/[”"']+$/, "")
+    .replace(/[“”]/g, '"')
+    .trim();
+}
+
+function classifyAttribution(
+  raw: string,
+  authorRole: StorySpeaker
+): StorySpeaker | null {
+  const t = raw.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (/\bi\b/.test(t) || new RegExp(`\\bi\\s+(?:${ATTR_VERBS})\\b`).test(t)) {
+    return authorRole;
+  }
+  if (/\b(queen|sisi)\b/.test(t) || /\bshe\b/.test(t)) return "queen";
+  if (/\b(slave)\b/.test(t) || /\bhe\b/.test(t) || /(^|\s)d(\s|$)/.test(t)) {
+    return "slave";
+  }
+  return null;
+}
+
 function stripLinePrefix(line: string): {
   speaker: StorySpeaker | null;
   text: string;
@@ -80,6 +106,10 @@ function pushSegment(
   parts.push({ speaker, text: clean });
 }
 
+/**
+ * Preferred form: `<p>Queen: …</p>` / `<p>Slave: …</p>` for speech.
+ * Fallback: inline quotes — attributed when possible, else the non-author voice.
+ */
 function parseParagraph(
   paragraph: string,
   authorRole: StorySpeaker
@@ -89,33 +119,41 @@ function parseParagraph(
   const segments: StoryListenSegment[] = [];
   if (!line) return segments;
 
-  const quoteSpeaker = otherStorySpeaker(authorRole);
-
-  // Explicit role lines without quotes speak as that role.
-  if (prefixed.speaker && !/[“"]/.test(line)) {
-    pushSegment(segments, prefixed.speaker, line);
+  // Labeled dialogue line — whole line is that speaker (Fish-friendly format).
+  if (prefixed.speaker) {
+    pushSegment(segments, prefixed.speaker, stripOuterQuotes(line));
     return segments;
   }
 
   const matches = [...line.matchAll(QUOTE_RE)];
   if (matches.length === 0) {
-    pushSegment(segments, prefixed.speaker ?? authorRole, line);
+    pushSegment(segments, authorRole, line);
     return segments;
   }
 
+  const quoteDefault = otherStorySpeaker(authorRole);
   let cursor = 0;
+  let lastQuoteSpeaker: StorySpeaker = quoteDefault;
   for (const match of matches) {
     const start = match.index ?? 0;
     const before = line.slice(cursor, start);
     const quote = match[1] ?? "";
     const afterStart = start + match[0].length;
+    const afterWindow = line.slice(afterStart, afterStart + 80);
+
+    const speaker =
+      classifyAttribution(before, authorRole) ??
+      classifyAttribution(afterWindow, authorRole) ??
+      lastQuoteSpeaker ??
+      quoteDefault;
 
     const narration = before.replace(
       new RegExp(`[,\\s]*(?:${ATTR_VERBS})\\s*$`, "i"),
       " "
     );
     pushSegment(segments, authorRole, narration);
-    pushSegment(segments, quoteSpeaker, quote);
+    pushSegment(segments, speaker, quote);
+    lastQuoteSpeaker = speaker;
     cursor = afterStart;
   }
   pushSegment(segments, authorRole, line.slice(cursor));
@@ -132,8 +170,12 @@ export function storyTextToSegments(
     .filter(Boolean);
   const segments: StoryListenSegment[] = [];
   for (const paragraph of paragraphs) {
-    for (const seg of parseParagraph(paragraph, authorRole)) {
-      pushSegment(segments, seg.speaker, seg.text);
+    // Also split single newlines that may carry Queen:/Slave: turns.
+    const lines = paragraph.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      for (const seg of parseParagraph(line, authorRole)) {
+        pushSegment(segments, seg.speaker, seg.text);
+      }
     }
   }
   return segments;
@@ -150,7 +192,9 @@ export function segmentsToFishText(segments: StoryListenSegment[]): string {
 
 export function buildStoryListenScript(opts: {
   title: string;
-  html: string;
+  html?: string;
+  /** Preferred: plain-text Queen:/Slave: script for Fish. */
+  listenScript?: string | null;
   authorRole: UserRole;
 }): {
   authorRole: StorySpeaker;
@@ -161,8 +205,11 @@ export function buildStoryListenScript(opts: {
 } {
   const authorRole: StorySpeaker =
     opts.authorRole === "queen" ? "queen" : "slave";
-  const body = storyHtmlToPlainText(opts.html);
   const title = opts.title.trim();
+  const script = (opts.listenScript ?? "").trim();
+  const body = script
+    ? script
+    : storyHtmlToPlainText(opts.html ?? "");
   const titled = [title ? `${title}.` : "", body].filter(Boolean).join("\n\n");
   let segments = storyTextToSegments(titled, authorRole);
   let fishText = segmentsToFishText(segments);

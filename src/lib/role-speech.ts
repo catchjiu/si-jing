@@ -75,6 +75,22 @@ export function roleSpeechAiInstructions(
   return "";
 }
 
+/**
+ * Dialogue layout for the Fish Audio listen script only (not the reading HTML).
+ */
+export function listenScriptAiInstructions(): string {
+  return [
+    "Listen script rules (plain text after a LISTEN: marker — not HTML):",
+    "Narration is unlabeled sentences/paragraphs.",
+    "Every spoken line is its own line starting with exactly Queen: or Slave: then the spoken words.",
+    "Example:",
+    "i waited by the door.",
+    "Queen: Kneel.",
+    "Slave: Yes, Queen.",
+    "No quotation marks. No she said / he said. Same story content as the reading version.",
+  ].join("\n");
+}
+
 function applyReplacements(
   text: string,
   rules: [RegExp, string][]

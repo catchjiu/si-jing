@@ -28,6 +28,8 @@ function buildSystemPrompt(role: UserRole): string {
     "You rewrite fiction drafts for a private writing app.",
     storyHtmlOutputRules(),
     "Preserve the author's voice, characters, and plot unless a tagged instruction requires a light structural tweak.",
+    "Return the READING HTML only — literary prose for on-screen reading (quotes and attribution are fine).",
+    "Do not include a listen script.",
     roleSpeechAiInstructions(role),
   ]
     .filter(Boolean)

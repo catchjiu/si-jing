@@ -384,6 +384,9 @@ export type Story = {
   status: StoryStatus;
   cover_image_path?: string | null;
   cover_prompt?: string | null;
+  /** Plain-text Queen:/Slave: script for Fish Listen (not shown while reading). */
+  listen_script?: string | null;
+  listen_body_hash?: string | null;
   view_window_minutes?: number | null;
   viewable_until?: string | null;
   published_at?: string | null;

@@ -13,7 +13,10 @@ import {
   type StoryAiProvider,
 } from "@/lib/story-ai";
 import { appendStoryHtml, storyHtmlHasText } from "@/lib/sanitize-html";
-import { roleSpeechAiInstructions } from "@/lib/role-speech";
+import {
+  listenScriptAiInstructions,
+  roleSpeechAiInstructions,
+} from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -26,13 +29,21 @@ function createSystemPrompt(role: UserRole): string {
     "Aim for roughly 800–1600 words unless the prompt specifies length.",
     "Follow the author's prompt closely: characters, setting, tone, kinks, and ending.",
     "Do not include a title heading in the HTML body.",
-    "First line of your response MUST be exactly: TITLE: <story title>",
-    "Then a blank line, then the HTML body only.",
+    "Produce TWO versions of the same story:",
+    "1) READING — literary HTML for on-screen reading (normal prose, quotes, and attribution are fine).",
+    "2) LISTEN — plain-text dual-voice script for Fish Audio TTS.",
+    "Response format (exact):",
+    "First line: TITLE: <story title>",
+    "Then a blank line, then READING:",
+    "Then the HTML body.",
+    "Then a blank line, then LISTEN:",
+    "Then the plain-text listen script.",
     storyHtmlOutputRules(),
     roleSpeechAiInstructions(role),
+    listenScriptAiInstructions(),
   ]
     .filter(Boolean)
-    .join(" ");
+    .join("\n");
 }
 
 function extendSystemPrompt(role: UserRole): string {
@@ -43,7 +54,8 @@ function extendSystemPrompt(role: UserRole): string {
     "Produce a substantial continuation (roughly 400–900 words) unless the direction asks otherwise.",
     "If the author gave a direction, follow it closely for what happens next.",
     "If there is no direction, continue naturally from the last scene.",
-    "Return ONLY HTML for the new continuation. Do not include a title.",
+    "Return ONLY HTML for the new reading continuation. Do not include a title or listen script.",
+    "Use literary reading prose (quotes and attribution are fine).",
     storyHtmlOutputRules(),
     roleSpeechAiInstructions(role),
   ]
@@ -157,6 +169,7 @@ export async function POST(request: Request) {
         mode: "create",
         title,
         html: parsed.html,
+        listenScript: parsed.listenScript || null,
         provider,
       });
     }

@@ -8,10 +8,14 @@ import {
 } from "@/lib/story-access";
 import {
   buildStoryListenScript,
+  storyListenBodyHash,
   storyListenCacheKey,
   type StorySpeaker,
 } from "@/lib/story-listen";
-import { storyAudioFilename } from "@/lib/story-audio-filename";
+import {
+  generateListenScriptFromReading,
+  parseStoryAiProvider,
+} from "@/lib/story-ai";
 import {
   fishQueenVoiceId,
   fishSlaveVoiceId,
@@ -25,6 +29,7 @@ import {
   r2ObjectExists,
 } from "@/lib/storage/r2";
 import { r2ObjectKey, toR2StoredPath } from "@/lib/storage/paths";
+import { storyAudioFilename } from "@/lib/story-audio-filename";
 import type { UserRole } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -39,11 +44,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let payload: { storyId?: unknown; download?: unknown };
+  let payload: { storyId?: unknown; download?: unknown; provider?: unknown };
   try {
     payload = (await request.json()) as {
       storyId?: unknown;
       download?: unknown;
+      provider?: unknown;
     };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -51,13 +57,16 @@ export async function POST(request: Request) {
 
   const storyId = typeof payload.storyId === "string" ? payload.storyId : "";
   const asDownload = payload.download === true;
+  const provider = parseStoryAiProvider(payload.provider);
   if (!storyId) {
     return NextResponse.json({ error: "storyId required" }, { status: 400 });
   }
 
   const { data: story, error: storyError } = await supabase
     .from("stories")
-    .select("id, author_id, title, body, status, viewable_until, tbc_locked")
+    .select(
+      "id, author_id, title, body, status, viewable_until, tbc_locked, listen_script, listen_body_hash"
+    )
     .eq("id", storyId)
     .maybeSingle();
 
@@ -106,6 +115,33 @@ export async function POST(request: Request) {
     );
   }
 
+  const title = ((story.title as string) || "").trim();
+  const bodyHash = storyListenBodyHash(title, html);
+  let listenScript = ((story.listen_script as string) || "").trim();
+  const storedHash = ((story.listen_body_hash as string) || "").trim();
+
+  if (!listenScript || storedHash !== bodyHash) {
+    try {
+      listenScript = await generateListenScriptFromReading({
+        provider,
+        title,
+        html,
+        authorRole,
+      });
+      await supabase
+        .from("stories")
+        .update({
+          listen_script: listenScript,
+          listen_body_hash: bodyHash,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", storyId);
+    } catch (err) {
+      console.error("listen script generation failed; falling back", err);
+      listenScript = "";
+    }
+  }
+
   let queenVoice: string;
   let slaveVoice: string;
   try {
@@ -118,8 +154,9 @@ export async function POST(request: Request) {
   }
 
   const script = buildStoryListenScript({
-    title: (story.title as string) || "",
+    title,
     html,
+    listenScript: listenScript || null,
     authorRole,
   });
   if (!script.fishText.trim()) {
@@ -141,15 +178,13 @@ export async function POST(request: Request) {
     slaveVoice,
     fishTtsModel(),
     lockKind,
+    bodyHash,
     script.fishText,
   ]);
   const relativePath = `${story.author_id}/listen/${storyId}-${hash}.mp3`;
   const storedPath = toR2StoredPath("stories", relativePath);
   const key = r2ObjectKey(storedPath);
-  const filename = storyAudioFilename(
-    (story.title as string) || undefined,
-    storyId
-  );
+  const filename = storyAudioFilename(title || undefined, storyId);
 
   try {
     const cached = await r2ObjectExists(key);
@@ -185,6 +220,7 @@ export async function POST(request: Request) {
       authorRole,
       speakers,
       filename,
+      listenScriptFresh: Boolean(listenScript),
     });
   } catch (err) {
     const status =

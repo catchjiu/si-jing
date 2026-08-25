@@ -58,9 +58,9 @@ export const STORY_REWRITE_PROMPTS: StoryRewritePrompt[] = [
   {
     id: "dialogue",
     label: "Dialogue",
-    description: "Sharper, more natural dialogue",
+    description: "Sharper, more natural spoken lines",
     instruction:
-      "Improve dialogue so it sounds more natural and distinct per speaker. Keep intent and subtext intact.",
+      "Improve dialogue so it sounds more natural and distinct per speaker. Keep literary reading prose (quotes and attribution are fine). Keep intent and subtext intact.",
   },
   {
     id: "emotion",

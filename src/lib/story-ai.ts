@@ -1,6 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
-import { formatRoleSpeechHtml } from "@/lib/role-speech";
+import {
+  formatRoleSpeechHtml,
+  listenScriptAiInstructions,
+  roleSpeechAiInstructions,
+} from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
 
 export type StoryAiProvider = "claude" | "grok";
@@ -8,6 +12,7 @@ export type StoryAiProvider = "claude" | "grok";
 export const MAX_STORY_HTML_CHARS = 40_000;
 export const MAX_STORY_PROMPT_CHARS = 4_000;
 export const MAX_STORY_DIRECTION_CHARS = 2_000;
+export const MAX_STORY_LISTEN_SCRIPT_CHARS = 20_000;
 
 export function parseStoryAiProvider(raw: unknown): StoryAiProvider {
   return typeof raw === "string" && raw.toLowerCase() === "grok"
@@ -36,38 +41,72 @@ export function cleanModelHtml(raw: string, role: UserRole): string {
   );
 }
 
-/** Parse `TITLE: …` then HTML body from a model response. */
+function cleanListenScript(raw: string): string {
+  return raw
+    .replace(/^```(?:text|plain|markdown)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, MAX_STORY_LISTEN_SCRIPT_CHARS);
+}
+
+/** Parse `TITLE` + reading HTML (+ optional `LISTEN` script) from a model response. */
 export function parseGeneratedStory(
   raw: string,
   role: UserRole
-): { title: string; html: string } {
+): { title: string; html: string; listenScript: string } {
   const stripped = raw
     .replace(/^```(?:html|json|markdown)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
-  const titled = stripped.match(/^TITLE:\s*(.+?)\s*(?:\n+)([\s\S]+)$/i);
+  let title = "";
+  let rest = stripped;
+
+  const titled = rest.match(/^TITLE:\s*(.+?)\s*(?:\n+)([\s\S]+)$/i);
   if (titled) {
-    return {
-      title: titled[1]
-        .trim()
-        .replace(/^["“”']+|["“”']+$/g, "")
-        .slice(0, 160),
-      html: cleanModelHtml(titled[2], role),
-    };
+    title = titled[1]
+      .trim()
+      .replace(/^["“”']+|["“”']+$/g, "")
+      .slice(0, 160);
+    rest = titled[2].trim();
   }
 
-  const html = cleanModelHtml(stripped, role);
-  const heading = html.match(/<h[23]>([\s\S]*?)<\/h[23]>/i);
-  const title = heading
-    ? heading[1]
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 160)
-    : "";
-  const body = heading ? html.replace(heading[0], "").trim() : html;
-  return { title, html: body || html };
+  let readingRaw = rest;
+  let listenRaw = "";
+
+  const listenSplit = rest.split(/\n\s*LISTEN:\s*\n/i);
+  if (listenSplit.length >= 2) {
+    readingRaw = listenSplit[0].trim();
+    listenRaw = listenSplit.slice(1).join("\nLISTEN:\n").trim();
+  }
+
+  readingRaw = readingRaw.replace(/^\s*READING:\s*/i, "").trim();
+
+  const heading = !title
+    ? cleanModelHtml(readingRaw, role).match(/<h[23]>([\s\S]*?)<\/h[23]>/i)
+    : null;
+  if (!title && heading) {
+    title = heading[1]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160);
+  }
+
+  let html = cleanModelHtml(readingRaw, role);
+  if (heading && html.includes(heading[0])) {
+    html = html.replace(heading[0], "").trim() || html;
+  }
+
+  return {
+    title,
+    html,
+    listenScript: cleanListenScript(listenRaw),
+  };
 }
 
 export async function completeStoryModel(opts: {
@@ -160,6 +199,43 @@ async function completeWithGrok(opts: {
   }
 
   return data.choices?.[0]?.message?.content?.trim() ?? "";
+}
+
+/** Build / refresh a Fish-ready listen script from reading HTML. */
+export async function generateListenScriptFromReading(opts: {
+  provider?: StoryAiProvider;
+  title: string;
+  html: string;
+  authorRole: UserRole;
+}): Promise<string> {
+  const provider = opts.provider ?? "claude";
+  const raw = await completeStoryModel({
+    provider,
+    maxTokens: 8192,
+    temperature: 0.3,
+    system: [
+      "You convert a story's reading HTML into a dual-voice listen script for Fish Audio TTS.",
+      "Output ONLY the listen script plain text. No TITLE, no READING, no LISTEN marker, no HTML, no commentary.",
+      roleSpeechAiInstructions(opts.authorRole),
+      listenScriptAiInstructions(),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    user: [
+      opts.title ? `Story title: ${opts.title}` : "",
+      "Reading HTML:",
+      opts.html.slice(0, MAX_STORY_HTML_CHARS),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  });
+  const script = cleanListenScript(raw.replace(/^\s*LISTEN:\s*/i, ""));
+  if (!script) {
+    throw Object.assign(new Error("Model returned empty listen script"), {
+      status: 502,
+    });
+  }
+  return script;
 }
 
 export function storyAiFailurePayload(
