@@ -20,6 +20,9 @@ type StoryGeneratePanelProps = {
   titleHint?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Restored prompt from an in-progress draft. */
+  promptValue?: string;
+  onPromptChange?: (prompt: string) => void;
   onGenerated: (result: { title: string; html: string }) => void;
   className?: string;
 };
@@ -28,13 +31,20 @@ export function StoryGeneratePanel({
   titleHint,
   disabled,
   autoFocus,
+  promptValue,
+  onPromptChange,
   onGenerated,
   className,
 }: StoryGeneratePanelProps) {
   const { profile } = useAuth();
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [provider, setProvider] = useState<StoryAiProvider>("claude");
-  const [prompt, setPrompt] = useState("");
+  const [uncontrolledPrompt, setUncontrolledPrompt] = useState(promptValue ?? "");
+  const prompt = promptValue ?? uncontrolledPrompt;
+  const setPrompt = (next: string) => {
+    if (promptValue === undefined) setUncontrolledPrompt(next);
+    onPromptChange?.(next);
+  };
   const [busy, setBusy] = useState(false);
 
   const generate = async () => {
