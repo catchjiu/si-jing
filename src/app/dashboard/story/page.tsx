@@ -489,7 +489,9 @@ function StoryPageInner() {
                               {story.status}
                             </Badge>
                             <StoryListenButton
+                              key={story.id}
                               storyId={story.id}
+                              title={story.title}
                               lockKind={lockKind}
                             />
                             {canEdit && (
