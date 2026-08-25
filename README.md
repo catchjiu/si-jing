@@ -92,7 +92,7 @@ Options: `--force` (rebuild even if fresh), `--dry-run`, `--limit=N`, `--provide
 
 Slave-only **Insults** on Story: save lines, play/download them in Queen’s Fish voice (`FISH_QUEEN_VOICE_ID`). Requires the `story_insults` table (see `supabase/migrations/20260825180000_story_insults.sql`).
 
-Story **Listen** can prepare in the background: tap Listen, leave the page, and get an in-app + push notification when the MP3 is ready (`story_listen_jobs` — see `supabase/migrations/20260825190000_story_listen_jobs.sql`). Set `SUPABASE_SERVICE_ROLE_KEY` (and ideally `CRON_SECRET` / `NEXT_PUBLIC_APP_URL`) so the worker can finish and notify you.
+Story **Listen** can prepare in the background: tap Listen, leave the page, and get an in-app + push notification when the MP3 is ready (`story_listen_jobs` — see `supabase/migrations/20260825190000_story_listen_jobs.sql`). **`SUPABASE_SERVICE_ROLE_KEY` is required** on Coolify so the worker can claim jobs, write audio metadata, and notify you. Without it, jobs stay stuck on Queued.
 
 ## Supabase project
 

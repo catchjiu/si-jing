@@ -210,11 +210,20 @@ export async function synthesizeStoryListenAudio(opts: {
 }
 
 export async function processStoryListenJob(jobId: string): Promise<void> {
-  const supabase = adminClient();
+  let supabase;
+  try {
+    supabase = adminClient();
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Listen worker misconfigured";
+    console.error("listen worker admin client failed", jobId, err);
+    throw new Error(message);
+  }
+
   const { data: job, error } = await supabase
     .from("story_listen_jobs")
     .select(
-      "id, story_id, requester_id, cache_key, status, title, audio_path"
+      "id, story_id, requester_id, cache_key, status, title, audio_path, updated_at"
     )
     .eq("id", jobId)
     .maybeSingle();
@@ -223,19 +232,37 @@ export async function processStoryListenJob(jobId: string): Promise<void> {
     throw new Error(error?.message || "Listen job not found");
   }
   if (job.status === "ready" && job.audio_path) return;
-  if (job.status === "running") return;
 
-  const { data: claimed } = await supabase
+  const STUCK_MS = 5 * 60 * 1000;
+  if (job.status === "running") {
+    const updatedAt = new Date(
+      (job.updated_at as string) || 0
+    ).getTime();
+    if (Number.isFinite(updatedAt) && Date.now() - updatedAt < STUCK_MS) {
+      return;
+    }
+  }
+
+  const claimQuery = supabase
     .from("story_listen_jobs")
     .update({
       status: "running",
       updated_at: new Date().toISOString(),
       error: null,
     })
-    .eq("id", jobId)
-    .in("status", ["queued", "failed"])
-    .select("id")
-    .maybeSingle();
+    .eq("id", jobId);
+
+  const { data: claimed } =
+    job.status === "running"
+      ? await claimQuery
+          .eq("status", "running")
+          .select("id")
+          .maybeSingle()
+      : await claimQuery
+          .in("status", ["queued", "failed"])
+          .select("id")
+          .maybeSingle();
+
   if (!claimed) return;
 
   try {

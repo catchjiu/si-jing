@@ -235,10 +235,24 @@ export function StoryListenButton({
       }
 
       if (pending) {
-        toast.message("Still preparing — feel free to leave; we'll notify you", {
-          duration: 4000,
-        });
-        return;
+        setBusy("request");
+        const next = await requestListen(storyId);
+        if (next.status === "ready") {
+          setStatus("ready");
+          const audio = await ensureAudio();
+          await audio.play();
+          return;
+        }
+        if (next.status === "queued" || next.status === "running") {
+          setStatus(next.status);
+          toast.message("Still preparing — nudged the worker; we'll notify you", {
+            duration: 4000,
+          });
+          return;
+        }
+        const failMsg =
+          next.status === "failed" ? next.error : null;
+        throw new Error(failMsg || "Could not start listen");
       }
 
       setBusy("request");
