@@ -104,7 +104,7 @@ export function fishTtsStabilityKey(): string {
 
 /**
  * Single-voice TTS. Prefer this over multi-speaker so each clone can use its
- * own speed/prosody (Queen’s model often sounds dragged at speed 1.0).
+ * own speed/prosody via FISH_QUEEN_TTS_SPEED / FISH_SLAVE_TTS_SPEED.
  */
 export async function fishTextToSpeech(opts: {
   text: string;
