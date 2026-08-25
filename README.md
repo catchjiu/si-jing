@@ -81,6 +81,15 @@ Story **Listen** uses [Fish Audio](https://fish.audio/) multi-speaker TTS. Stori
 
 After deploy, run the SQL migration that adds `stories.listen_script` and `stories.listen_body_hash` (see `supabase/migrations/20260825170000_story_listen_script.sql`).
 
+To backfill listen scripts for existing stories (requires `SUPABASE_SERVICE_ROLE_KEY` + Claude or Grok key):
+
+```bash
+npm run refresh-story-listen
+# or: npx tsx scripts/refresh-story-listen-scripts.ts --force --provider=claude
+```
+
+Options: `--force` (rebuild even if fresh), `--dry-run`, `--limit=N`, `--provider=claude|grok`.
+
 ## Supabase project
 
 Already wired to project **queen sisi** (`oqsxhjhzszlnjbbamuvp`) with schema, RLS, and `submissions` storage bucket applied.
