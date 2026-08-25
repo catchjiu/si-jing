@@ -6,7 +6,7 @@ import {
   type StoryRewritePromptId,
 } from "@/lib/story-prompts";
 import { storyHtmlHasText, sanitizeStoryHtml } from "@/lib/sanitize-html";
-import { roleSpeechAiInstructions, dialogueFormatAiInstructions } from "@/lib/role-speech";
+import { roleSpeechAiInstructions } from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
 import {
   cleanModelHtml,
@@ -28,8 +28,9 @@ function buildSystemPrompt(role: UserRole): string {
     "You rewrite fiction drafts for a private writing app.",
     storyHtmlOutputRules(),
     "Preserve the author's voice, characters, and plot unless a tagged instruction requires a light structural tweak.",
+    "Return the READING HTML only — literary prose for on-screen reading (quotes and attribution are fine).",
+    "Do not include a listen script.",
     roleSpeechAiInstructions(role),
-    dialogueFormatAiInstructions(),
   ]
     .filter(Boolean)
     .join(" ");

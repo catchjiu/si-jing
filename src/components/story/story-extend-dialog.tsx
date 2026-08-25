@@ -11,7 +11,6 @@ import {
   sanitizeStoryHtml,
 } from "@/lib/sanitize-html";
 import type { StoryAiProvider } from "@/components/story/story-provider-picker";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -129,6 +128,8 @@ export function StoryExtendDialog({
         .from("stories")
         .update({
           body: combinedHtml,
+          listen_script: null,
+          listen_body_hash: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", storyId)

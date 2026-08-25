@@ -58,15 +58,9 @@ export const STORY_REWRITE_PROMPTS: StoryRewritePrompt[] = [
   {
     id: "dialogue",
     label: "Dialogue",
-    description: "Label speakers for Listen (Queen: / Slave:)",
-    instruction: [
-      "Reformat ALL spoken dialogue for dual-voice Listen.",
-      "Each spoken line must be its own <p> starting with Queen: or Slave: (who is speaking), then the words.",
-      "Move dialogue out of narration quotes and she said / he said forms into those labeled lines.",
-      "Keep narration in separate unlabeled paragraphs with no quotation marks.",
-      "Do not invent new dialogue; only reassign and reformat existing spoken lines.",
-      "Preserve intent, subtext, and role-speech orthography.",
-    ].join(" "),
+    description: "Sharper, more natural spoken lines",
+    instruction:
+      "Improve dialogue so it sounds more natural and distinct per speaker. Keep literary reading prose (quotes and attribution are fine). Keep intent and subtext intact.",
   },
   {
     id: "emotion",

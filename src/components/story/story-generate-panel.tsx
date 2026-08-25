@@ -23,7 +23,11 @@ type StoryGeneratePanelProps = {
   /** Restored prompt from an in-progress draft. */
   promptValue?: string;
   onPromptChange?: (prompt: string) => void;
-  onGenerated: (result: { title: string; html: string }) => void;
+  onGenerated: (result: {
+    title: string;
+    html: string;
+    listenScript?: string | null;
+  }) => void;
   className?: string;
 };
 
@@ -69,6 +73,7 @@ export function StoryGeneratePanel({
       const data = (await res.json()) as {
         title?: string;
         html?: string;
+        listenScript?: string | null;
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Could not write the story");
@@ -80,9 +85,10 @@ export function StoryGeneratePanel({
           sanitizeStoryHtml(data.html),
           profile?.role
         ),
+        listenScript: data.listenScript ?? null,
       });
       toast.success(
-        `${storyProviderLabel(provider)} drafted the story — edit it below, then save`
+        `${storyProviderLabel(provider)} drafted reading + listen versions — edit below, then save`
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not write the story");
@@ -103,8 +109,9 @@ export function StoryGeneratePanel({
         <div>
           <p className="text-sm font-medium text-ivory">Write from a prompt</p>
           <p className="text-xs text-muted-foreground">
-            Describe the plot, tone, characters, and how it should end. A full
-            story is drafted into the editor for you to review.
+            Describe the plot, tone, characters, and how it should end. You get a
+            reading draft plus a separate Fish listen script with Queen:/Slave:
+            lines.
           </p>
         </div>
       </div>

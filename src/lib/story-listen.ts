@@ -2,6 +2,8 @@ import { createHash } from "crypto";
 import { sanitizeStoryHtml } from "@/lib/sanitize-html";
 import type { UserRole } from "@/lib/types";
 
+export { storyListenBodyHash } from "@/lib/story-listen-hash";
+
 export type StorySpeaker = "queen" | "slave";
 
 export type StoryListenSegment = {
@@ -190,7 +192,9 @@ export function segmentsToFishText(segments: StoryListenSegment[]): string {
 
 export function buildStoryListenScript(opts: {
   title: string;
-  html: string;
+  html?: string;
+  /** Preferred: plain-text Queen:/Slave: script for Fish. */
+  listenScript?: string | null;
   authorRole: UserRole;
 }): {
   authorRole: StorySpeaker;
@@ -201,8 +205,11 @@ export function buildStoryListenScript(opts: {
 } {
   const authorRole: StorySpeaker =
     opts.authorRole === "queen" ? "queen" : "slave";
-  const body = storyHtmlToPlainText(opts.html);
   const title = opts.title.trim();
+  const script = (opts.listenScript ?? "").trim();
+  const body = script
+    ? script
+    : storyHtmlToPlainText(opts.html ?? "");
   const titled = [title ? `${title}.` : "", body].filter(Boolean).join("\n\n");
   let segments = storyTextToSegments(titled, authorRole);
   let fishText = segmentsToFishText(segments);

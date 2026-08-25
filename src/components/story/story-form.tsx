@@ -21,6 +21,7 @@ import {
   storyHtmlExcerpt,
 } from "@/lib/sanitize-html";
 import { formatRoleSpeech, formatRoleSpeechHtml } from "@/lib/role-speech";
+import { storyListenBodyHash } from "@/lib/story-listen-hash";
 import { storyPageHref } from "@/lib/inbox-deep-links";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
@@ -94,10 +95,22 @@ export function StoryForm({
   const [generatePrompt, setGeneratePrompt] = useState(
     () => draftFields?.generatePrompt ?? ""
   );
+  const [listenScript, setListenScript] = useState<string | null>(
+    () => story?.listen_script ?? null
+  );
+  const [listenSourceBody, setListenSourceBody] = useState<string | null>(() =>
+    story?.listen_script ? (story.body ?? null) : null
+  );
   const [submitting, setSubmitting] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
 
   const isEdit = Boolean(story?.id);
+
+  const applyReadingBody = (next: string) => {
+    setBody(next);
+    setListenScript(null);
+    setListenSourceBody(null);
+  };
 
   useEffect(() => {
     onDraftFieldsChange?.({
@@ -138,6 +151,21 @@ export function StoryForm({
       nextWindowMinutes: parseStoryViewWindow(viewWindow),
       now,
     });
+    const matchingListen =
+      listenScript &&
+      listenSourceBody &&
+      sanitizeStoryHtml(listenSourceBody) === cleanBody
+        ? listenScript.trim()
+        : "";
+    const listenFields = matchingListen
+      ? {
+          listen_script: matchingListen,
+          listen_body_hash: storyListenBodyHash(trimmedTitle, cleanBody),
+        }
+      : {
+          listen_script: null,
+          listen_body_hash: null,
+        };
 
     try {
       if (isEdit && story) {
@@ -152,6 +180,7 @@ export function StoryForm({
             published_at: timing.published_at,
             tbc_locked: storyHasTbc(cleanBody),
             updated_at: nowIso,
+            ...listenFields,
           })
           .eq("id", story.id)
           .eq("author_id", profile.id);
@@ -231,6 +260,7 @@ export function StoryForm({
           published_at: timing.published_at,
           tbc_locked: storyHasTbc(cleanBody),
           updated_at: nowIso,
+          ...listenFields,
         })
         .select("id")
         .single();
@@ -257,6 +287,8 @@ export function StoryForm({
       }
       setTitle("");
       setBody("");
+      setListenScript(null);
+      setListenSourceBody(null);
       setStatus("published");
       setViewWindow("none");
       setGeneratePrompt("");
@@ -305,9 +337,12 @@ export function StoryForm({
           autoFocus={promptFirst}
           promptValue={generatePrompt}
           onPromptChange={setGeneratePrompt}
-          onGenerated={({ title: nextTitle, html }) => {
+          onGenerated={({ title: nextTitle, html, listenScript: nextListen }) => {
             setTitle((current) => current.trim() || nextTitle);
             setBody(html);
+            const script = (nextListen ?? "").trim();
+            setListenScript(script || null);
+            setListenSourceBody(script ? html : null);
           }}
         />
       )}
@@ -328,7 +363,7 @@ export function StoryForm({
         <Label>Story</Label>
         <StoryRichTextEditor
           value={body}
-          onChange={setBody}
+          onChange={applyReadingBody}
           editable={!submitting}
           placeholder="Begin the story…"
         />
@@ -336,6 +371,12 @@ export function StoryForm({
           Use <span className="text-gold">TBC</span> in the toolbar to drop a To
           be continued break. They can read everything above it; what follows
           stays locked until they request access again.
+          {listenScript ? (
+            <>
+              {" "}
+              A separate Fish listen script is ready for this draft.
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -343,7 +384,7 @@ export function StoryForm({
         <StoryRewritePanel
           html={body}
           disabled={submitting}
-          onApply={setBody}
+          onApply={applyReadingBody}
         />
       )}
 
@@ -367,7 +408,7 @@ export function StoryForm({
         title={title.trim() || "Untitled"}
         html={body}
         persist={false}
-        onApplied={setBody}
+        onApplied={applyReadingBody}
       />
 
       <div className="space-y-2">
