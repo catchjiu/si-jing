@@ -1,4 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import {
+  createClient,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 import { sanitizeStoryHtml, storyHtmlHasText } from "@/lib/sanitize-html";
 import {
   getStoryLockKind,
@@ -37,13 +40,15 @@ export type StoryListenPrepared = {
   segments: StoryListenSegment[];
 };
 
+/** Service-role client for background workers (bypasses RLS). */
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) {
-    throw Object.assign(new Error("Supabase env missing"), { status: 503 });
+    throw Object.assign(
+      new Error("SUPABASE_SERVICE_ROLE_KEY is required for listen jobs"),
+      { status: 503 }
+    );
   }
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -55,8 +60,10 @@ export async function prepareStoryListenTarget(opts: {
   storyId: string;
   viewerId: string;
   provider?: "claude" | "grok";
+  /** Prefer the signed-in user client on API routes (anon has no stories access). */
+  supabase?: SupabaseClient;
 }): Promise<StoryListenPrepared> {
-  const supabase = adminClient();
+  const supabase = opts.supabase ?? adminClient();
   const { data: story, error: storyError } = await supabase
     .from("stories")
     .select(
@@ -183,6 +190,7 @@ export async function synthesizeStoryListenAudio(opts: {
   storyId: string;
   viewerId: string;
   provider?: "claude" | "grok";
+  supabase?: SupabaseClient;
 }): Promise<StoryListenPrepared> {
   const prepared = await prepareStoryListenTarget(opts);
   if (prepared.exists) return prepared;
@@ -234,6 +242,7 @@ export async function processStoryListenJob(jobId: string): Promise<void> {
     const prepared = await synthesizeStoryListenAudio({
       storyId: job.story_id as string,
       viewerId: job.requester_id as string,
+      supabase,
     });
 
     await supabase

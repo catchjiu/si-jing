@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     prepared = await prepareStoryListenTarget({
       storyId,
       viewerId: user.id,
+      supabase,
     });
   } catch (err) {
     const status =
@@ -136,6 +137,7 @@ export async function POST(request: Request) {
     prepared = await prepareStoryListenTarget({
       storyId,
       viewerId: user.id,
+      supabase,
     });
   } catch (err) {
     const status =
