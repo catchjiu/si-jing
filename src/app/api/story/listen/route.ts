@@ -11,6 +11,7 @@ import {
   storyListenCacheKey,
   type StorySpeaker,
 } from "@/lib/story-listen";
+import { storyAudioFilename } from "@/lib/story-audio-filename";
 import {
   fishQueenVoiceId,
   fishSlaveVoiceId,
@@ -18,6 +19,7 @@ import {
   fishTtsModel,
 } from "@/lib/fish-audio";
 import {
+  getR2ObjectBytes,
   presignGet,
   putR2Object,
   r2ObjectExists,
@@ -37,14 +39,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let payload: { storyId?: unknown };
+  let payload: { storyId?: unknown; download?: unknown };
   try {
-    payload = (await request.json()) as { storyId?: unknown };
+    payload = (await request.json()) as {
+      storyId?: unknown;
+      download?: unknown;
+    };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const storyId = typeof payload.storyId === "string" ? payload.storyId : "";
+  const asDownload = payload.download === true;
   if (!storyId) {
     return NextResponse.json({ error: "storyId required" }, { status: 400 });
   }
@@ -140,6 +146,10 @@ export async function POST(request: Request) {
   const relativePath = `${story.author_id}/listen/${storyId}-${hash}.mp3`;
   const storedPath = toR2StoredPath("stories", relativePath);
   const key = r2ObjectKey(storedPath);
+  const filename = storyAudioFilename(
+    (story.title as string) || undefined,
+    storyId
+  );
 
   try {
     const cached = await r2ObjectExists(key);
@@ -155,12 +165,26 @@ export async function POST(request: Request) {
       });
     }
 
+    if (asDownload) {
+      const { body, contentType } = await getR2ObjectBytes(key);
+      return new NextResponse(new Uint8Array(body), {
+        status: 200,
+        headers: {
+          "Content-Type": contentType || "audio/mpeg",
+          "Content-Length": String(body.length),
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "private, max-age=3600",
+        },
+      });
+    }
+
     const url = await presignGet({ key, expiresIn: 60 * 60 });
     return NextResponse.json({
       url,
       cached,
       authorRole,
       speakers,
+      filename,
     });
   } catch (err) {
     const status =

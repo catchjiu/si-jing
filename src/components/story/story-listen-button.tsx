@@ -5,6 +5,7 @@ import { Download, Headphones, Loader2, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { storyAudioFilename } from "@/lib/story-audio-filename";
 import type { StoryLockKind } from "@/lib/story-access";
 
 type Props = {
@@ -14,27 +15,47 @@ type Props = {
   className?: string;
 };
 
-function storyAudioFilename(title: string | undefined, storyId: string): string {
-  const raw = (title ?? "").trim();
-  const slug = raw
-    .replace(/[^\p{L}\p{N}\s_-]+/gu, "")
-    .trim()
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80)
-    .replace(/^-|-$/g, "");
-  return `${slug || `story-${storyId.slice(0, 8)}`}.mp3`;
+function filenameFromDisposition(header: string | null, fallback: string) {
+  if (!header) return fallback;
+  const star = header.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (star?.[1]) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch {
+      /* fall through */
+    }
+  }
+  const plain = header.match(/filename\s*=\s*"([^"]+)"/i)
+    ?? header.match(/filename\s*=\s*([^;]+)/i);
+  return plain?.[1]?.trim() || fallback;
 }
 
-async function downloadMp3(url: string, filename: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Could not download audio");
+async function downloadViaApi(storyId: string, fallbackName: string) {
+  const res = await fetch("/api/story/listen", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ storyId, download: true }),
+  });
+  if (!res.ok) {
+    let message = "Could not download audio";
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
   const blob = await res.blob();
+  const filename = filenameFromDisposition(
+    res.headers.get("Content-Disposition"),
+    fallbackName
+  );
   const objectUrl = URL.createObjectURL(blob);
   try {
     const a = document.createElement("a");
     a.href = objectUrl;
-    a.download = filename;
+    a.download = filename.endsWith(".mp3") ? filename : `${filename}.mp3`;
     a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
@@ -120,8 +141,8 @@ export function StoryListenButton({
     }
     try {
       setBusy("download");
-      const audioUrl = await ensureUrl();
-      await downloadMp3(audioUrl, storyAudioFilename(title, storyId));
+      // Same-origin proxy — browser fetch of R2 presign fails with CORS ("Load failed").
+      await downloadViaApi(storyId, storyAudioFilename(title, storyId));
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not download audio"
