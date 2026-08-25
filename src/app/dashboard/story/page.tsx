@@ -86,6 +86,7 @@ function StoryPageInner() {
   const searchParams = useSearchParams();
   const focusStoryId = searchParams.get("story");
   const focusCommentId = searchParams.get("comment");
+  const autoListenStory = searchParams.get("listen") === "1";
 
   const [initialDraft] = useState<StoryComposerDraft | null>(
     readInitialComposerDraft
@@ -496,6 +497,9 @@ function StoryPageInner() {
                               storyId={story.id}
                               title={story.title}
                               lockKind={lockKind}
+                              autoListen={
+                                autoListenStory && focusStoryId === story.id
+                              }
                             />
                             {canEdit && (
                               <>

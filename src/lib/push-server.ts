@@ -86,6 +86,17 @@ export async function sendPushToRoles(
   const ids = (users ?? []).map((u) => u.id as string);
   if (ids.length === 0) return { sent: 0, skipped: false };
 
+  return sendPushToUserIds(supabase, ids, payload);
+}
+
+export async function sendPushToUserIds(
+  supabase: SupabaseClient,
+  userIds: string[],
+  payload: PushPayload
+) {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (ids.length === 0) return { sent: 0, skipped: false as const };
+
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")

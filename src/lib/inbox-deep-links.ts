@@ -110,10 +110,11 @@ export function creepGalleryPageHref(
 
 export function storyPageHref(
   storyId: string,
-  opts?: { commentId?: string | null }
+  opts?: { commentId?: string | null; listen?: boolean }
 ): string {
   const params = new URLSearchParams({ story: storyId });
   if (opts?.commentId) params.set("comment", opts.commentId);
+  if (opts?.listen) params.set("listen", "1");
   return `/dashboard/story?${params.toString()}`;
 }
 

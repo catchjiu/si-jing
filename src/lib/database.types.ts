@@ -3433,6 +3433,60 @@ export type Database = {
           },
         ]
       }
+      story_listen_jobs: {
+        Row: {
+          id: string
+          story_id: string
+          requester_id: string
+          cache_key: string
+          status: string
+          audio_path: string | null
+          error: string | null
+          title: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          story_id: string
+          requester_id: string
+          cache_key: string
+          status?: string
+          audio_path?: string | null
+          error?: string | null
+          title?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          story_id?: string
+          requester_id?: string
+          cache_key?: string
+          status?: string
+          audio_path?: string | null
+          error?: string | null
+          title?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_listen_jobs_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_listen_jobs_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_status: {
         Row: {
           user_id: string
