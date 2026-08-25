@@ -77,7 +77,7 @@ Set `ANTHROPIC_API_KEY` for Claude story rewrite, and/or `XAI_API_KEY` for Grok 
 Optional: `ANTHROPIC_STORY_MODEL`, `XAI_STORY_MODEL` (default `grok-4.5`), `XAI_IMAGINE_MODEL` (default `grok-imagine-image-2.0`).
 Upload Queen/slave **face reference** photos on Profile so Grok can match faces on story covers.
 
-Story **Listen** uses [Fish Audio](https://fish.audio/) TTS in the slave’s voice for now. Set `FISH_API_KEY` and `FISH_SLAVE_VOICE_ID`. Optional: `FISH_TTS_MODEL` (default `s2.1-pro`, or `s2.1-pro-free`).
+Story **Listen** uses [Fish Audio](https://fish.audio/) multi-speaker TTS: narration in the author’s voice, quoted speech in the other person’s voice. Set `FISH_API_KEY`, `FISH_QUEEN_VOICE_ID`, and `FISH_SLAVE_VOICE_ID`. Optional: `FISH_TTS_MODEL` (default `s2.1-pro`, or `s2.1-pro-free`).
 
 ## Supabase project
 

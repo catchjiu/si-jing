@@ -29,13 +29,30 @@ export function fishSlaveVoiceId(): string {
   return id;
 }
 
+export function fishQueenVoiceId(): string {
+  const id =
+    process.env.FISH_QUEEN_VOICE_ID?.trim() ||
+    process.env.FISH_AUDIO_QUEEN_VOICE_ID?.trim() ||
+    "";
+  if (!id) {
+    throw Object.assign(new Error("FISH_QUEEN_VOICE_ID is not configured"), {
+      status: 503,
+    });
+  }
+  return id;
+}
+
 export function fishTtsModel(): string {
   return process.env.FISH_TTS_MODEL?.trim() || "s2.1-pro";
 }
 
+/**
+ * `referenceId` is a single voice, or an array indexed by Fish speaker tags
+ * (`<|speaker:0|>`, `<|speaker:1|>`, …). Use `[queenId, slaveId]` for dual-voice stories.
+ */
 export async function fishTextToSpeech(opts: {
   text: string;
-  referenceId: string;
+  referenceId: string | string[];
 }): Promise<FishTtsResult> {
   const res = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",

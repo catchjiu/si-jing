@@ -44,23 +44,8 @@ export function storyHtmlToPlainText(html: string): string {
     .trim();
 }
 
-function classifyAttribution(
-  raw: string,
-  authorRole: StorySpeaker
-): StorySpeaker | null {
-  const t = raw.toLowerCase().replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  if (
-    /\bi\b/.test(t) ||
-    new RegExp(`\\bi\\s+(?:${ATTR_VERBS})\\b`).test(t)
-  ) {
-    return authorRole;
-  }
-  if (/\b(queen|sisi)\b/.test(t) || /\bshe\b/.test(t)) return "queen";
-  if (/\b(slave)\b/.test(t) || /\bhe\b/.test(t) || /(^|\s)d(\s|$)/.test(t)) {
-    return "slave";
-  }
-  return null;
+export function otherStorySpeaker(role: StorySpeaker): StorySpeaker {
+  return role === "queen" ? "slave" : "queen";
 }
 
 function stripLinePrefix(line: string): {
@@ -97,54 +82,44 @@ function pushSegment(
 
 function parseParagraph(
   paragraph: string,
-  authorRole: StorySpeaker,
-  lastQuoteSpeaker: StorySpeaker
-): { segments: StoryListenSegment[]; lastQuoteSpeaker: StorySpeaker } {
+  authorRole: StorySpeaker
+): StoryListenSegment[] {
   const prefixed = stripLinePrefix(paragraph);
   const line = prefixed.text;
   const segments: StoryListenSegment[] = [];
-  if (!line) return { segments, lastQuoteSpeaker };
+  if (!line) return segments;
 
+  const quoteSpeaker = otherStorySpeaker(authorRole);
+
+  // Explicit role lines without quotes speak as that role.
   if (prefixed.speaker && !/[“"]/.test(line)) {
     pushSegment(segments, prefixed.speaker, line);
-    return { segments, lastQuoteSpeaker: prefixed.speaker };
+    return segments;
   }
 
   const matches = [...line.matchAll(QUOTE_RE)];
   if (matches.length === 0) {
     pushSegment(segments, prefixed.speaker ?? authorRole, line);
-    return { segments, lastQuoteSpeaker };
+    return segments;
   }
 
   let cursor = 0;
-  let quoteSpeaker = lastQuoteSpeaker;
   for (const match of matches) {
     const start = match.index ?? 0;
     const before = line.slice(cursor, start);
     const quote = match[1] ?? "";
     const afterStart = start + match[0].length;
-    const afterWindow = line.slice(afterStart, afterStart + 80);
-
-    const fromBefore = classifyAttribution(before, authorRole);
-    const fromAfter = classifyAttribution(afterWindow, authorRole);
-    const speaker =
-      fromBefore ??
-      fromAfter ??
-      prefixed.speaker ??
-      quoteSpeaker ??
-      authorRole;
 
     const narration = before.replace(
       new RegExp(`[,\\s]*(?:${ATTR_VERBS})\\s*$`, "i"),
       " "
     );
     pushSegment(segments, authorRole, narration);
-    pushSegment(segments, speaker, quote);
-    quoteSpeaker = speaker;
+    pushSegment(segments, quoteSpeaker, quote);
     cursor = afterStart;
   }
   pushSegment(segments, authorRole, line.slice(cursor));
-  return { segments, lastQuoteSpeaker: quoteSpeaker };
+  return segments;
 }
 
 export function storyTextToSegments(
@@ -156,11 +131,8 @@ export function storyTextToSegments(
     .map((p) => p.replace(/\s+/g, " ").trim())
     .filter(Boolean);
   const segments: StoryListenSegment[] = [];
-  let lastQuoteSpeaker: StorySpeaker = authorRole;
   for (const paragraph of paragraphs) {
-    const parsed = parseParagraph(paragraph, authorRole, lastQuoteSpeaker);
-    lastQuoteSpeaker = parsed.lastQuoteSpeaker;
-    for (const seg of parsed.segments) {
+    for (const seg of parseParagraph(paragraph, authorRole)) {
       pushSegment(segments, seg.speaker, seg.text);
     }
   }

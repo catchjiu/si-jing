@@ -7,11 +7,12 @@ import {
   type StoryAccessGrant,
 } from "@/lib/story-access";
 import {
-  MAX_STORY_LISTEN_CHARS,
-  storyHtmlToPlainText,
+  buildStoryListenScript,
   storyListenCacheKey,
+  type StorySpeaker,
 } from "@/lib/story-listen";
 import {
+  fishQueenVoiceId,
   fishSlaveVoiceId,
   fishTextToSpeech,
   fishTtsModel,
@@ -22,6 +23,7 @@ import {
   r2ObjectExists,
 } from "@/lib/storage/r2";
 import { r2ObjectKey, toR2StoredPath } from "@/lib/storage/paths";
+import type { UserRole } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -57,6 +59,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Story not found" }, { status: 404 });
   }
 
+  const { data: authorRow } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", story.author_id as string)
+    .maybeSingle();
+
+  const authorRole: UserRole =
+    authorRow?.role === "queen" ? "queen" : "slave";
+
   const { data: grantRows } = await supabase
     .from("story_access_grants")
     .select("grantee_id")
@@ -89,34 +100,42 @@ export async function POST(request: Request) {
     );
   }
 
+  let queenVoice: string;
   let slaveVoice: string;
   try {
+    queenVoice = fishQueenVoiceId();
     slaveVoice = fishSlaveVoiceId();
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Slave voice is not configured";
+    const message =
+      err instanceof Error ? err.message : "Fish voices are not configured";
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const title = (story.title as string).trim();
-  const body = storyHtmlToPlainText(html);
-  const plainText = [title ? `${title}.` : "", body]
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, MAX_STORY_LISTEN_CHARS);
-  if (!plainText.trim()) {
+  const script = buildStoryListenScript({
+    title: (story.title as string) || "",
+    html,
+    authorRole,
+  });
+  if (!script.fishText.trim()) {
     return NextResponse.json(
       { error: "Nothing to read aloud yet" },
       { status: 400 }
     );
   }
 
+  // Fish speaker tags: 0 = queen, 1 = slave
+  const referenceIds = [queenVoice, slaveVoice];
+  const speakers = script.speakers as StorySpeaker[];
+
   const hash = storyListenCacheKey([
     storyId,
-    "slave",
+    authorRole,
+    speakers.join(","),
+    queenVoice,
     slaveVoice,
     fishTtsModel(),
     lockKind,
-    plainText,
+    script.fishText,
   ]);
   const relativePath = `${story.author_id}/listen/${storyId}-${hash}.mp3`;
   const storedPath = toR2StoredPath("stories", relativePath);
@@ -126,8 +145,8 @@ export async function POST(request: Request) {
     const cached = await r2ObjectExists(key);
     if (!cached) {
       const { audio } = await fishTextToSpeech({
-        text: plainText,
-        referenceId: slaveVoice,
+        text: script.fishText,
+        referenceId: referenceIds,
       });
       await putR2Object({
         key,
@@ -140,14 +159,16 @@ export async function POST(request: Request) {
     return NextResponse.json({
       url,
       cached,
-      speakers: ["slave"] as const,
+      authorRole,
+      speakers,
     });
   } catch (err) {
     const status =
       err && typeof err === "object" && "status" in err
         ? Number((err as { status?: number }).status)
         : 500;
-    const message = err instanceof Error ? err.message : "Could not generate audio";
+    const message =
+      err instanceof Error ? err.message : "Could not generate audio";
     console.error("story listen failed", err);
     return NextResponse.json(
       { error: message },
