@@ -163,7 +163,7 @@ function StoryPageInner() {
         .select(
           "*, author:users!author_id(id, username, role, avatar_url), access_grants:story_access_grants(*), access_requests:story_access_requests(*)"
         )
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       const rows = (data as StoryRow[]) ?? [];
