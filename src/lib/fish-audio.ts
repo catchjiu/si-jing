@@ -76,11 +76,11 @@ export function fishTtsTopP(): number {
   return clamp01(Number(raw), 0.75);
 }
 
-/** Queen-only speaking rate (her clone often lands too slow in dialogue). */
+/** Queen speaking rate (1.0 = normal). Override with FISH_QUEEN_TTS_SPEED. */
 export function fishQueenSpeed(): number {
   const raw = process.env.FISH_QUEEN_TTS_SPEED?.trim();
-  if (!raw) return 1.2;
-  return clampSpeed(Number(raw), 1.2);
+  if (!raw) return 1.0;
+  return clampSpeed(Number(raw), 1.0);
 }
 
 export function fishSlaveSpeed(): number {
@@ -104,7 +104,7 @@ export function fishTtsStabilityKey(): string {
 
 /**
  * Single-voice TTS. Prefer this over multi-speaker so each clone can use its
- * own speed/prosody (Queen’s model often sounds dragged at speed 1.0).
+ * own speed/prosody via FISH_QUEEN_TTS_SPEED / FISH_SLAVE_TTS_SPEED.
  */
 export async function fishTextToSpeech(opts: {
   text: string;
@@ -261,7 +261,7 @@ async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
 
 /**
  * Dual-voice story audio: synthesize Queen and slave turns separately
- * (Queen gets a higher default speed), then concatenate.
+ * (each speaker can use its own speed), then concatenate.
  */
 export async function fishStoryDialogueToSpeech(opts: {
   segments: StoryListenSegment[];
