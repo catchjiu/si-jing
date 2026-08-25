@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { notifyPush } from "@/lib/push-client";
 import { postToTopicThread } from "@/lib/inbox";
-import { storyPageHref } from "@/lib/inbox-deep-links";
+import { storyPageHref, storyReadHref } from "@/lib/inbox-deep-links";
+import { previewStoryHtml } from "@/lib/sanitize-html";
 import {
   formatStoryReadWindow,
   getStoryLockKind,
@@ -37,7 +38,11 @@ type Props = {
   requests: StoryAccessRequest[];
   lockKind: StoryLockKind;
   onChanged: () => void;
+  /** Full body (reader page). List view truncates to ~20 lines. */
+  fullView?: boolean;
 };
+
+const LIST_PREVIEW_BLOCKS = 20;
 
 export function StoryTimedBody({
   storyId,
@@ -52,6 +57,7 @@ export function StoryTimedBody({
   requests,
   lockKind,
   onChanged,
+  fullView = false,
 }: Props) {
   const { profile, isQueen } = useAuth();
   const [now, setNow] = useState(() => Date.now());
@@ -220,6 +226,24 @@ export function StoryTimedBody({
     </Button>
   );
 
+  const listPreview = fullView
+    ? { preview: html, truncated: false }
+    : previewStoryHtml(html, LIST_PREVIEW_BLOCKS);
+  const tbcListPreview = fullView
+    ? { preview, truncated: false }
+    : previewStoryHtml(preview || "", LIST_PREVIEW_BLOCKS);
+
+  const readMoreLink = (
+    <a
+      href={storyReadHref(storyId)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center text-sm font-medium text-gold transition-colors hover:text-gold-muted"
+    >
+      Read more
+    </a>
+  );
+
   return (
     <div className="space-y-4">
       {(timed || tbcLocked || liveLock === "tbc") && (
@@ -313,7 +337,12 @@ export function StoryTimedBody({
         </div>
       ) : liveLock === "tbc" ? (
         <div className="story-prose mx-auto max-w-2xl space-y-4 text-base leading-relaxed text-ivory/90">
-          {preview ? <StoryHtmlView html={preview} /> : null}
+          {tbcListPreview.preview ? (
+            <StoryHtmlView html={tbcListPreview.preview} />
+          ) : null}
+          {tbcListPreview.truncated ? (
+            <div className="not-prose pt-1">{readMoreLink}</div>
+          ) : null}
           <div className="rounded-lg border border-gold/30 bg-void/50 px-4 py-6 text-center">
             <p className="font-heading text-xl italic tracking-wide text-gold">
               To be continued
@@ -337,7 +366,10 @@ export function StoryTimedBody({
         </div>
       ) : (
         <div className="story-prose mx-auto max-w-2xl text-base leading-relaxed text-ivory/90">
-          <StoryHtmlView html={html} />
+          <StoryHtmlView html={listPreview.preview} />
+          {listPreview.truncated ? (
+            <div className="not-prose mt-4">{readMoreLink}</div>
+          ) : null}
         </div>
       )}
     </div>
