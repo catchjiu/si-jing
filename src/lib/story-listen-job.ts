@@ -233,7 +233,7 @@ export async function processStoryListenJob(jobId: string): Promise<void> {
   }
   if (job.status === "ready" && job.audio_path) return;
 
-  const STUCK_MS = 5 * 60 * 1000;
+  const STUCK_MS = 2 * 60 * 1000;
   if (job.status === "running") {
     const updatedAt = new Date(
       (job.updated_at as string) || 0

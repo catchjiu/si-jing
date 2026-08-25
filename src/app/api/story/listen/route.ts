@@ -14,10 +14,57 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-/** Run the worker in-process after the response (no self-HTTP; Coolify-safe). */
-function scheduleListenJob(jobId: string) {
+function appOrigin(request: Request): string {
+  const env =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    "";
+  if (env) return env.replace(/\/$/, "");
+  return new URL(request.url).origin;
+}
+
+function processSecret(): string {
+  return (
+    process.env.CRON_SECRET?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    ""
+  );
+}
+
+/**
+ * Kick the listen worker as a detached HTTP request so long Fish/ffmpeg work
+ * is not tied to the parent response lifetime. Falls back to in-process after().
+ */
+function scheduleListenJob(jobId: string, request: Request) {
+  const secret = processSecret();
+  const origin = appOrigin(request);
+
   after(() => {
-    void processStoryListenJob(jobId).catch((err) => {
+    void (async () => {
+      if (secret) {
+        try {
+          // Fire the worker route; awaiting keeps after() alive until done on
+          // hosts that support it. If the fetch fails, run in-process.
+          const res = await fetch(`${origin}/api/story/listen/process`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${secret}`,
+            },
+            body: JSON.stringify({ jobId }),
+          });
+          if (!res.ok) {
+            const text = await res.text().catch(() => "");
+            console.error("listen process kickoff failed", res.status, text);
+            await processStoryListenJob(jobId);
+          }
+          return;
+        } catch (err) {
+          console.error("listen process fetch failed", jobId, err);
+        }
+      }
+      await processStoryListenJob(jobId);
+    })().catch((err) => {
       console.error("listen job failed after schedule", jobId, err);
     });
   });
@@ -90,7 +137,7 @@ export async function GET(request: Request) {
     const stamp = (latestJob.updated_at || latestJob.created_at) as string;
     const ageMs = Date.now() - new Date(stamp).getTime();
     if (ageMs > 15_000) {
-      scheduleListenJob(latestJob.id as string);
+      scheduleListenJob(latestJob.id as string, request);
     }
   }
 
@@ -239,9 +286,19 @@ export async function POST(request: Request) {
   }
 
   if (latestJob?.status === "queued" || latestJob?.status === "running") {
-    scheduleListenJob(latestJob.id as string);
+    scheduleListenJob(latestJob.id as string, request);
     return NextResponse.json({
       status: latestJob.status,
+      jobId: latestJob.id,
+      filename,
+    });
+  }
+
+  // Retry a previous failure by reclaiming the same job row.
+  if (latestJob?.status === "failed") {
+    scheduleListenJob(latestJob.id as string, request);
+    return NextResponse.json({
+      status: "queued" as const,
       jobId: latestJob.id,
       filename,
     });
@@ -272,7 +329,7 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
     if (existing) {
-      scheduleListenJob(existing.id as string);
+      scheduleListenJob(existing.id as string, request);
       return NextResponse.json({
         status: existing.status,
         jobId: existing.id,
@@ -295,7 +352,7 @@ export async function POST(request: Request) {
   }
 
   const jobId = job.id as string;
-  scheduleListenJob(jobId);
+  scheduleListenJob(jobId, request);
 
   return NextResponse.json({
     status: "queued" as const,

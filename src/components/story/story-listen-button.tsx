@@ -334,7 +334,8 @@ export function StoryListenButton({
   const label = (() => {
     if (busy === "request" || busy === "play") return "Working…";
     if (playing) return "Pause";
-    if (pending) return "Queued";
+    if (status === "running") return "Preparing…";
+    if (status === "queued") return "Queued";
     if (ready || status === "ready") return "Play";
     return "Listen";
   })();
