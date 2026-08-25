@@ -25,19 +25,42 @@ function filenameFromDisposition(header: string | null, fallback: string) {
       /* fall through */
     }
   }
-  const plain = header.match(/filename\s*=\s*"([^"]+)"/i)
-    ?? header.match(/filename\s*=\s*([^;]+)/i);
+  const plain =
+    header.match(/filename\s*=\s*"([^"]+)"/i) ??
+    header.match(/filename\s*=\s*([^;]+)/i);
   return plain?.[1]?.trim() || fallback;
 }
 
-async function downloadViaApi(storyId: string, fallbackName: string) {
+function isInterruptedError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const m = err.message;
+  return (
+    err.name === "AbortError" ||
+    m === "Load failed" ||
+    m === "Failed to fetch" ||
+    /networkerror|aborted|interrupted|the user aborted/i.test(m)
+  );
+}
+
+function listenErrorMessage(err: unknown, fallback: string): string {
+  if (isInterruptedError(err)) {
+    return "Audio was interrupted — keep this page open and tap again";
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
+/** Same-origin MP3 blob — avoids Safari R2/CORS “Load failed” on play + download. */
+async function fetchListenBlob(storyId: string): Promise<{
+  blob: Blob;
+  filename: string;
+}> {
   const res = await fetch("/api/story/listen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ storyId, download: true }),
   });
   if (!res.ok) {
-    let message = "Could not download audio";
+    let message = "Could not create narration";
     try {
       const data = (await res.json()) as { error?: string };
       if (data.error) message = data.error;
@@ -47,22 +70,12 @@ async function downloadViaApi(storyId: string, fallbackName: string) {
     throw new Error(message);
   }
   const blob = await res.blob();
+  if (blob.size < 32) throw new Error("Could not create narration");
   const filename = filenameFromDisposition(
     res.headers.get("Content-Disposition"),
-    fallbackName
+    storyAudioFilename(undefined, storyId)
   );
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = filename.endsWith(".mp3") ? filename : `${filename}.mp3`;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  return { blob, filename };
 }
 
 export function StoryListenButton({
@@ -72,44 +85,56 @@ export function StoryListenButton({
   className,
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [busy, setBusy] = useState<"listen" | "download" | null>(null);
-  const [url, setUrl] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!busy) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") {
+        toast.message("Stay on this page while audio prepares", {
+          duration: 3000,
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [busy]);
 
   const locked = lockKind === "full";
   const preparing = busy !== null;
 
-  const ensureUrl = async (): Promise<string> => {
-    if (url) return url;
-    const res = await fetch("/api/story/listen", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storyId }),
-    });
-    const data = (await res.json()) as { url?: string; error?: string };
-    if (!res.ok || !data.url) {
-      throw new Error(data.error || "Could not create narration");
-    }
-    setUrl(data.url);
-    return data.url;
-  };
+  const ensureAudio = async (): Promise<HTMLAudioElement> => {
+    if (audioRef.current && objectUrlRef.current) return audioRef.current;
 
-  const ensureAudio = async (): Promise<HTMLAudioElement | null> => {
-    if (audioRef.current && url) return audioRef.current;
-    const audioUrl = await ensureUrl();
-    const audio = new Audio(audioUrl);
+    toast.message("Preparing voiceover — keep this page open", {
+      duration: 4000,
+    });
+    const { blob } = await fetchListenBlob(storyId);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const objectUrl = URL.createObjectURL(blob);
+    objectUrlRef.current = objectUrl;
+
+    const audio = new Audio(objectUrl);
     audio.preload = "auto";
     audio.addEventListener("ended", () => setPlaying(false));
     audio.addEventListener("pause", () => setPlaying(false));
     audio.addEventListener("play", () => setPlaying(true));
     audioRef.current = audio;
+    setReady(true);
     return audio;
   };
 
@@ -125,10 +150,9 @@ export function StoryListenButton({
       }
       setBusy("listen");
       const audio = await ensureAudio();
-      if (!audio) return;
       await audio.play();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not play story");
+      toast.error(listenErrorMessage(err, "Could not play story"));
     } finally {
       setBusy(null);
     }
@@ -141,12 +165,42 @@ export function StoryListenButton({
     }
     try {
       setBusy("download");
-      // Same-origin proxy — browser fetch of R2 presign fails with CORS ("Load failed").
-      await downloadViaApi(storyId, storyAudioFilename(title, storyId));
+      toast.message("Preparing MP3 — keep this page open", { duration: 4000 });
+      const { blob, filename } = objectUrlRef.current
+        ? {
+            blob: await (await fetch(objectUrlRef.current)).blob(),
+            filename: storyAudioFilename(title, storyId),
+          }
+        : await fetchListenBlob(storyId).then(async (r) => {
+            if (!objectUrlRef.current) {
+              objectUrlRef.current = URL.createObjectURL(r.blob);
+              setReady(true);
+            }
+            return {
+              blob: r.blob,
+              filename:
+                r.filename.endsWith(".mp3")
+                  ? r.filename
+                  : storyAudioFilename(title, storyId),
+            };
+          });
+
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename.endsWith(".mp3")
+          ? filename
+          : `${filename}.mp3`;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not download audio"
-      );
+      toast.error(listenErrorMessage(err, "Could not download audio"));
     } finally {
       setBusy(null);
     }
@@ -166,7 +220,7 @@ export function StoryListenButton({
           <Loader2 className="mr-1 h-3 w-3 animate-spin" />
         ) : playing ? (
           <Pause className="mr-1 h-3 w-3" />
-        ) : url ? (
+        ) : ready ? (
           <Play className="mr-1 h-3 w-3" />
         ) : (
           <Headphones className="mr-1 h-3 w-3" />
@@ -175,7 +229,7 @@ export function StoryListenButton({
           ? "Preparing…"
           : playing
             ? "Pause"
-            : url
+            : ready
               ? "Play"
               : "Listen"}
       </Button>

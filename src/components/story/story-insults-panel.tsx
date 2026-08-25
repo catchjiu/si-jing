@@ -40,7 +40,28 @@ function filenameFromDisposition(header: string | null, fallback: string) {
   return plain?.[1]?.trim() || fallback;
 }
 
-async function downloadInsultMp3(insultId: string, fallbackName: string) {
+function isInterruptedError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const m = err.message;
+  return (
+    err.name === "AbortError" ||
+    m === "Load failed" ||
+    m === "Failed to fetch" ||
+    /networkerror|aborted|interrupted|the user aborted/i.test(m)
+  );
+}
+
+function speakErrorMessage(err: unknown, fallback: string): string {
+  if (isInterruptedError(err)) {
+    return "Audio was interrupted — keep this page open and tap again";
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
+async function fetchInsultBlob(insultId: string): Promise<{
+  blob: Blob;
+  filename: string;
+}> {
   const res = await fetch(`/api/story/insults/${insultId}/speak`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -57,15 +78,23 @@ async function downloadInsultMp3(insultId: string, fallbackName: string) {
     throw new Error(message);
   }
   const blob = await res.blob();
+  if (blob.size < 32) throw new Error("Could not create audio");
   const filename = filenameFromDisposition(
     res.headers.get("Content-Disposition"),
-    fallbackName
+    storyAudioFilename(undefined, insultId)
   );
+  return { blob, filename };
+}
+
+async function downloadInsultMp3(insultId: string, fallbackName: string) {
+  const { blob, filename } = await fetchInsultBlob(insultId);
   const objectUrl = URL.createObjectURL(blob);
   try {
     const a = document.createElement("a");
     a.href = objectUrl;
-    a.download = filename.endsWith(".mp3") ? filename : `${filename}.mp3`;
+    a.download = (filename || fallbackName).endsWith(".mp3")
+      ? filename || fallbackName
+      : `${fallbackName}.mp3`;
     a.rel = "noopener";
     document.body.appendChild(a);
     a.click();
@@ -121,9 +150,14 @@ export function StoryInsultsPanel({ className }: { className?: string }) {
   }, [profile, isSlave]);
 
   useEffect(() => {
+    const urls = urlById.current;
     return () => {
       audioRef.current?.pause();
       audioRef.current = null;
+      for (const url of urls.values()) {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      }
+      urls.clear();
     };
   }, []);
 
@@ -135,20 +169,16 @@ export function StoryInsultsPanel({ className }: { className?: string }) {
     setPlayingId(null);
   };
 
-  const ensureUrl = async (insultId: string): Promise<string> => {
+  const ensureObjectUrl = async (insultId: string): Promise<string> => {
     const cached = urlById.current.get(insultId);
     if (cached) return cached;
-    const res = await fetch(`/api/story/insults/${insultId}/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+    toast.message("Preparing Queen’s voice — keep this page open", {
+      duration: 4000,
     });
-    const data = (await res.json()) as { url?: string; error?: string };
-    if (!res.ok || !data.url) {
-      throw new Error(data.error || "Could not create audio");
-    }
-    urlById.current.set(insultId, data.url);
-    return data.url;
+    const { blob } = await fetchInsultBlob(insultId);
+    const objectUrl = URL.createObjectURL(blob);
+    urlById.current.set(insultId, objectUrl);
+    return objectUrl;
   };
 
   const togglePlay = async (insult: StoryInsult) => {
@@ -161,7 +191,7 @@ export function StoryInsultsPanel({ className }: { className?: string }) {
       stopAudio();
       setBusyId(insult.id);
       setBusyKind("play");
-      const url = await ensureUrl(insult.id);
+      const url = await ensureObjectUrl(insult.id);
       const audio = new Audio(url);
       audio.preload = "auto";
       audio.addEventListener("ended", () => setPlayingId(null));
@@ -172,7 +202,7 @@ export function StoryInsultsPanel({ className }: { className?: string }) {
       audioRef.current = audio;
       await audio.play();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not play insult");
+      toast.error(speakErrorMessage(err, "Could not play insult"));
     } finally {
       setBusyId(null);
       setBusyKind(null);
@@ -183,14 +213,13 @@ export function StoryInsultsPanel({ className }: { className?: string }) {
     try {
       setBusyId(insult.id);
       setBusyKind("download");
+      toast.message("Preparing MP3 — keep this page open", { duration: 4000 });
       await downloadInsultMp3(
         insult.id,
         storyAudioFilename(insult.body, insult.id)
       );
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not download audio"
-      );
+      toast.error(speakErrorMessage(err, "Could not download audio"));
     } finally {
       setBusyId(null);
       setBusyKind(null);
