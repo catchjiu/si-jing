@@ -240,6 +240,20 @@ async function concatMp3Buffers(parts: Buffer[]): Promise<Buffer> {
       outFile,
     ]);
     return await readFile(outFile);
+  } catch (err) {
+    // Coolify images without ffmpeg: crude MP3 concat still plays in browsers.
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "ENOENT"
+    ) {
+      console.warn(
+        "ffmpeg not found — concatenating MP3 parts without re-encode"
+      );
+      return Buffer.concat(parts);
+    }
+    throw err;
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
   }
