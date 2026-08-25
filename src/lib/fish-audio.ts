@@ -71,6 +71,7 @@ export function fishTtsStabilityKey(): string {
     `t=${fishTtsTemperature()}`,
     `p=${fishTtsTopP()}`,
     "cond=1",
+    "chunk=300",
   ].join(",");
 }
 
@@ -100,7 +101,8 @@ export async function fishTextToSpeech(opts: {
       latency: "normal",
       normalize: true,
       // Longer chunks + conditioning reduces mid-story voice drift.
-      chunk_length: 400,
+      // Fish API requires chunk_length in [100, 300].
+      chunk_length: 300,
       min_chunk_length: 80,
       condition_on_previous_chunks: true,
       temperature,
