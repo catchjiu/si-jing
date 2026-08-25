@@ -13,7 +13,7 @@ import {
   type StoryAiProvider,
 } from "@/lib/story-ai";
 import { appendStoryHtml, storyHtmlHasText } from "@/lib/sanitize-html";
-import { roleSpeechAiInstructions } from "@/lib/role-speech";
+import { roleSpeechAiInstructions, dialogueFormatAiInstructions } from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,6 +30,7 @@ function createSystemPrompt(role: UserRole): string {
     "Then a blank line, then the HTML body only.",
     storyHtmlOutputRules(),
     roleSpeechAiInstructions(role),
+    dialogueFormatAiInstructions(),
   ]
     .filter(Boolean)
     .join(" ");
@@ -46,6 +47,7 @@ function extendSystemPrompt(role: UserRole): string {
     "Return ONLY HTML for the new continuation. Do not include a title.",
     storyHtmlOutputRules(),
     roleSpeechAiInstructions(role),
+    dialogueFormatAiInstructions(),
   ]
     .filter(Boolean)
     .join(" ");

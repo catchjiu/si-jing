@@ -75,6 +75,21 @@ export function roleSpeechAiInstructions(
   return "";
 }
 
+/**
+ * Dialogue layout for dual-voice Listen (Fish Audio).
+ * Spoken lines must be labeled so TTS can assign Queen vs slave voices.
+ */
+export function dialogueFormatAiInstructions(): string {
+  return [
+    "Dialogue format for dual-voice audio (required):",
+    "Put EVERY spoken line in its own <p> that starts with exactly Queen: or Slave: (who is speaking), then the spoken words.",
+    'Example: <p>Queen: Kneel.</p><p>Slave: Yes, Queen.</p>',
+    "Narration stays in separate unlabeled <p> tags with NO quotation marks and NO spoken dialogue mixed in.",
+    "Do not use she said / he said / i said attribution. Do not put both speakers in one paragraph.",
+    "Do not write dialogue only inside curly/straight quotes inside narration — always use the Queen:/Slave: line form instead.",
+  ].join(" ");
+}
+
 function applyReplacements(
   text: string,
   rules: [RegExp, string][]

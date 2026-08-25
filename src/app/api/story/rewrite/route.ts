@@ -6,7 +6,7 @@ import {
   type StoryRewritePromptId,
 } from "@/lib/story-prompts";
 import { storyHtmlHasText, sanitizeStoryHtml } from "@/lib/sanitize-html";
-import { roleSpeechAiInstructions } from "@/lib/role-speech";
+import { roleSpeechAiInstructions, dialogueFormatAiInstructions } from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
 import {
   cleanModelHtml,
@@ -29,6 +29,7 @@ function buildSystemPrompt(role: UserRole): string {
     storyHtmlOutputRules(),
     "Preserve the author's voice, characters, and plot unless a tagged instruction requires a light structural tweak.",
     roleSpeechAiInstructions(role),
+    dialogueFormatAiInstructions(),
   ]
     .filter(Boolean)
     .join(" ");
