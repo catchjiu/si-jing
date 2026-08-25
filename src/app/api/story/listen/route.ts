@@ -14,6 +14,15 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+/** Run the worker in-process after the response (no self-HTTP; Coolify-safe). */
+function scheduleListenJob(jobId: string) {
+  after(() => {
+    void processStoryListenJob(jobId).catch((err) => {
+      console.error("listen job failed after schedule", jobId, err);
+    });
+  });
+}
+
 /** Poll listen job / cache status without starting a new job. */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -61,7 +70,7 @@ export async function GET(request: Request) {
 
   const { data: latestJob } = await supabase
     .from("story_listen_jobs")
-    .select("id, status, error, cache_key")
+    .select("id, status, error, cache_key, updated_at, created_at")
     .eq("story_id", storyId)
     .eq("requester_id", user.id)
     .eq("cache_key", prepared.cacheKey)
@@ -76,29 +85,21 @@ export async function GET(request: Request) {
     });
   }
 
+  // Re-kick stuck queued/running jobs when the client polls (worker may have died).
+  if (latestJob.status === "queued" || latestJob.status === "running") {
+    const stamp = (latestJob.updated_at || latestJob.created_at) as string;
+    const ageMs = Date.now() - new Date(stamp).getTime();
+    if (ageMs > 15_000) {
+      scheduleListenJob(latestJob.id as string);
+    }
+  }
+
   return NextResponse.json({
     status: latestJob.status as string,
     error: latestJob.error ?? null,
     jobId: latestJob.id,
     filename,
   });
-}
-
-function appOrigin(request: Request): string {
-  const env =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    "";
-  if (env) return env.replace(/\/$/, "");
-  return new URL(request.url).origin;
-}
-
-function processSecret(): string {
-  return (
-    process.env.CRON_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    ""
-  );
 }
 
 export async function POST(request: Request) {
@@ -227,7 +228,18 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    return NextResponse.json(
+      {
+        error:
+          "Listen worker not configured — set SUPABASE_SERVICE_ROLE_KEY on the server",
+      },
+      { status: 503 }
+    );
+  }
+
   if (latestJob?.status === "queued" || latestJob?.status === "running") {
+    scheduleListenJob(latestJob.id as string);
     return NextResponse.json({
       status: latestJob.status,
       jobId: latestJob.id,
@@ -249,7 +261,7 @@ export async function POST(request: Request) {
     .single();
 
   if (jobError || !job) {
-    // Unique active job race — return the existing one
+    // Unique active job race — return the existing one and re-kick
     const { data: existing } = await supabase
       .from("story_listen_jobs")
       .select("id, status")
@@ -260,6 +272,7 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
     if (existing) {
+      scheduleListenJob(existing.id as string);
       return NextResponse.json({
         status: existing.status,
         jobId: existing.id,
@@ -267,46 +280,22 @@ export async function POST(request: Request) {
       });
     }
     console.error("story listen job insert failed", jobError);
+    const hint =
+      /story_listen_jobs|schema cache|does not exist/i.test(
+        jobError?.message || ""
+      )
+        ? " — run the story_listen_jobs SQL migration in Supabase"
+        : "";
     return NextResponse.json(
-      { error: jobError?.message || "Could not queue listen job" },
+      {
+        error: (jobError?.message || "Could not queue listen job") + hint,
+      },
       { status: 500 }
     );
   }
 
   const jobId = job.id as string;
-  const origin = appOrigin(request);
-  const secret = processSecret();
-
-  after(() => {
-    void (async () => {
-      try {
-        if (secret) {
-          const res = await fetch(`${origin}/api/story/listen/process`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${secret}`,
-            },
-            body: JSON.stringify({ jobId }),
-          });
-          if (!res.ok) {
-            const text = await res.text().catch(() => "");
-            console.error("listen process kickoff failed", res.status, text);
-            await processStoryListenJob(jobId);
-          }
-        } else {
-          await processStoryListenJob(jobId);
-        }
-      } catch (err) {
-        console.error("listen after() failed", err);
-        try {
-          await processStoryListenJob(jobId);
-        } catch (inner) {
-          console.error("listen process fallback failed", inner);
-        }
-      }
-    })();
-  });
+  scheduleListenJob(jobId);
 
   return NextResponse.json({
     status: "queued" as const,
