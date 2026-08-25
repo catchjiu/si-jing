@@ -90,6 +90,8 @@ npm run refresh-story-listen
 
 Options: `--force` (rebuild even if fresh), `--dry-run`, `--limit=N`, `--provider=claude|grok`.
 
+Slave-only **Insults** on Story: save lines, play/download them in Queen’s Fish voice (`FISH_QUEEN_VOICE_ID`). Requires the `story_insults` table (see `supabase/migrations/20260825180000_story_insults.sql`).
+
 ## Supabase project
 
 Already wired to project **queen sisi** (`oqsxhjhzszlnjbbamuvp`) with schema, RLS, and `submissions` storage bucket applied.
