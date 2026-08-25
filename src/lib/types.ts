@@ -400,6 +400,15 @@ export type StoryComment = {
   created_at: string;
 };
 
+/** Slave-only insult lines on Story (Queen voice TTS). */
+export type StoryInsult = {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FartEntry = {
   id: string;
   created_by: string;

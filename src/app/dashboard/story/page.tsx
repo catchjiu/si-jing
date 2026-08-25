@@ -29,6 +29,7 @@ import { StoryCommentThread } from "@/components/story/story-comment-thread";
 import { StoryCoverButton } from "@/components/story/story-cover-button";
 import { StoryExtendDialog } from "@/components/story/story-extend-dialog";
 import { StoryListenButton } from "@/components/story/story-listen-button";
+import { StoryInsultsPanel } from "@/components/story/story-insults-panel";
 import { StoryTimedBody } from "@/components/story/story-timed-body";
 import {
   getStoryLockKind,
@@ -274,7 +275,7 @@ function StoryPageInner() {
           {isSlave && (
             <p className="mt-1 text-sm text-muted-foreground">
               Prompt a full draft, set a reading window, polish with AI, extend
-              with direction, and generate a cover
+              with direction, generate a cover, and save insults in Queen’s voice
             </p>
           )}
         </div>
@@ -332,6 +333,8 @@ function StoryPageInner() {
           </div>
         )}
       </div>
+
+      {isSlave && <StoryInsultsPanel />}
 
       {showForm && (
         <StoryForm

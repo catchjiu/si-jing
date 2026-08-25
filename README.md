@@ -79,6 +79,8 @@ Upload Queen/slave **face reference** photos on Profile so Grok can match faces 
 
 Story **Listen** uses [Fish Audio](https://fish.audio/) multi-speaker TTS: narration in the author’s voice, quoted speech in the other person’s voice. Set `FISH_API_KEY`, `FISH_QUEEN_VOICE_ID`, and `FISH_SLAVE_VOICE_ID`. Optional: `FISH_TTS_MODEL` (default `s2.1-pro`, or `s2.1-pro-free`).
 
+Slave-only **Insults** on Story: save lines, play/download them in Queen’s Fish voice (`FISH_QUEEN_VOICE_ID`). Requires the `story_insults` table (see `supabase/migrations/20260825180000_story_insults.sql`).
+
 ## Supabase project
 
 Already wired to project **queen sisi** (`oqsxhjhzszlnjbbamuvp`) with schema, RLS, and `submissions` storage bucket applied.
