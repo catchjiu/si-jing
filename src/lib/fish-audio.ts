@@ -46,6 +46,34 @@ export function fishTtsModel(): string {
   return process.env.FISH_TTS_MODEL?.trim() || "s2.1-pro";
 }
 
+function clamp01(n: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0, n));
+}
+
+/** Lower = more consistent timbre (default 0.3; Fish default is 0.7). */
+export function fishTtsTemperature(): number {
+  const raw = process.env.FISH_TTS_TEMPERATURE?.trim();
+  if (!raw) return 0.3;
+  return clamp01(Number(raw), 0.3);
+}
+
+/** Nucleus sampling; keep moderately tight for voice stability. */
+export function fishTtsTopP(): number {
+  const raw = process.env.FISH_TTS_TOP_P?.trim();
+  if (!raw) return 0.75;
+  return clamp01(Number(raw), 0.75);
+}
+
+/** Include in audio cache keys when TTS sampling knobs change. */
+export function fishTtsStabilityKey(): string {
+  return [
+    `t=${fishTtsTemperature()}`,
+    `p=${fishTtsTopP()}`,
+    "cond=1",
+  ].join(",");
+}
+
 /**
  * `referenceId` is a single voice, or an array indexed by Fish speaker tags
  * (`<|speaker:0|>`, `<|speaker:1|>`, …). Use `[queenId, slaveId]` for dual-voice stories.
@@ -54,6 +82,9 @@ export async function fishTextToSpeech(opts: {
   text: string;
   referenceId: string | string[];
 }): Promise<FishTtsResult> {
+  const temperature = fishTtsTemperature();
+  const topP = fishTtsTopP();
+
   const res = await fetch("https://api.fish.audio/v1/tts", {
     method: "POST",
     headers: {
@@ -68,7 +99,13 @@ export async function fishTextToSpeech(opts: {
       mp3_bitrate: 128,
       latency: "normal",
       normalize: true,
-      chunk_length: 300,
+      // Longer chunks + conditioning reduces mid-story voice drift.
+      chunk_length: 400,
+      min_chunk_length: 80,
+      condition_on_previous_chunks: true,
+      temperature,
+      top_p: topP,
+      repetition_penalty: 1.2,
       prosody: {
         speed: 1,
         volume: 0,
