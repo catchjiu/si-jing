@@ -118,6 +118,11 @@ export function storyPageHref(
   return `/dashboard/story?${params.toString()}`;
 }
 
+/** Full-story reader (opens from list “Read more”). */
+export function storyReadHref(storyId: string): string {
+  return `/dashboard/story/read?story=${encodeURIComponent(storyId)}`;
+}
+
 export function rewardPageHref(rewardId: string): string {
   return `/dashboard/rewards?reward=${encodeURIComponent(rewardId)}`;
 }

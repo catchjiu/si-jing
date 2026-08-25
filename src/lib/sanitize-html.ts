@@ -54,3 +54,38 @@ export function storyHtmlExcerpt(html: string, max = 120): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1).trimEnd()}…`;
 }
+
+const STORY_BLOCK_RE =
+  /<hr\b[^>]*\/?>|<(p|h2|h3|blockquote|ul|ol|aside)(\s[^>]*)?>[\s\S]*?<\/\1>/gi;
+
+/**
+ * Truncate story HTML to the first ~N top-level blocks (≈ lines of TipTap prose).
+ */
+export function previewStoryHtml(
+  html: string,
+  maxBlocks = 20
+): { preview: string; truncated: boolean } {
+  const safe = sanitizeStoryHtml(html);
+  if (!safe) return { preview: "", truncated: false };
+  if (maxBlocks < 1) return { preview: "", truncated: true };
+
+  const blocks = safe.match(STORY_BLOCK_RE);
+  if (!blocks || blocks.length === 0) {
+    // Fallback for atypical markup: soft character cap (~20 short lines).
+    const plain = safe.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (plain.length <= 900) return { preview: safe, truncated: false };
+    return {
+      preview: sanitizeStoryHtml(`<p>${storyHtmlExcerpt(safe, 900)}</p>`),
+      truncated: true,
+    };
+  }
+
+  if (blocks.length <= maxBlocks) {
+    return { preview: safe, truncated: false };
+  }
+
+  return {
+    preview: blocks.slice(0, maxBlocks).join(""),
+    truncated: true,
+  };
+}
