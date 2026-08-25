@@ -19,7 +19,7 @@ import {
 import {
   fishQueenVoiceId,
   fishSlaveVoiceId,
-  fishTextToSpeech,
+  fishStoryDialogueToSpeech,
   fishTtsModel,
   fishTtsStabilityKey,
 } from "@/lib/fish-audio";
@@ -167,8 +167,7 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fish speaker tags: 0 = queen, 1 = slave
-  const referenceIds = [queenVoice, slaveVoice];
+  // Fish speaker tags: 0 = queen, 1 = slave (used only for script building)
   const speakers = script.speakers as StorySpeaker[];
 
   const hash = storyListenCacheKey([
@@ -191,9 +190,10 @@ export async function POST(request: Request) {
   try {
     const cached = await r2ObjectExists(key);
     if (!cached) {
-      const { audio } = await fishTextToSpeech({
-        text: script.fishText,
-        referenceId: referenceIds,
+      const { audio } = await fishStoryDialogueToSpeech({
+        segments: script.segments,
+        queenVoiceId: queenVoice,
+        slaveVoiceId: slaveVoice,
       });
       await putR2Object({
         key,

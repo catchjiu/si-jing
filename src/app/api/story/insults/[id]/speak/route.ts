@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { storyAudioFilename } from "@/lib/story-audio-filename";
 import {
+  fishQueenSpeed,
   fishQueenVoiceId,
   fishTextToSpeech,
   fishTtsModel,
@@ -109,6 +110,7 @@ export async function POST(
       const { audio } = await fishTextToSpeech({
         text: spoken,
         referenceId: queenVoice,
+        speed: fishQueenSpeed(),
       });
       await putR2Object({
         key,
