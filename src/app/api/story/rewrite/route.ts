@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import {
   isStoryRewritePromptId,
   STORY_REWRITE_PROMPT_MAP,
@@ -8,6 +7,7 @@ import {
 import { storyHtmlHasText, sanitizeStoryHtml } from "@/lib/sanitize-html";
 import { roleSpeechAiInstructions } from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
+import { requireHomeSlaveWriter } from "@/lib/story-access-ai";
 import {
   cleanModelHtml,
   completeStoryModel,
@@ -55,27 +55,9 @@ function buildUserPrompt(
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: me } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = me?.role as UserRole | undefined;
-  if (role !== "slave") {
-    return NextResponse.json(
-      { error: "Only slave can use AI story rewrite" },
-      { status: 403 }
-    );
-  }
+  const auth = await requireHomeSlaveWriter();
+  if ("error" in auth) return auth.error;
+  const { role } = auth.author;
 
   let payload: {
     html?: unknown;

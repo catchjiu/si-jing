@@ -82,7 +82,7 @@ function readInitialComposerDraft(): StoryComposerDraft | null {
 }
 
 function StoryPageInner() {
-  const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
+  const { isQueen, isSlave, isHomeSlave, profile, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const focusStoryId = searchParams.get("story");
   const focusCommentId = searchParams.get("comment");
@@ -273,7 +273,7 @@ function StoryPageInner() {
             <BookMarked className="h-7 w-7 text-gold" />
             Story
           </h1>
-          {isSlave && (
+          {isHomeSlave && (
             <p className="mt-1 text-sm text-muted-foreground">
               Prompt a full draft, set a reading window, polish with AI, extend
               with direction, generate a cover, and save insults in Queen’s voice
@@ -282,7 +282,7 @@ function StoryPageInner() {
         </div>
         {(isQueen || isSlave) && !composerOpen && (
           <div className="flex flex-wrap gap-2">
-            {isSlave && (
+            {isHomeSlave && (
               <Button
                 type="button"
                 variant="outline"
@@ -510,16 +510,18 @@ function StoryPageInner() {
                                   lastPrompt={story.cover_prompt}
                                   onGenerated={() => void load()}
                                 />
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 border-gold/25 px-2 text-xs"
-                                  onClick={() => setExtending(story)}
-                                >
-                                  <Sparkles className="mr-1 h-3 w-3" />
-                                  Extend
-                                </Button>
+                                {isHomeSlave && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 border-gold/25 px-2 text-xs"
+                                    onClick={() => setExtending(story)}
+                                  >
+                                    <Sparkles className="mr-1 h-3 w-3" />
+                                    Extend
+                                  </Button>
+                                )}
                                 <Button
                                   type="button"
                                   size="sm"
@@ -641,21 +643,23 @@ function StoryPageInner() {
         )}
       </section>
 
-      <StoryExtendDialog
-        open={Boolean(extending)}
-        onOpenChange={(open) => {
-          if (!open) setExtending(null);
-        }}
-        storyId={extending?.id}
-        title={extending?.title ?? ""}
-        html={extending?.body ?? ""}
-        persist
-        onApplied={() => {
-          if (extending) setHighlightId(extending.id);
-          setExtending(null);
-          void load();
-        }}
-      />
+      {isHomeSlave && (
+        <StoryExtendDialog
+          open={Boolean(extending)}
+          onOpenChange={(open) => {
+            if (!open) setExtending(null);
+          }}
+          storyId={extending?.id}
+          title={extending?.title ?? ""}
+          html={extending?.body ?? ""}
+          persist
+          onApplied={() => {
+            if (extending) setHighlightId(extending.id);
+            setExtending(null);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

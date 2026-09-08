@@ -74,7 +74,7 @@ export function StoryForm({
   draftFields = null,
   onDraftFieldsChange,
 }: StoryFormProps) {
-  const { profile, isQueen, isSlave } = useAuth();
+  const { profile, isQueen, isSlave, isHomeSlave } = useAuth();
   const [title, setTitle] = useState(
     () => draftFields?.title ?? story?.title ?? ""
   );
@@ -316,21 +316,21 @@ export function StoryForm({
           <h3 className="font-heading text-xl text-ivory">
             {isEdit
               ? "Edit story"
-              : isSlave && promptFirst
+              : isHomeSlave && promptFirst
                 ? "Write from a prompt"
                 : "New story"}
           </h3>
           <p className="text-xs text-muted-foreground">
             {isEdit
               ? "Edit your story — Queen/slave speech formatting applies on save"
-              : isSlave
+              : isHomeSlave
                 ? "Prompt a whole draft, or write it yourself. Role speech formatting applies on save."
                 : "Write it yourself. Role speech formatting applies on save."}
           </p>
         </div>
       </div>
 
-      {!isEdit && isSlave && (
+      {!isEdit && isHomeSlave && (
         <StoryGeneratePanel
           titleHint={title}
           disabled={submitting}
@@ -380,7 +380,7 @@ export function StoryForm({
         </p>
       </div>
 
-      {isSlave && (
+      {isHomeSlave && (
         <StoryRewritePanel
           html={body}
           disabled={submitting}
@@ -388,7 +388,7 @@ export function StoryForm({
         />
       )}
 
-      {storyHtmlHasText(body) && (
+      {isHomeSlave && storyHtmlHasText(body) && (
         <Button
           type="button"
           size="sm"
@@ -402,14 +402,16 @@ export function StoryForm({
         </Button>
       )}
 
-      <StoryExtendDialog
-        open={extendOpen}
-        onOpenChange={setExtendOpen}
-        title={title.trim() || "Untitled"}
-        html={body}
-        persist={false}
-        onApplied={applyReadingBody}
-      />
+      {isHomeSlave && (
+        <StoryExtendDialog
+          open={extendOpen}
+          onOpenChange={setExtendOpen}
+          title={title.trim() || "Untitled"}
+          html={body}
+          persist={false}
+          onApplied={applyReadingBody}
+        />
+      )}
 
       <div className="space-y-2">
         <Label>Status</Label>

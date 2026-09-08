@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import {
   cleanModelHtml,
   completeStoryModel,
@@ -10,7 +9,6 @@ import {
   parseStoryAiProvider,
   storyAiFailurePayload,
   storyHtmlOutputRules,
-  type StoryAiProvider,
 } from "@/lib/story-ai";
 import { appendStoryHtml, storyHtmlHasText } from "@/lib/sanitize-html";
 import {
@@ -18,6 +16,7 @@ import {
   roleSpeechAiInstructions,
 } from "@/lib/role-speech";
 import type { UserRole } from "@/lib/types";
+import { requireHomeSlaveWriter } from "@/lib/story-access-ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -68,63 +67,24 @@ function contextHtml(html: string): string {
   return html.slice(html.length - MAX_STORY_HTML_CHARS);
 }
 
-async function requireAuthor(
-  request: Request
-): Promise<
-  | { error: NextResponse }
-  | { role: UserRole; provider: StoryAiProvider; payload: Record<string, unknown> }
-> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    };
-  }
+export async function POST(request: Request) {
+  const auth = await requireHomeSlaveWriter();
+  if ("error" in auth) return auth.error;
 
-  const { data: me } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = me?.role as UserRole | undefined;
-  if (role !== "queen" && role !== "slave") {
-    return {
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-    };
-  }
+  const { role } = auth.author;
 
   let payload: Record<string, unknown>;
   try {
     payload = (await request.json()) as Record<string, unknown>;
   } catch {
-    return {
-      error: NextResponse.json({ error: "Invalid JSON" }, { status: 400 }),
-    };
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const provider = parseStoryAiProvider(payload.provider);
-  return { role, provider, payload };
-}
-
-export async function POST(request: Request) {
-  const auth = await requireAuthor(request);
-  if ("error" in auth) return auth.error;
-
-  const { role, provider, payload } = auth;
   const mode = payload.mode === "extend" ? "extend" : "create";
 
   try {
     if (mode === "create") {
-      if (role !== "slave") {
-        return NextResponse.json(
-          { error: "Only the slave can write from a prompt" },
-          { status: 403 }
-        );
-      }
       const prompt =
         typeof payload.prompt === "string" ? payload.prompt.trim() : "";
       if (!prompt) {

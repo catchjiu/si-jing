@@ -30,6 +30,8 @@ type AuthContextValue = {
   isQueen: boolean;
   isSlave: boolean;
   isKing: boolean;
+  /** Permanent home identity is slave (keeps AI writing even as King). */
+  isHomeSlave: boolean;
   isSwitched: boolean;
   loading: boolean;
   refreshProfile: () => Promise<void>;
@@ -158,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isQueen: role === "queen",
       isSlave: role === "slave",
       isKing: displayTitle === "King",
+      isHomeSlave: homeRole === "slave",
       isSwitched: switched,
       loading,
       refreshProfile,
