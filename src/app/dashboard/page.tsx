@@ -38,8 +38,18 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  const profile = profileData as Profile | null;
-  if (!profile) redirect("/");
+  const profileRaw = profileData as (Profile & { home_role?: string }) | null;
+  if (!profileRaw) redirect("/");
+  const profile: Profile = {
+    ...profileRaw,
+    role: profileRaw.role === "queen" ? "queen" : "slave",
+    home_role:
+      profileRaw.home_role === "queen" || profileRaw.home_role === "slave"
+        ? profileRaw.home_role
+        : profileRaw.role === "queen"
+          ? "queen"
+          : "slave",
+  };
 
   // Maintenance RPCs run via /api/cron/protocol — not on every dashboard hit.
 

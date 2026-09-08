@@ -2982,6 +2982,7 @@ export type Database = {
           face_ref_path: string | null
           created_at: string
           email: string
+          home_role: string
           id: string
           role: string
           username: string
@@ -2991,6 +2992,7 @@ export type Database = {
           face_ref_path?: string | null
           created_at?: string
           email: string
+          home_role?: string
           id: string
           role: string
           username: string
@@ -3000,6 +3002,7 @@ export type Database = {
           face_ref_path?: string | null
           created_at?: string
           email?: string
+          home_role?: string
           id?: string
           role?: string
           username?: string
@@ -3943,6 +3946,7 @@ export type Database = {
     }
     Functions: {
       current_user_role: { Args: never; Returns: string }
+      switch_pair_roles: { Args: never; Returns: Json }
       create_jealousy_mission: {
         Args: {
           p_source_type: string

@@ -11,6 +11,12 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile, UserRole } from "@/lib/types";
+import {
+  dominantDisplayTitle,
+  isRolesSwitched,
+  roleDisplayTitle,
+  type RoleDisplayTitle,
+} from "@/lib/role-display";
 import { isR2Path } from "@/lib/storage/paths";
 import { signObjectUrl } from "@/lib/storage/client";
 
@@ -18,14 +24,28 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   role: UserRole | null;
+  homeRole: UserRole | null;
+  displayTitle: RoleDisplayTitle | null;
+  dominantTitle: "Queen" | "King";
   isQueen: boolean;
   isSlave: boolean;
+  isKing: boolean;
+  isSwitched: boolean;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function normalizeProfile(data: Profile): Profile {
+  const role = data.role === "queen" ? "queen" : "slave";
+  const home =
+    data.home_role === "queen" || data.home_role === "slave"
+      ? data.home_role
+      : role;
+  return { ...data, role, home_role: home };
+}
 
 async function withResolvedAvatar(profile: Profile): Promise<Profile> {
   const avatar = profile.avatar_url;
@@ -53,7 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (data) {
-        const resolved = await withResolvedAvatar(data as Profile);
+        const normalized = normalizeProfile(data as Profile);
+        const resolved = await withResolvedAvatar(normalized);
         setProfile(resolved);
       } else {
         setProfile(null);
@@ -121,19 +142,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const role = profile?.role ?? null;
+  const homeRole = profile?.home_role ?? null;
+  const displayTitle = profile ? roleDisplayTitle(profile) : null;
+  const dominantTitle = profile ? dominantDisplayTitle(profile) : "Queen";
+  const switched = profile ? isRolesSwitched(profile) : false;
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       profile,
       role,
+      homeRole,
+      displayTitle,
+      dominantTitle,
       isQueen: role === "queen",
       isSlave: role === "slave",
+      isKing: displayTitle === "King",
+      isSwitched: switched,
       loading,
       refreshProfile,
       signOut,
     }),
-    [user, profile, role, loading, refreshProfile, signOut]
+    [
+      user,
+      profile,
+      role,
+      homeRole,
+      displayTitle,
+      dominantTitle,
+      switched,
+      loading,
+      refreshProfile,
+      signOut,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

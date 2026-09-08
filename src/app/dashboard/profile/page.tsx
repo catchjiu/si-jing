@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -17,11 +18,24 @@ import { QueenCyclePanel } from "@/components/dashboard/queen-cycle-panel";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
 import { isR2Path } from "@/lib/storage/paths";
+import { switchPairRoles } from "@/lib/role-switch";
 
 export default function ProfilePage() {
-  const { profile, role, isQueen, refreshProfile, loading: authLoading } = useAuth();
+  const {
+    profile,
+    role,
+    isQueen,
+    isKing,
+    isSwitched,
+    displayTitle,
+    homeRole,
+    refreshProfile,
+    loading: authLoading,
+  } = useAuth();
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,9 +47,46 @@ export default function ProfilePage() {
   });
 
   const [facePreviewUrl, setFacePreviewUrl] = useState<string | null>(null);
+  const [canSwitch, setCanSwitch] = useState(false);
 
   useEffect(() => {
     if (profile) setUsername(profile.username);
+  }, [profile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!profile) {
+        setCanSwitch(false);
+        return;
+      }
+      const supabase = createClient();
+      const [{ data: homeQueen }, { data: homeSlave }] = await Promise.all([
+        supabase
+          .from("users")
+          .select("id")
+          .eq("home_role", "queen")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("users")
+          .select("id")
+          .eq("home_role", "slave")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+      const ids = new Set(
+        [homeQueen?.id, homeSlave?.id].filter(Boolean) as string[]
+      );
+      setCanSwitch(ids.has(profile.id));
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [profile]);
 
   useEffect(() => {
@@ -150,6 +201,31 @@ export default function ProfilePage() {
     toast.success("Password updated");
   };
 
+  const onSwitchRoles = async () => {
+    if (!profile || switching) return;
+    // Only the primary pair (home queen / home slave) can switch.
+    if (homeRole !== "queen" && homeRole !== "slave") return;
+
+    setSwitching(true);
+    try {
+      const supabase = createClient();
+      const result = await switchPairRoles(supabase);
+      await refreshProfile();
+      router.refresh();
+      toast.success(
+        result.switched
+          ? "Switched — slave is King, Queen is slave"
+          : "Restored — Queen and slave as usual"
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not switch roles"
+      );
+    } finally {
+      setSwitching(false);
+    }
+  };
+
   const onAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
@@ -248,8 +324,13 @@ export default function ProfilePage() {
               variant="outline"
               className="mt-1 border-gold/40 text-gold uppercase text-[10px] tracking-wider"
             >
-              {role}
+              {displayTitle ?? role}
             </Badge>
+            {isSwitched && (
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                Switched · home {homeRole}
+              </p>
+            )}
             <p className="mt-2 text-xs text-muted-foreground">{profile.email}</p>
           </div>
         </div>
@@ -296,7 +377,7 @@ export default function ProfilePage() {
           <div className="space-y-2 border-t border-gold/10 pt-4">
             <Label htmlFor="face-ref">Face reference (for story covers)</Label>
             <p className="text-xs text-muted-foreground">
-              Clear front-facing photo of {isQueen ? "Queen" : "slave"} so Grok
+              Clear front-facing photo of {displayTitle ?? (isQueen ? "Queen" : "slave")} so Grok
               can match faces on blog cover images. Separate from your avatar.
             </p>
             {facePreviewUrl && (
@@ -383,9 +464,40 @@ export default function ProfilePage() {
         </form>
       </div>
 
+      {canSwitch && (
+        <div className="rounded-xl border border-gold/15 bg-charcoal/80 p-6 space-y-4">
+          <div>
+            <h2 className="font-heading text-xl text-ivory">Switch</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isSwitched
+                ? "Roles are reversed. Switch again to restore Queen and slave."
+                : "Make the slave King and the Queen a slave. Everything stays saved — switch back anytime."}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => void onSwitchRoles()}
+            disabled={switching}
+            variant="outline"
+            className="border-gold/40 text-gold hover:bg-gold/10"
+          >
+            {switching
+              ? "Switching…"
+              : isSwitched
+                ? "Restore original roles"
+                : "Switch roles"}
+          </Button>
+          {isKing && (
+            <p className="text-xs text-muted-foreground">
+              You hold the throne as King until roles are restored.
+            </p>
+          )}
+        </div>
+      )}
+
       <PushEnableCard />
 
-      {isQueen && (
+      {isQueen && !isKing && (
         <>
           <QueenCyclePanel />
           <QueenWorkScheduleCard />

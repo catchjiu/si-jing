@@ -17,8 +17,10 @@ export type DifficultyLevel = "easy" | "medium" | "hard";
 
 export type RecurrencePattern = "daily" | "weekly" | "monthly";
 
-export type Profile = Omit<Tables<"users">, "role"> & {
+export type Profile = Omit<Tables<"users">, "role" | "home_role"> & {
   role: UserRole;
+  /** Permanent identity; switch flips `role` only. Optional until migration. */
+  home_role?: UserRole;
 };
 
 export type Task = Omit<

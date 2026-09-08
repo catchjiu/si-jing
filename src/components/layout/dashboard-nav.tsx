@@ -123,7 +123,7 @@ function TopicBadge({ count }: { count: number }) {
 
 export function DashboardNav() {
   const pathname = usePathname()
-  const { profile, role, signOut } = useAuth()
+  const { profile, role, displayTitle, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const unread = useInboxUnread()
   const flirtUnread = useFlirtUnread()
@@ -189,7 +189,7 @@ export function DashboardNav() {
               : "border-royal/60 bg-royal/30 text-ivory/80"
           )}
         >
-          {role}
+          {displayTitle ?? role}
         </Badge>
       </div>
     </div>
