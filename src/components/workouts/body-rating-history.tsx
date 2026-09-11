@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
-  BODY_PARTS,
+  RATING_BODY_PARTS,
   BODY_PART_LABELS,
-  type WorkoutBodyPart,
+  type RatingBodyPart,
 } from "@/lib/workout-exercises";
 import type { BodyRatingSnapshot, WorkoutWeeklyPic } from "@/lib/types";
 import { BodyRatingRing } from "@/components/workouts/body-rating-ring";
@@ -19,7 +19,7 @@ const SWIPE_THRESHOLD = 48;
 
 type Scores = {
   overall: number;
-} & Record<WorkoutBodyPart, number>;
+} & Record<RatingBodyPart, number>;
 
 type PicWithUrl = Pick<
   WorkoutWeeklyPic,
@@ -85,7 +85,7 @@ export function BodyRatingHistory({
   );
 
   const [index, setIndex] = useState(0);
-  const [highlight, setHighlight] = useState<WorkoutBodyPart | null>(null);
+  const [highlight, setHighlight] = useState<RatingBodyPart | null>(null);
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -109,9 +109,9 @@ export function BodyRatingHistory({
   );
 
   const partScores = useMemo(() => {
-    if (!scores) return {} as Record<WorkoutBodyPart, number>;
-    const o = {} as Record<WorkoutBodyPart, number>;
-    for (const p of BODY_PARTS) o[p] = scores[p];
+    if (!scores) return {} as Record<RatingBodyPart, number>;
+    const o = {} as Record<RatingBodyPart, number>;
+    for (const p of RATING_BODY_PARTS) o[p] = scores[p];
     return o;
   }, [scores]);
 
@@ -275,7 +275,7 @@ export function BodyRatingHistory({
       )}
 
       <div className="flex flex-wrap justify-center gap-2">
-        {BODY_PARTS.map((p) => (
+        {RATING_BODY_PARTS.map((p) => (
           <button
             key={p}
             type="button"

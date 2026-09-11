@@ -137,6 +137,7 @@ export function WorkoutSessionLogger({
     null
   );
 
+  const readyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressRef = useRef<{
     timer: number | null;
@@ -209,8 +210,13 @@ export function WorkoutSessionLogger({
     );
     setMedia(signed.filter((m) => (m.scope ?? "session") === "session"));
     setExerciseMedia(signed.filter((m) => m.scope === "exercise"));
+    readyRef.current = true;
     setLoading(false);
   }, [profile, sessionId, athleteRole, isQueen]);
+
+  useEffect(() => {
+    readyRef.current = false;
+  }, [sessionId]);
 
   useEffect(() => {
     void load();
@@ -265,18 +271,16 @@ export function WorkoutSessionLogger({
   }, [loadHistory]);
 
   const persistNow = useCallback(async () => {
-    if (!profile) return;
+    if (!profile || !readyRef.current) return;
+    const draftNow = draftRef.current;
     setSaveState("saving");
     const supabase = createClient();
     try {
       await syncSessionFields(supabase, sessionId, fieldsRef.current);
-      await syncDraftSets(
-        supabase,
-        sessionId,
-        draftRef.current,
-        priorMax,
-        false
-      );
+      // Never wipe saved sets with an empty in-memory draft (tab hide / remount).
+      if (draftNow.length > 0) {
+        await syncDraftSets(supabase, sessionId, draftNow, priorMax, false);
+      }
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
     } catch (err) {

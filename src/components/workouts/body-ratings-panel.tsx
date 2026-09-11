@@ -7,9 +7,9 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import {
-  BODY_PARTS,
+  RATING_BODY_PARTS,
   BODY_PART_LABELS,
-  type WorkoutBodyPart,
+  type RatingBodyPart,
 } from "@/lib/workout-exercises";
 import type {
   BodyRatingSnapshot,
@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 type Scores = {
   overall: number;
-} & Record<WorkoutBodyPart, number>;
+} & Record<RatingBodyPart, number>;
 
 type PicOption = WorkoutWeeklyPic & { url?: string };
 
@@ -96,7 +96,7 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
   const [snapshots, setSnapshots] = useState<BodyRatingSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [highlight, setHighlight] = useState<WorkoutBodyPart | null>(null);
+  const [highlight, setHighlight] = useState<RatingBodyPart | null>(null);
 
   const currentWeek = useMemo(() => weekStartMonday(), []);
 
@@ -189,8 +189,8 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
   }, [isQueen, selectedPic]);
 
   const partScores = useMemo(() => {
-    const o = {} as Record<WorkoutBodyPart, number>;
-    for (const p of BODY_PARTS) o[p] = scores[p];
+    const o = {} as Record<RatingBodyPart, number>;
+    for (const p of RATING_BODY_PARTS) o[p] = scores[p];
     return o;
   }, [scores]);
 
@@ -340,7 +340,7 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
           </div>
 
           <div className="flex flex-wrap justify-center gap-2">
-            {BODY_PARTS.map((p) => (
+            {RATING_BODY_PARTS.map((p) => (
               <button
                 key={p}
                 type="button"
@@ -374,7 +374,7 @@ export function BodyRatingsPanel({ className }: { className?: string }) {
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {BODY_PARTS.map((p) => (
+              {RATING_BODY_PARTS.map((p) => (
                 <div key={p} className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <Label>{BODY_PART_LABELS[p]}</Label>

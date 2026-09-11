@@ -4,6 +4,7 @@ export type WorkoutBodyPart =
   | "chest"
   | "abs"
   | "back"
+  | "legs"
   | "butt";
 
 export const BODY_PARTS: WorkoutBodyPart[] = [
@@ -12,8 +13,21 @@ export const BODY_PARTS: WorkoutBodyPart[] = [
   "chest",
   "abs",
   "back",
+  "legs",
   "butt",
 ];
+
+/** Body-rating axes — no legs column on progress pics / snapshots. */
+export const RATING_BODY_PARTS = [
+  "arms",
+  "shoulders",
+  "chest",
+  "abs",
+  "back",
+  "butt",
+] as const satisfies readonly WorkoutBodyPart[];
+
+export type RatingBodyPart = (typeof RATING_BODY_PARTS)[number];
 
 export const BODY_PART_LABELS: Record<WorkoutBodyPart, string> = {
   arms: "Arms",
@@ -21,6 +35,7 @@ export const BODY_PART_LABELS: Record<WorkoutBodyPart, string> = {
   chest: "Chest",
   abs: "Abs",
   back: "Back",
+  legs: "Legs",
   butt: "Butt",
 };
 
@@ -86,6 +101,18 @@ export const WORKOUT_EXERCISES: Record<WorkoutBodyPart, string[]> = {
     "Face Pull",
     "Hyperextension",
     "Single-Arm Row",
+  ],
+  legs: [
+    "Squat",
+    "Front Squat",
+    "Goblet Squat",
+    "Leg Press",
+    "Hack Squat",
+    "Leg Extension",
+    "Leg Curl",
+    "Walking Lunge",
+    "Reverse Lunge",
+    "Calf Raise",
   ],
   butt: [
     "Hip Thrust",

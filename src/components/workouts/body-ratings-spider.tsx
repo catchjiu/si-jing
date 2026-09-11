@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  BODY_PARTS,
+  RATING_BODY_PARTS,
   BODY_PART_LABELS,
-  type WorkoutBodyPart,
+  type RatingBodyPart,
 } from "@/lib/workout-exercises";
 import { cn } from "@/lib/utils";
 
-const AXES = BODY_PARTS.length;
+const AXES = RATING_BODY_PARTS.length;
 const ANGLE_OFFSET = -Math.PI / 2;
 
 function polarToCartesian(
@@ -24,9 +24,9 @@ function scorePoints(
   cx: number,
   cy: number,
   maxRadius: number,
-  scores: Record<WorkoutBodyPart, number>
+  scores: Record<RatingBodyPart, number>
 ): string {
-  return BODY_PARTS.map((part, i) => {
+  return RATING_BODY_PARTS.map((part, i) => {
     const score = Math.min(100, Math.max(0, scores[part] ?? 0));
     const r = (score / 100) * maxRadius;
     const [x, y] = polarToCartesian(cx, cy, r, i);
@@ -40,9 +40,9 @@ export function BodyRatingsSpider({
   onSelectPart,
   size = 220,
 }: {
-  scores: Record<WorkoutBodyPart, number>;
-  highlight?: WorkoutBodyPart | null;
-  onSelectPart?: (p: WorkoutBodyPart) => void;
+  scores: Record<RatingBodyPart, number>;
+  highlight?: RatingBodyPart | null;
+  onSelectPart?: (p: RatingBodyPart) => void;
   size?: number;
 }) {
   const cx = size / 2;
@@ -51,7 +51,7 @@ export function BodyRatingsSpider({
   const labelRadius = size * 0.44;
 
   const avg =
-    BODY_PARTS.reduce((sum, p) => sum + (scores[p] ?? 0), 0) / BODY_PARTS.length;
+    RATING_BODY_PARTS.reduce((sum, p) => sum + (scores[p] ?? 0), 0) / RATING_BODY_PARTS.length;
   const fillOpacity = 0.08 + (avg / 100) * 0.35;
 
   const gridLevels = [0.25, 0.5, 0.75, 1];
@@ -68,7 +68,7 @@ export function BodyRatingsSpider({
       {gridLevels.map((level) => (
         <polygon
           key={level}
-          points={BODY_PARTS.map((_, i) => {
+          points={RATING_BODY_PARTS.map((_, i) => {
             const [x, y] = polarToCartesian(cx, cy, maxRadius * level, i);
             return `${x},${y}`;
           }).join(" ")}
@@ -79,7 +79,7 @@ export function BodyRatingsSpider({
         />
       ))}
 
-      {BODY_PARTS.map((part, i) => {
+      {RATING_BODY_PARTS.map((part, i) => {
         const [x, y] = polarToCartesian(cx, cy, maxRadius, i);
         const active = highlight === part;
         return (
@@ -111,7 +111,7 @@ export function BodyRatingsSpider({
         style={{ fillOpacity, strokeOpacity: 0.7 + (avg / 100) * 0.3 }}
       />
 
-      {BODY_PARTS.map((part, i) => {
+      {RATING_BODY_PARTS.map((part, i) => {
         const [x, y] = polarToCartesian(cx, cy, labelRadius, i);
         const active = highlight === part;
         const score = scores[part] ?? 0;
