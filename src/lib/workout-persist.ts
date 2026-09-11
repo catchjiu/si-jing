@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { downsizeImageIfNeeded } from "@/lib/image-compress";
-import { presignAndUpload, removeObject } from "@/lib/storage/client";
+import { presignAndUpload, removeObject, signObjectUrl } from "@/lib/storage/client";
 import type { WorkoutBodyPart } from "@/lib/workout-exercises";
 import {
   detectPr,
@@ -19,6 +19,72 @@ export const SLAVE_WORKOUTS_PATH = "/dashboard/workouts";
 
 export function workoutBasePath(athleteRole: WorkoutAthleteRole): string {
   return athleteRole === "queen" ? QUEEN_WORKOUTS_PATH : SLAVE_WORKOUTS_PATH;
+}
+
+const YOUTUBE_ID = /^[\w-]{11}$/;
+
+export function parseYoutubeVideoId(input: string): string | null {
+  const trimmed = input.trim();
+  if (YOUTUBE_ID.test(trimmed)) return trimmed;
+  try {
+    const raw = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "youtu.be") {
+      const id = url.pathname.split("/").filter(Boolean)[0] ?? "";
+      return YOUTUBE_ID.test(id) ? id : null;
+    }
+    if (
+      host === "youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com" ||
+      host === "youtube-nocookie.com"
+    ) {
+      const v = url.searchParams.get("v");
+      if (v && YOUTUBE_ID.test(v)) return v;
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (
+        (parts[0] === "embed" ||
+          parts[0] === "shorts" ||
+          parts[0] === "live" ||
+          parts[0] === "v") &&
+        parts[1] &&
+        YOUTUBE_ID.test(parts[1])
+      ) {
+        return parts[1];
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function youtubeWatchUrl(videoId: string): string {
+  return `https://www.youtube.com/watch?v=${videoId}`;
+}
+
+export function youtubeEmbedUrl(videoId: string): string {
+  return `https://www.youtube-nocookie.com/embed/${videoId}`;
+}
+
+export function isYoutubeWorkoutMedia(media: {
+  source?: string | null;
+  external_url?: string | null;
+}): boolean {
+  return media.source === "youtube" || Boolean(media.external_url);
+}
+
+export async function signWorkoutMediaUrl(media: {
+  source?: string | null;
+  external_url?: string | null;
+  file_path?: string | null;
+}): Promise<string | undefined> {
+  if (isYoutubeWorkoutMedia(media) || !media.file_path) return undefined;
+  return (
+    (await signObjectUrl({ bucket: "workouts", path: media.file_path })) ??
+    undefined
+  );
 }
 
 export type DraftSet = {
@@ -200,9 +266,36 @@ export async function uploadWorkoutMedia(
     media_kind: isVideo ? "video" : "image",
     file_path: path,
     uploaded_by: profileId,
+    source: "upload",
     scope,
     exercise_name: scope === "exercise" ? opts?.exerciseName ?? null : null,
     body_part: scope === "exercise" ? opts?.bodyPart ?? null : null,
+  });
+  if (error) throw error;
+}
+
+export async function addWorkoutYoutubeMedia(
+  supabase: SupabaseClient,
+  opts: {
+    sessionId: string;
+    profileId: string;
+    url: string;
+    exerciseName: string;
+    bodyPart: WorkoutBodyPart;
+  }
+): Promise<void> {
+  const videoId = parseYoutubeVideoId(opts.url);
+  if (!videoId) throw new Error("Enter a valid YouTube link");
+  const { error } = await supabase.from("workout_media").insert({
+    session_id: opts.sessionId,
+    media_kind: "video",
+    file_path: null,
+    uploaded_by: opts.profileId,
+    scope: "exercise",
+    source: "youtube",
+    external_url: youtubeWatchUrl(videoId),
+    exercise_name: opts.exerciseName,
+    body_part: opts.bodyPart,
   });
   if (error) throw error;
 }
@@ -439,7 +532,8 @@ export async function deleteWorkoutSession(
     .from("workout_media")
     .select("file_path")
     .eq("session_id", sessionId);
-  for (const m of (mediaRows ?? []) as { file_path: string }[]) {
+  for (const m of (mediaRows ?? []) as { file_path: string | null }[]) {
+    if (!m.file_path) continue;
     await removeObject({ bucket: "workouts", path: m.file_path }).catch(
       () => undefined
     );

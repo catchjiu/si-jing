@@ -1563,9 +1563,11 @@ export type Database = {
           id: string
           session_id: string
           media_kind: string
-          file_path: string
+          file_path: string | null
           uploaded_by: string | null
           scope: string
+          source: string
+          external_url: string | null
           exercise_name: string | null
           body_part: string | null
           created_at: string
@@ -1574,9 +1576,11 @@ export type Database = {
           id?: string
           session_id: string
           media_kind: string
-          file_path: string
+          file_path?: string | null
           uploaded_by?: string | null
           scope?: string
+          source?: string
+          external_url?: string | null
           exercise_name?: string | null
           body_part?: string | null
           created_at?: string
@@ -1585,9 +1589,11 @@ export type Database = {
           id?: string
           session_id?: string
           media_kind?: string
-          file_path?: string
+          file_path?: string | null
           uploaded_by?: string | null
           scope?: string
+          source?: string
+          external_url?: string | null
           exercise_name?: string | null
           body_part?: string | null
           created_at?: string

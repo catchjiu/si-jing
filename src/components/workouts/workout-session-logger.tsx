@@ -26,7 +26,7 @@ import {
   formatVolume,
   sessionVolume,
 } from "@/lib/workout-stats";
-import { signObjectUrl, removeObject } from "@/lib/storage/client";
+import { removeObject } from "@/lib/storage/client";
 import type {
   WorkoutAthleteRole,
   WorkoutMedia,
@@ -38,6 +38,7 @@ import {
   savePlannedWorkout,
   syncDraftSets,
   syncSessionFields,
+  signWorkoutMediaUrl,
   uploadWorkoutMedia,
   workoutBasePath,
   type DraftExercise,
@@ -203,9 +204,7 @@ export function WorkoutSessionLogger({
       mediaRows.map(async (m) => ({
         ...m,
         scope: m.scope ?? "session",
-        signedUrl:
-          (await signObjectUrl({ bucket: "workouts", path: m.file_path })) ??
-          undefined,
+        signedUrl: await signWorkoutMediaUrl(m),
       }))
     );
     setMedia(signed.filter((m) => (m.scope ?? "session") === "session"));
@@ -485,9 +484,11 @@ export function WorkoutSessionLogger({
   const removeMedia = async (m: MediaView) => {
     setRemovingMediaId(m.id);
     const supabase = createClient();
-    await removeObject({ bucket: "workouts", path: m.file_path }).catch(
-      () => undefined
-    );
+    if (m.file_path) {
+      await removeObject({ bucket: "workouts", path: m.file_path }).catch(
+        () => undefined
+      );
+    }
     const { error } = await supabase.from("workout_media").delete().eq("id", m.id);
     setRemovingMediaId(null);
     if (error) {
@@ -1005,7 +1006,7 @@ export function WorkoutSessionLogger({
                 {m.signedUrl && m.media_kind === "image" ? (
                   <WatermarkedFrame
                     className="absolute inset-0"
-                    mediaPath={m.file_path}
+                    mediaPath={m.file_path ?? ""}
                   >
                     <Image
                       src={m.signedUrl}

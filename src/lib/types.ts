@@ -791,14 +791,17 @@ export type WorkoutSet = {
 };
 
 export type WorkoutMediaScope = "session" | "exercise";
+export type WorkoutMediaSource = "upload" | "youtube";
 
 export type WorkoutMedia = {
   id: string;
   session_id: string;
   media_kind: "image" | "video";
-  file_path: string;
+  file_path: string | null;
   uploaded_by: string | null;
   scope: WorkoutMediaScope;
+  source: WorkoutMediaSource;
+  external_url: string | null;
   exercise_name: string | null;
   body_part: WorkoutBodyPart | null;
   created_at: string;

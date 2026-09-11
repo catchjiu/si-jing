@@ -22,10 +22,10 @@ import {
   sessionDurationMin,
   sessionVolume,
 } from "@/lib/workout-stats";
-import { signObjectUrl } from "@/lib/storage/client";
 import {
   copyWorkoutAsPlanned,
   fetchQueenId,
+  signWorkoutMediaUrl,
   workoutStatusLabel,
 } from "@/lib/workout-persist";
 import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
@@ -97,9 +97,7 @@ export default function WorkoutDetailPage() {
       await Promise.all(
         mediaRows.map(async (m) => ({
           ...m,
-          signedUrl:
-            (await signObjectUrl({ bucket: "workouts", path: m.file_path })) ??
-            undefined,
+          signedUrl: await signWorkoutMediaUrl(m),
         }))
       )
     );

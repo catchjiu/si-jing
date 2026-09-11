@@ -244,9 +244,11 @@ export function WorkoutSessionEditor({
   const removeMedia = async (m: MediaView) => {
     setRemovingMediaId(m.id);
     const supabase = createClient();
-    await removeObject({ bucket: "workouts", path: m.file_path }).catch(
-      () => undefined
-    );
+    if (m.file_path) {
+      await removeObject({ bucket: "workouts", path: m.file_path }).catch(
+        () => undefined
+      );
+    }
     const { error } = await supabase.from("workout_media").delete().eq("id", m.id);
     setRemovingMediaId(null);
     if (error) {

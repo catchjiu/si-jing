@@ -23,11 +23,11 @@ import {
   sessionDurationMin,
   sessionVolume,
 } from "@/lib/workout-stats";
-import { signObjectUrl } from "@/lib/storage/client";
 import {
   QUEEN_WORKOUTS_PATH,
   copyWorkoutAsPlanned,
   fetchQueenId,
+  signWorkoutMediaUrl,
   uploadWorkoutMedia,
   workoutStatusLabel,
 } from "@/lib/workout-persist";
@@ -103,9 +103,7 @@ export default function QueenWorkoutDetailPage() {
       mediaRows.map(async (m) => ({
         ...m,
         scope: m.scope ?? "session",
-        signedUrl:
-          (await signObjectUrl({ bucket: "workouts", path: m.file_path })) ??
-          undefined,
+        signedUrl: await signWorkoutMediaUrl(m),
       }))
     );
     setSessionMedia(signed.filter((m) => (m.scope ?? "session") === "session"));

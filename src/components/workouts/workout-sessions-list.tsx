@@ -12,7 +12,11 @@ import {
   sessionVolume,
   buildSparklineSeries,
 } from "@/lib/workout-stats";
-import { workoutBasePath, workoutStatusLabel } from "@/lib/workout-persist";
+import {
+  isYoutubeWorkoutMedia,
+  workoutBasePath,
+  workoutStatusLabel,
+} from "@/lib/workout-persist";
 import type {
   WorkoutAthleteRole,
   WorkoutMedia,
@@ -41,8 +45,9 @@ type SessionCard = WorkoutSession & {
 };
 
 function pickPreview(media: WorkoutMedia[]): WorkoutMedia | null {
-  if (media.length === 0) return null;
-  return media.find((m) => m.media_kind === "image") ?? media[0] ?? null;
+  const local = media.filter((m) => m.file_path && !isYoutubeWorkoutMedia(m));
+  if (local.length === 0) return null;
+  return local.find((m) => m.media_kind === "image") ?? local[0] ?? null;
 }
 
 export function WorkoutSessionsList({
@@ -108,11 +113,11 @@ export function WorkoutSessionsList({
           const preview: SessionPreview | null = previewMedia
             ? {
                 mediaKind: previewMedia.media_kind,
-                filePath: previewMedia.file_path,
+                filePath: previewMedia.file_path as string,
                 signedUrl:
                   (await signObjectUrl({
                     bucket: "workouts",
-                    path: previewMedia.file_path,
+                    path: previewMedia.file_path as string,
                   })) ?? undefined,
               }
             : null;
