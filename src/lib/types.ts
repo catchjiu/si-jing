@@ -756,10 +756,13 @@ export type WorkoutSessionStatus =
   | "completed"
   | "skipped";
 
+export type WorkoutAthleteRole = "slave" | "queen";
+
 export type WorkoutSession = {
   id: string;
   created_by: string;
   assigned_to: string;
+  athlete_role: WorkoutAthleteRole;
   performed_at: string;
   notes: string | null;
   started_at: string | null;
@@ -787,12 +790,27 @@ export type WorkoutSet = {
   created_at: string;
 };
 
+export type WorkoutMediaScope = "session" | "exercise";
+
 export type WorkoutMedia = {
   id: string;
   session_id: string;
   media_kind: "image" | "video";
   file_path: string;
+  uploaded_by: string | null;
+  scope: WorkoutMediaScope;
+  exercise_name: string | null;
+  body_part: WorkoutBodyPart | null;
   created_at: string;
+};
+
+export type WorkoutComment = {
+  id: string;
+  session_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author?: Pick<Profile, "id" | "username" | "role"> | null;
 };
 
 export type WorkoutWeeklyPic = {

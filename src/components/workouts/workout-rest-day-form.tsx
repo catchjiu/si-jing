@@ -6,12 +6,19 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
-import { fetchQueenId, saveRestDay } from "@/lib/workout-persist";
+import type { WorkoutAthleteRole } from "@/lib/types";
+import { fetchQueenId, saveRestDay, workoutBasePath } from "@/lib/workout-persist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function WorkoutRestDayForm({ className }: { className?: string }) {
+export function WorkoutRestDayForm({
+  className,
+  athleteRole = "slave",
+}: {
+  className?: string;
+  athleteRole?: WorkoutAthleteRole;
+}) {
   const { profile } = useAuth();
   const router = useRouter();
   const [performedAt, setPerformedAt] = useState(() =>
@@ -35,17 +42,20 @@ export function WorkoutRestDayForm({ className }: { className?: string }) {
         queenId,
         performedAt,
         notes,
+        athleteRole,
       });
+      const basePath = workoutBasePath(athleteRole);
       const { notifyPush } = await import("@/lib/push-client");
       await notifyPush({
-        title: "Rest day logged",
+        title:
+          athleteRole === "queen" ? "Queen rest day planned" : "Rest day logged",
         body: notes.trim() || "No workout today",
-        url: `/dashboard/workouts/${id}`,
+        url: `${basePath}/${id}`,
         target: "queen",
         kind: "workout_new",
       });
       toast.success("Rest day saved");
-      router.push(`/dashboard/workouts/${id}`);
+      router.push(`${basePath}/${id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save");
     } finally {
@@ -56,7 +66,9 @@ export function WorkoutRestDayForm({ className }: { className?: string }) {
   return (
     <div className={className}>
       <p className="mb-4 text-sm text-muted-foreground">
-        Log a rest day or day off from training. Queen will see your note.
+        {athleteRole === "queen"
+          ? "Mark a rest day on Queen’s training calendar."
+          : "Log a rest day or day off from training. Queen will see your note."}
       </p>
       <div className="space-y-4">
         <div className="space-y-2">

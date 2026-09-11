@@ -18,6 +18,7 @@ import {
   storyPageHref,
   fartPageHref,
   creepGalleryPageHref,
+  queenWorkoutPageHref,
 } from "@/lib/inbox-deep-links";
 
 export type ActivityItem = {
@@ -481,7 +482,9 @@ export async function fetchRecentActivity(
         .limit(FETCH_LIMIT),
       supabase
         .from("workout_sessions")
-        .select("id, performed_at, created_at, created_by, notes")
+        .select(
+          "id, performed_at, created_at, created_by, notes, athlete_role, status, ended_at"
+        )
         .order("created_at", { ascending: false })
         .limit(8),
       supabase
@@ -979,13 +982,42 @@ export async function fetchRecentActivity(
       });
     }
 
+    const { data: workoutCommentsQueen } = await supabase
+      .from("workout_comments")
+      .select(
+        "id, content, created_at, session_id, author_id, author:users!author_id(id, role, username)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT);
+
+    for (const c of workoutCommentsQueen ?? []) {
+      pushOtherPartyComment(items, profile, {
+        id: `workout-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "workout",
+        href: queenWorkoutPageHref(c.session_id as string, {
+          commentId: c.id as string,
+        }),
+        kind: "workout_comment",
+        author: c.author as { id?: string; role?: string } | null,
+      });
+    }
+
     for (const w of workoutSessionsQueen.data ?? []) {
+      const queenTrack = (w.athlete_role as string) === "queen";
       pushItem(items, {
         id: `workout-new-${w.id}`,
-        at: w.created_at as string,
-        title: "New workout · D",
+        at: ((w.ended_at as string | null) || (w.created_at as string)) as string,
+        title: queenTrack
+          ? (w.status as string) === "completed"
+            ? "Queen logged a workout"
+            : "Queen workout planned · D"
+          : "New workout · D",
         body: (w.notes as string | null)?.trim() || "Session logged",
-        href: `/dashboard/workouts/${w.id}`,
+        href: queenTrack
+          ? queenWorkoutPageHref(w.id as string)
+          : `/dashboard/workouts/${w.id}`,
         kind: "workout_new",
       });
     }
@@ -1878,6 +1910,47 @@ export async function fetchRecentActivity(
         body: `Overall ${r.overall as number}/100`,
         href: "/dashboard/workouts",
         kind: "body_rating",
+      });
+    }
+
+    const { data: queenWorkoutsLogged } = await supabase
+      .from("workout_sessions")
+      .select("id, notes, ended_at, created_at, performed_at, status")
+      .eq("athlete_role", "queen")
+      .eq("status", "completed")
+      .order("ended_at", { ascending: false })
+      .limit(8);
+
+    for (const w of queenWorkoutsLogged ?? []) {
+      pushItem(items, {
+        id: `queen-workout-logged-${w.id}`,
+        at: ((w.ended_at as string | null) || (w.created_at as string)) as string,
+        title: "Queen logged a workout",
+        body: (w.notes as string | null)?.trim() || "Session complete",
+        href: queenWorkoutPageHref(w.id as string),
+        kind: "workout_new",
+      });
+    }
+
+    const { data: workoutCommentsSlave } = await supabase
+      .from("workout_comments")
+      .select(
+        "id, content, created_at, session_id, author_id, author:users!author_id(id, role, username)"
+      )
+      .order("created_at", { ascending: false })
+      .limit(FETCH_LIMIT);
+
+    for (const c of workoutCommentsSlave ?? []) {
+      pushOtherPartyComment(items, profile, {
+        id: `workout-comment-${c.id}`,
+        at: c.created_at as string,
+        content: c.content as string,
+        where: "workout",
+        href: queenWorkoutPageHref(c.session_id as string, {
+          commentId: c.id as string,
+        }),
+        kind: "workout_comment",
+        author: c.author as { id?: string; role?: string } | null,
       });
     }
 

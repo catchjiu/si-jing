@@ -27,17 +27,24 @@ import {
   sessionVolume,
 } from "@/lib/workout-stats";
 import { signObjectUrl, removeObject } from "@/lib/storage/client";
-import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
+import type {
+  WorkoutAthleteRole,
+  WorkoutMedia,
+  WorkoutSession,
+  WorkoutSet,
+} from "@/lib/types";
 import {
   completeWorkoutSession,
   savePlannedWorkout,
   syncDraftSets,
   syncSessionFields,
   uploadWorkoutMedia,
+  workoutBasePath,
   type DraftExercise,
   type DraftSet,
   type SessionFields,
 } from "@/lib/workout-persist";
+import { WorkoutExerciseVideo } from "@/components/workouts/workout-exercise-video";
 import { WorkoutWeightDial } from "@/components/workouts/workout-weight-dial";
 import { WorkoutWheelPicker } from "@/components/workouts/workout-wheel-picker";
 import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
@@ -91,12 +98,15 @@ export function WorkoutSessionLogger({
   sessionId,
   mode,
   className,
+  athleteRole = "slave",
 }: {
   sessionId: string;
   mode: "log" | "plan";
   className?: string;
+  athleteRole?: WorkoutAthleteRole;
 }) {
-  const { profile } = useAuth();
+  const { profile, isSlave, isQueen } = useAuth();
+  const basePath = workoutBasePath(athleteRole);
   const router = useRouter();
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [performedAt, setPerformedAt] = useState(() =>
@@ -106,6 +116,7 @@ export function WorkoutSessionLogger({
   const [minutes, setMinutes] = useState("");
   const [draft, setDraft] = useState<DraftExercise[]>([]);
   const [media, setMedia] = useState<MediaView[]>([]);
+  const [exerciseMedia, setExerciseMedia] = useState<MediaView[]>([]);
   const [priorMax, setPriorMax] = useState<Map<string, number>>(new Map());
   const [recent, setRecent] = useState<string[]>([]);
   const [bodyPart, setBodyPart] = useState<WorkoutBodyPart>("chest");
@@ -159,7 +170,10 @@ export function WorkoutSessionLogger({
       return;
     }
     const s = sessionRow as WorkoutSession;
-    if (s.created_by !== profile.id) {
+    const ownsSession = s.created_by === profile.id;
+    const queenLogging =
+      athleteRole === "queen" && isQueen && s.athlete_role === "queen";
+    if (!ownsSession && !queenLogging) {
       setSession(null);
       setLoading(false);
       return;
@@ -184,18 +198,19 @@ export function WorkoutSessionLogger({
     ]);
     setDraft(setsToDraft((setsRes.data ?? []) as WorkoutSet[]));
     const mediaRows = (mediaRes.data ?? []) as WorkoutMedia[];
-    setMedia(
-      await Promise.all(
-        mediaRows.map(async (m) => ({
-          ...m,
-          signedUrl:
-            (await signObjectUrl({ bucket: "workouts", path: m.file_path })) ??
-            undefined,
-        }))
-      )
+    const signed = await Promise.all(
+      mediaRows.map(async (m) => ({
+        ...m,
+        scope: m.scope ?? "session",
+        signedUrl:
+          (await signObjectUrl({ bucket: "workouts", path: m.file_path })) ??
+          undefined,
+      }))
     );
+    setMedia(signed.filter((m) => (m.scope ?? "session") === "session"));
+    setExerciseMedia(signed.filter((m) => m.scope === "exercise"));
     setLoading(false);
-  }, [profile, sessionId]);
+  }, [profile, sessionId, athleteRole, isQueen]);
 
   useEffect(() => {
     void load();
@@ -207,7 +222,7 @@ export function WorkoutSessionLogger({
     const { data: mySessions } = await supabase
       .from("workout_sessions")
       .select("id")
-      .eq("created_by", profile.id)
+      .eq("athlete_role", athleteRole)
       .eq("status", "completed")
       .neq("id", sessionId)
       .limit(50);
@@ -243,7 +258,7 @@ export function WorkoutSessionLogger({
     }
     setPriorMax(maxMap);
     setRecent(recentNames.slice(0, 8));
-  }, [profile, bodyPart, sessionId]);
+  }, [profile, bodyPart, sessionId, athleteRole]);
 
   useEffect(() => {
     void loadHistory();
@@ -318,7 +333,7 @@ export function WorkoutSessionLogger({
       const { data: mySessions } = await supabase
         .from("workout_sessions")
         .select("id")
-        .eq("created_by", profile.id)
+        .eq("athlete_role", athleteRole)
         .eq("status", "completed")
         .limit(50);
       const sessionIds = ((mySessions ?? []) as { id: string }[]).map((s) => s.id);
@@ -337,7 +352,7 @@ export function WorkoutSessionLogger({
         setReps(Number((data as { reps: number }).reps));
       }
     })();
-  }, [profile, bodyPart, exerciseName]);
+  }, [profile, bodyPart, exerciseName, athleteRole]);
 
   const addSets = () => {
     if (!exerciseName) {
@@ -502,19 +517,20 @@ export function WorkoutSessionLogger({
       });
 
       const { notifyPush } = await import("@/lib/push-client");
+      const isQueenTrack = athleteRole === "queen";
       await notifyPush({
-        title: "New workout logged",
+        title: isQueenTrack ? "Queen logged a workout" : "New workout logged",
         body: `${draft.length} exercises · ${formatVolume(volume)}`,
-        url: `/dashboard/workouts/${sessionId}`,
-        target: "queen",
+        url: `${basePath}/${sessionId}`,
+        target: isQueenTrack ? "slave" : "queen",
         kind: "workout_new",
       });
       if (prCount > 0) {
         await notifyPush({
           title: "Personal record!",
           body: `${prCount} PR${prCount === 1 ? "" : "s"} this session`,
-          url: `/dashboard/workouts/${sessionId}`,
-          target: "queen",
+          url: `${basePath}/${sessionId}`,
+          target: isQueenTrack ? "slave" : "queen",
           kind: "workout_pr",
         });
       }
@@ -524,7 +540,7 @@ export function WorkoutSessionLogger({
           ? `Workout complete · ${prCount} PR${prCount === 1 ? "" : "s"}!`
           : "Workout complete"
       );
-      router.push(`/dashboard/workouts/${sessionId}`);
+      router.push(`${basePath}/${sessionId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not finish");
     } finally {
@@ -545,8 +561,18 @@ export function WorkoutSessionLogger({
         draft,
         fields: { performed_at: performedAt, notes, minutes },
       });
+      if (athleteRole === "queen") {
+        const { notifyPush } = await import("@/lib/push-client");
+        await notifyPush({
+          title: "Queen workout planned",
+          body: `${draft.length} exercises ready to log`,
+          url: `${basePath}/${sessionId}`,
+          target: "queen",
+          kind: "workout_new",
+        });
+      }
       toast.success("Workout plan saved");
-      router.push(`/dashboard/workouts/${sessionId}`);
+      router.push(`${basePath}/${sessionId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save plan");
     } finally {
@@ -610,15 +636,19 @@ export function WorkoutSessionLogger({
           <WorkoutDeleteButton
             sessionId={sessionId}
             status={session.status}
-            onDeleted={() => router.push("/dashboard/workouts")}
+            onDeleted={() => router.push(basePath)}
           />
         </div>
       </div>
 
       <p className="text-xs text-muted-foreground">
         {mode === "plan"
-          ? "Add target exercises and sets. Come back later to log what you actually did."
-          : "Your progress saves automatically — safe to switch apps or add photos anytime."}
+          ? athleteRole === "queen"
+            ? "Build Queen’s session. Add a form video on any exercise she may need."
+            : "Add target exercises and sets. Come back later to log what you actually did."
+          : athleteRole === "queen"
+            ? "Log what you actually did. Add a comment or video — it saves as you go."
+            : "Your progress saves automatically — safe to switch apps or add photos anytime."}
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -861,6 +891,18 @@ export function WorkoutSessionLogger({
                     {ex.sets.map((s) => `${s.reps}×${s.weight}`).join(" · ")}
                   </p>
                 )}
+                <WorkoutExerciseVideo
+                  sessionId={sessionId}
+                  bodyPart={ex.body_part}
+                  exerciseName={ex.exercise_name}
+                  videos={exerciseMedia.filter(
+                    (m) =>
+                      m.exercise_name === ex.exercise_name &&
+                      m.body_part === ex.body_part
+                  )}
+                  canUpload={isSlave}
+                  onChanged={() => void load()}
+                />
               </li>
             ))}
           </ul>
@@ -946,7 +988,9 @@ export function WorkoutSessionLogger({
       </Dialog>
 
       <div className="space-y-3">
-        <p className="font-heading text-gold">Photos / video</p>
+        <p className="font-heading text-gold">
+          {athleteRole === "queen" ? "Queen’s photos / video" : "Photos / video"}
+        </p>
         {media.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2">
             {media.map((m) => (

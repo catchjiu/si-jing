@@ -28,6 +28,7 @@ export default function WorkoutLogPage() {
         .from("workout_sessions")
         .select("id")
         .eq("created_by", profile.id)
+        .eq("athlete_role", "slave")
         .eq("status", "in_progress")
         .order("created_at", { ascending: false })
         .limit(1)

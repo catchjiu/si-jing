@@ -17,6 +17,7 @@ import {
   Sparkle,
   Wind,
   Ghost,
+  Dumbbell,
 } from "lucide-react";
 import type { MessageAttachmentType } from "@/lib/inbox";
 import { attachmentHref, attachmentLabel } from "@/lib/inbox";
@@ -50,6 +51,7 @@ const ICONS: Record<
   jealousy_mission: HeartCrack,
   fart: Wind,
   creep: Ghost,
+  workout: Dumbbell,
 };
 
 export function MessageCard({

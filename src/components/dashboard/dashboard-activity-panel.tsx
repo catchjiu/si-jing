@@ -24,6 +24,7 @@ import {
   Video,
   Wind,
   Ghost,
+  Dumbbell,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
@@ -113,6 +114,11 @@ const KIND_ICONS: Record<string, typeof BellRing> = {
   denial_edge: Lock,
   denial_comment: MessageSquare,
   jealousy_mission_comment: MessageSquare,
+  workout_new: Dumbbell,
+  workout_pr: Dumbbell,
+  workout_reaction: Dumbbell,
+  workout_weekly_pic: ImageIcon,
+  workout_comment: MessageSquare,
 };
 
 function iconForKind(kind: string) {

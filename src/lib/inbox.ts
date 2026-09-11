@@ -31,7 +31,8 @@ export type MessageAttachmentType =
   | "jealousy_mission"
   | "story"
   | "fart"
-  | "creep";
+  | "creep"
+  | "workout";
 
 export type MessageMediaType = "image" | "video";
 
@@ -616,6 +617,7 @@ export function attachmentLabel(type: MessageAttachmentType): string {
     story: "Story",
     fart: "Fart",
     creep: "Creep",
+    workout: "Workout",
   };
   return labels[type];
 }

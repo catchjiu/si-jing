@@ -205,6 +205,9 @@ export function DashboardNav() {
         const isFlirt = href === "/dashboard/flirt"
         const isCreep = href === "/dashboard/creep"
         const creepOpen = isCreep && pathname.startsWith("/dashboard/creep")
+        const isWorkouts = href === "/dashboard/workouts"
+        const workoutsOpen =
+          isWorkouts && pathname.startsWith("/dashboard/workouts")
         const topic = NAV_TOPIC_BY_HREF[href]
         const topicUnread = topic ? unread.byTopic[topic] ?? 0 : 0
         const flirtNavUnread = isFlirt ? flirtUnread.total : 0
@@ -214,7 +217,9 @@ export function DashboardNav() {
           <div key={href}>
             <Link
               href={linkHref}
-              aria-expanded={isCreep ? creepOpen : undefined}
+              aria-expanded={
+                isCreep ? creepOpen : isWorkouts ? workoutsOpen : undefined
+              }
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-300",
                 isActive
@@ -224,11 +229,12 @@ export function DashboardNav() {
             >
               <Icon className="size-4 shrink-0" />
               {label}
-              {isCreep && (
+              {(isCreep || isWorkouts) && (
                 <ChevronDown
                   className={cn(
                     "ml-auto size-3.5 shrink-0 opacity-60 transition-transform",
-                    creepOpen && "rotate-180"
+                    ((isCreep && creepOpen) || (isWorkouts && workoutsOpen)) &&
+                      "rotate-180"
                   )}
                 />
               )}
@@ -238,6 +244,36 @@ export function DashboardNav() {
                 <TopicBadge count={topicUnread} />
               )}
             </Link>
+            {workoutsOpen && (
+              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gold/10 pl-2">
+                <Link
+                  href="/dashboard/workouts"
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    pathname === "/dashboard/workouts" ||
+                      (pathname.startsWith("/dashboard/workouts/") &&
+                        !pathname.startsWith("/dashboard/workouts/queen"))
+                      ? "text-gold"
+                      : "text-ivory/50 hover:text-ivory"
+                  )}
+                >
+                  <Dumbbell className="size-3 shrink-0" />
+                  His training
+                </Link>
+                <Link
+                  href="/dashboard/workouts/queen"
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
+                    pathname.startsWith("/dashboard/workouts/queen")
+                      ? "text-gold"
+                      : "text-ivory/50 hover:text-ivory"
+                  )}
+                >
+                  <Crown className="size-3 shrink-0" />
+                  Queen
+                </Link>
+              </div>
+            )}
             {creepOpen && (
               <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gold/10 pl-2">
                 <Link

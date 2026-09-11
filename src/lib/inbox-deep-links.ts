@@ -21,7 +21,22 @@ export const inboxAnchors = {
     `denial_comment:${edgeLogId}:${commentId}`,
   jealousyMissionComment: (missionId: string, commentId: string) =>
     `jealousy_mission_comment:${missionId}:${commentId}`,
+  workout: (sessionId: string) => `workout:${sessionId}`,
+  workoutComment: (sessionId: string, commentId: string) =>
+    `workout_comment:${sessionId}:${commentId}`,
 } as const;
+
+export function queenWorkoutPageHref(
+  sessionId: string,
+  opts?: { commentId?: string | null }
+): string {
+  const params = new URLSearchParams();
+  if (opts?.commentId) params.set("comment", opts.commentId);
+  const qs = params.toString();
+  return qs
+    ? `/dashboard/workouts/queen/${sessionId}?${qs}`
+    : `/dashboard/workouts/queen/${sessionId}`;
+}
 
 export function jealousyPageHref(
   missionId: string,
@@ -224,7 +239,19 @@ export function messageAttachmentHref(opts: {
   if (type === "worship_assignment") return `/dashboard/worship`;
   if (type === "denial") return denialDeepLink(id, anchor);
   if (type === "jealousy_mission") return jealousyMissionDeepLink(id, anchor);
+  if (type === "workout") return workoutDeepLink(id, anchor);
   return `/dashboard/inbox`;
+}
+
+function workoutDeepLink(sessionId: string, anchor?: string | null): string {
+  if (anchor?.startsWith("workout_comment:")) {
+    const rest = anchor.slice("workout_comment:".length);
+    const [session, comment] = rest.split(":");
+    if (session && comment) {
+      return queenWorkoutPageHref(session, { commentId: comment });
+    }
+  }
+  return queenWorkoutPageHref(sessionId);
 }
 
 function jealousyMissionDeepLink(

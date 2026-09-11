@@ -12,8 +12,13 @@ import {
   sessionVolume,
   buildSparklineSeries,
 } from "@/lib/workout-stats";
-import { workoutStatusLabel } from "@/lib/workout-persist";
-import type { WorkoutMedia, WorkoutSession, WorkoutSet } from "@/lib/types";
+import { workoutBasePath, workoutStatusLabel } from "@/lib/workout-persist";
+import type {
+  WorkoutAthleteRole,
+  WorkoutMedia,
+  WorkoutSession,
+  WorkoutSet,
+} from "@/lib/types";
 import { WorkoutDeleteButton } from "@/components/workouts/workout-delete-button";
 import { WorkoutExerciseSparkline } from "@/components/workouts/workout-exercise-sparkline";
 import { WatermarkedFrame } from "@/components/media/watermarked-frame";
@@ -40,11 +45,18 @@ function pickPreview(media: WorkoutMedia[]): WorkoutMedia | null {
   return media.find((m) => m.media_kind === "image") ?? media[0] ?? null;
 }
 
-export function WorkoutSessionsList({ className }: { className?: string }) {
+export function WorkoutSessionsList({
+  className,
+  athleteRole = "slave",
+}: {
+  className?: string;
+  athleteRole?: WorkoutAthleteRole;
+}) {
   const { profile, isSlave, isQueen } = useAuth();
   const [items, setItems] = useState<SessionCard[]>([]);
   const [loading, setLoading] = useState(true);
   const canDelete = isSlave || isQueen;
+  const basePath = workoutBasePath(athleteRole);
 
   useEffect(() => {
     if (!profile) return;
@@ -54,10 +66,13 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
       let query = supabase
         .from("workout_sessions")
         .select("*")
+        .eq("athlete_role", athleteRole)
         .order("performed_at", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(30);
-      if (isSlave) query = query.eq("created_by", profile.id);
+      if (isSlave && athleteRole === "slave") {
+        query = query.eq("created_by", profile.id);
+      }
       const { data } = await query;
       const rows = (data ?? []) as WorkoutSession[];
       const ids = rows.map((r) => r.id);
@@ -122,7 +137,7 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
       setItems(cards);
       setLoading(false);
     })();
-  }, [profile, isSlave]);
+  }, [profile, isSlave, athleteRole]);
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading sessions…</p>;
@@ -131,7 +146,9 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
   if (items.length === 0) {
     return (
       <p className="rounded-xl border border-gold/15 bg-charcoal/60 px-6 py-10 text-center text-sm text-muted-foreground">
-        No workouts logged yet.
+        {athleteRole === "queen"
+          ? "No Queen workouts yet. Slave plans them here; Queen logs them."
+          : "No workouts logged yet."}
       </p>
     );
   }
@@ -146,10 +163,15 @@ export function WorkoutSessionsList({ className }: { className?: string }) {
         >
           <Link
             href={
-              isSlave &&
+              athleteRole === "queen" &&
+              isQueen &&
               (s.status === "planned" || s.status === "in_progress")
-                ? `/dashboard/workouts/log/${s.id}`
-                : `/dashboard/workouts/${s.id}`
+                ? `${basePath}/log/${s.id}`
+                : athleteRole === "slave" &&
+                    isSlave &&
+                    (s.status === "planned" || s.status === "in_progress")
+                  ? `${basePath}/log/${s.id}`
+                  : `${basePath}/${s.id}`
             }
             className="flex min-w-0 flex-1 gap-3 rounded-xl border border-gold/15 bg-charcoal/80 p-4 transition hover:border-gold/40"
           >

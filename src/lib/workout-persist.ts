@@ -12,7 +12,14 @@ import {
   prepareVideoForUpload,
   isAcceptedVideoUpload,
 } from "@/lib/video-compress";
-import type { WorkoutSessionStatus } from "@/lib/types";
+import type { WorkoutAthleteRole, WorkoutSessionStatus } from "@/lib/types";
+
+export const QUEEN_WORKOUTS_PATH = "/dashboard/workouts/queen";
+export const SLAVE_WORKOUTS_PATH = "/dashboard/workouts";
+
+export function workoutBasePath(athleteRole: WorkoutAthleteRole): string {
+  return athleteRole === "queen" ? QUEEN_WORKOUTS_PATH : SLAVE_WORKOUTS_PATH;
+}
 
 export type DraftSet = {
   reps: number;
@@ -44,6 +51,18 @@ export async function fetchQueenId(
   return (data as { id: string } | null)?.id ?? null;
 }
 
+export async function fetchSlaveId(
+  supabase: SupabaseClient
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("role", "slave")
+    .limit(1)
+    .maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function createWorkoutSession(
   supabase: SupabaseClient,
   opts: {
@@ -52,6 +71,7 @@ export async function createWorkoutSession(
     status: WorkoutSessionStatus;
     performedAt?: string;
     notes?: string | null;
+    athleteRole?: WorkoutAthleteRole;
   }
 ): Promise<string> {
   const now = new Date().toISOString();
@@ -62,6 +82,7 @@ export async function createWorkoutSession(
     .insert({
       created_by: opts.profileId,
       assigned_to: opts.queenId,
+      athlete_role: opts.athleteRole ?? "slave",
       performed_at: performedAt,
       notes: opts.notes?.trim() || null,
       status: opts.status,
@@ -150,7 +171,12 @@ export async function uploadWorkoutMedia(
   supabase: SupabaseClient,
   sessionId: string,
   profileId: string,
-  file: File
+  file: File,
+  opts?: {
+    scope?: "session" | "exercise";
+    exerciseName?: string;
+    bodyPart?: WorkoutBodyPart;
+  }
 ): Promise<void> {
   const isVideo = isAcceptedVideoUpload(file);
   let upload = file;
@@ -168,10 +194,15 @@ export async function uploadWorkoutMedia(
     ext,
     relativePath: `${profileId}/${sessionId}/${Date.now()}.${ext}`,
   });
+  const scope = opts?.scope ?? "session";
   const { error } = await supabase.from("workout_media").insert({
     session_id: sessionId,
     media_kind: isVideo ? "video" : "image",
     file_path: path,
+    uploaded_by: profileId,
+    scope,
+    exercise_name: scope === "exercise" ? opts?.exerciseName ?? null : null,
+    body_part: scope === "exercise" ? opts?.bodyPart ?? null : null,
   });
   if (error) throw error;
 }
@@ -293,6 +324,7 @@ export async function copyWorkoutAsPlanned(
     sourceSessionId: string;
     targetDate: string;
     notes?: string | null;
+    athleteRole?: WorkoutAthleteRole;
   }
 ): Promise<string> {
   const { data: source, error: srcErr } = await supabase
@@ -339,6 +371,7 @@ export async function copyWorkoutAsPlanned(
     status: "planned",
     performedAt: opts.targetDate,
     notes,
+    athleteRole: opts.athleteRole ?? "slave",
   });
 
   await syncDraftSets(supabase, newId, draft, new Map(), false);
@@ -366,6 +399,7 @@ export async function saveRestDay(
     queenId: string;
     performedAt: string;
     notes: string;
+    athleteRole?: WorkoutAthleteRole;
   }
 ): Promise<string> {
   const { data, error } = await supabase
@@ -373,6 +407,7 @@ export async function saveRestDay(
     .insert({
       created_by: opts.profileId,
       assigned_to: opts.queenId,
+      athlete_role: opts.athleteRole ?? "slave",
       performed_at: opts.performedAt,
       notes: opts.notes.trim() || null,
       status: "skipped",

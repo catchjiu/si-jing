@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Dumbbell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { BodyInspectionPanel } from "@/components/workouts/body-inspection-panel";
@@ -29,6 +30,12 @@ export default function WorkoutsPage() {
               ? "Rate his body, review sessions, and watch progress over time"
               : "Plan ahead, log training, or mark rest days — everything saves as you go"}
           </p>
+          <Link
+            href="/dashboard/workouts/queen"
+            className="mt-2 inline-block text-sm text-gold hover:text-gold-muted"
+          >
+            Queen’s training →
+          </Link>
         </div>
         {isSlave && <WorkoutActionButtons />}
       </div>

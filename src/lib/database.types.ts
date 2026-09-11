@@ -1470,6 +1470,7 @@ export type Database = {
           id: string
           created_by: string
           assigned_to: string
+          athlete_role: string
           performed_at: string
           notes: string | null
           started_at: string | null
@@ -1485,6 +1486,7 @@ export type Database = {
           id?: string
           created_by: string
           assigned_to: string
+          athlete_role?: string
           performed_at?: string
           notes?: string | null
           started_at?: string | null
@@ -1500,6 +1502,7 @@ export type Database = {
           id?: string
           created_by?: string
           assigned_to?: string
+          athlete_role?: string
           performed_at?: string
           notes?: string | null
           started_at?: string | null
@@ -1561,6 +1564,10 @@ export type Database = {
           session_id: string
           media_kind: string
           file_path: string
+          uploaded_by: string | null
+          scope: string
+          exercise_name: string | null
+          body_part: string | null
           created_at: string
         }
         Insert: {
@@ -1568,6 +1575,10 @@ export type Database = {
           session_id: string
           media_kind: string
           file_path: string
+          uploaded_by?: string | null
+          scope?: string
+          exercise_name?: string | null
+          body_part?: string | null
           created_at?: string
         }
         Update: {
@@ -1575,9 +1586,52 @@ export type Database = {
           session_id?: string
           media_kind?: string
           file_path?: string
+          uploaded_by?: string | null
+          scope?: string
+          exercise_name?: string | null
+          body_part?: string | null
           created_at?: string
         }
         Relationships: []
+      }
+      workout_comments: {
+        Row: {
+          id: string
+          session_id: string
+          author_id: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          author_id: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          author_id?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_comments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "workout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workout_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workout_weekly_pics: {
         Row: {

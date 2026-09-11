@@ -300,6 +300,25 @@ async function loadPreview(
     };
   }
 
+  if (type === "workout") {
+    const { data } = await supabase
+      .from("workout_sessions")
+      .select("id, performed_at, notes, status, athlete_role")
+      .eq("id", id)
+      .maybeSingle();
+    if (!data) return null;
+    const date = data.performed_at
+      ? new Date(`${data.performed_at as string}T12:00:00`).toLocaleDateString(
+          undefined,
+          { weekday: "short", month: "short", day: "numeric" }
+        )
+      : "Workout";
+    return {
+      title: `Queen workout · ${date}`,
+      body: ((data.notes as string | null) || "Open workout").slice(0, 160),
+    };
+  }
+
   if (type === "creep") {
     const entryId = creepEntryIdFromAnchor(anchor);
     if (entryId) {
