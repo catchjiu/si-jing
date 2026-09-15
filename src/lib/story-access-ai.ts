@@ -10,7 +10,7 @@ export type StoryAuthor = {
 
 /**
  * AI writing (prompt / rewrite / extend) is tied to permanent home_role=slave,
- * so the original slave keeps it as King and a switched Queen never gets it.
+ * so the original slave keeps it as Daddy and a switched Queen never gets it.
  */
 export async function requireHomeSlaveWriter(): Promise<
   { error: NextResponse } | { author: StoryAuthor }

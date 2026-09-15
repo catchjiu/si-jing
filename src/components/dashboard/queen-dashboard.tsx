@@ -43,6 +43,13 @@ import { InboxUnreadBanner } from "@/components/inbox/inbox-unread-banner"
 import { LastCumCounter } from "@/components/dashboard/last-cum-counter"
 import { ConductPanel } from "@/components/dashboard/conduct-panel"
 import { QueenLoveCounter } from "@/components/dashboard/queen-love-counter"
+import { useAuth } from "@/contexts/auth-context"
+import {
+  taskDetailHref,
+  taskLaneFromSwitch,
+  taskLaneOf,
+  taskListHref,
+} from "@/lib/task-lane"
 import { ApartmentFundPanel } from "@/components/dashboard/apartment-fund-panel"
 import type { ActivityItem } from "@/lib/activity"
 
@@ -110,6 +117,8 @@ export function QueenDashboard({
   slaveStatus,
   activity,
 }: QueenDashboardProps) {
+  const { isSwitched } = useAuth()
+  const tasksHref = taskListHref(taskLaneFromSwitch(isSwitched))
   const activeTasks = tasks
     .filter((t) => !["approved", "rejected"].includes(t.status))
     .slice(0, 6)
@@ -162,14 +171,14 @@ export function QueenDashboard({
 
   const metrics = [
     {
-      href: "/dashboard/tasks",
+      href: tasksHref,
       label: "Completion",
       value: `${stats.completionRate}%`,
       hint: `${stats.completedToday} of ${stats.totalToday} today`,
       icon: Target,
     },
     {
-      href: "/dashboard/tasks",
+      href: tasksHref,
       label: "Streak",
       value: stats.streak,
       hint: "consecutive days",
@@ -177,7 +186,7 @@ export function QueenDashboard({
       accent: "orange" as const,
     },
     {
-      href: "/dashboard/tasks",
+      href: tasksHref,
       label: "Tasks",
       value: stats.tasksAssigned,
       icon: ClipboardList,
@@ -447,7 +456,7 @@ export function QueenDashboard({
           <section>
             <SectionHeader
               title="Active tasks"
-              href="/dashboard/tasks"
+              href={tasksHref}
               count={
                 tasks.filter((t) => !["approved", "rejected"].includes(t.status))
                   .length
@@ -465,7 +474,7 @@ export function QueenDashboard({
                   return (
                   <li key={task.id}>
                     <Link
-                      href={`/dashboard/task/${task.id}`}
+                      href={taskDetailHref(task.id, taskLaneOf(task))}
                       className={cn(
                         "flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors sm:px-4",
                         slaveActed

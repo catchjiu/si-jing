@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { SubmissionList } from "@/components/submissions/submission-list";
 import type { SubmissionWithRelations } from "@/lib/types";
+import { taskLaneFromSwitch, taskLaneOf } from "@/lib/task-lane";
 
 export default function SubmissionsPage() {
-  const { isQueen, isSlave, profile, loading: authLoading } = useAuth();
+  const { isQueen, isSlave, isSwitched, profile, loading: authLoading } = useAuth();
   const [submissions, setSubmissions] = useState<SubmissionWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,9 +28,11 @@ export default function SubmissionsPage() {
     }
 
     const { data } = await query;
-    setSubmissions((data ?? []) as SubmissionWithRelations[]);
+    const lane = taskLaneFromSwitch(isSwitched);
+    const rows = (data ?? []) as SubmissionWithRelations[];
+    setSubmissions(rows.filter((s) => !s.task || taskLaneOf(s.task) === lane));
     setLoading(false);
-  }, [profile, isSlave]);
+  }, [profile, isSlave, isSwitched]);
 
   useEffect(() => {
     if (!authLoading && profile) void load();

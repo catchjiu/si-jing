@@ -15,7 +15,10 @@ import {
   dominantDisplayTitle,
   isRolesSwitched,
   roleDisplayTitle,
+  submissiveDisplayTitle,
+  type DominantDisplayTitle,
   type RoleDisplayTitle,
+  type SubmissiveDisplayTitle,
 } from "@/lib/role-display";
 import { isR2Path } from "@/lib/storage/paths";
 import { signObjectUrl } from "@/lib/storage/client";
@@ -26,11 +29,14 @@ type AuthContextValue = {
   role: UserRole | null;
   homeRole: UserRole | null;
   displayTitle: RoleDisplayTitle | null;
-  dominantTitle: "Queen" | "King";
+  dominantTitle: DominantDisplayTitle;
+  submissiveTitle: SubmissiveDisplayTitle;
   isQueen: boolean;
   isSlave: boolean;
+  isDaddy: boolean;
+  /** @deprecated Use isDaddy */
   isKing: boolean;
-  /** Permanent home identity is slave (keeps AI writing even as King). */
+  /** Permanent home identity is slave (keeps AI writing even as Daddy). */
   isHomeSlave: boolean;
   isSwitched: boolean;
   loading: boolean;
@@ -147,7 +153,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const homeRole = profile?.home_role ?? null;
   const displayTitle = profile ? roleDisplayTitle(profile) : null;
   const dominantTitle = profile ? dominantDisplayTitle(profile) : "Queen";
+  const submissiveTitle = profile
+    ? submissiveDisplayTitle(profile)
+    : "slave";
   const switched = profile ? isRolesSwitched(profile) : false;
+  const isDaddy = displayTitle === "Daddy";
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -157,9 +167,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       homeRole,
       displayTitle,
       dominantTitle,
+      submissiveTitle,
       isQueen: role === "queen",
       isSlave: role === "slave",
-      isKing: displayTitle === "King",
+      isDaddy,
+      isKing: isDaddy,
       isHomeSlave: homeRole === "slave",
       isSwitched: switched,
       loading,
@@ -173,6 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       homeRole,
       displayTitle,
       dominantTitle,
+      submissiveTitle,
+      isDaddy,
       switched,
       loading,
       refreshProfile,

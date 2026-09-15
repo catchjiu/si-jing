@@ -42,6 +42,13 @@ import { ConductPanel } from "@/components/dashboard/conduct-panel"
 import { QueenLoveCounter } from "@/components/dashboard/queen-love-counter"
 import { ApartmentFundPanel } from "@/components/dashboard/apartment-fund-panel"
 import type { ActivityItem } from "@/lib/activity"
+import { useAuth } from "@/contexts/auth-context"
+import {
+  taskDetailHref,
+  taskLaneFromSwitch,
+  taskLaneOf,
+  taskListHref,
+} from "@/lib/task-lane"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/tasks/status-badge"
@@ -73,6 +80,8 @@ export function SlaveDashboard({
   activeContactRestriction = null,
 }: SlaveDashboardProps) {
   const router = useRouter()
+  const { isSwitched } = useAuth()
+  const tasksHref = taskListHref(taskLaneFromSwitch(isSwitched))
   const punishments =
     activePunishments ??
     (activeContactRestriction ? [activeContactRestriction] : [])
@@ -184,7 +193,7 @@ export function SlaveDashboard({
                 variant="outline"
                 className="border-gold/40 text-gold hover:bg-gold/10"
               >
-                <Link href="/dashboard/tasks">
+                <Link href={tasksHref}>
                   <Target className="mr-2 h-4 w-4" />
                   {queenVerdicts.length} rejected task
                   {queenVerdicts.length === 1 ? "" : "s"}
@@ -306,7 +315,7 @@ export function SlaveDashboard({
             {queenVerdicts.slice(0, 5).map((task) => (
               <li key={task.id}>
                 <Link
-                  href={`/dashboard/task/${task.id}`}
+                  href={taskDetailHref(task.id, taskLaneOf(task))}
                   className="flex items-center gap-3 rounded-xl border border-red-500/35 bg-red-950/20 px-3 py-3 transition-colors hover:border-red-500/50 sm:px-4"
                 >
                   <div className="min-w-0 flex-1">

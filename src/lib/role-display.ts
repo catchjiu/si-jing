@@ -1,6 +1,8 @@
 import type { UserRole } from "@/lib/types";
 
-export type RoleDisplayTitle = "Queen" | "King" | "slave";
+export type RoleDisplayTitle = "Queen" | "Daddy" | "slave" | "slut";
+export type DominantDisplayTitle = "Queen" | "Daddy";
+export type SubmissiveDisplayTitle = "slave" | "slut";
 
 type RoleIdentity = {
   role: UserRole | null | undefined;
@@ -27,29 +29,34 @@ export function isRolesSwitched(profile: RoleIdentity): boolean {
 
 /**
  * Visible title for the current persona.
- * Home slave holding the dominant role is King; otherwise Queen / slave.
+ * Switch mode: home slave is Daddy, home Queen is slut.
  */
 export function roleDisplayTitle(profile: RoleIdentity): RoleDisplayTitle {
-  if (profile.role === "slave") return "slave";
+  if (profile.role === "slave") {
+    return homeRoleOf(profile) === "queen" ? "slut" : "slave";
+  }
   if (profile.role === "queen") {
-    return homeRoleOf(profile) === "slave" ? "King" : "Queen";
+    return homeRoleOf(profile) === "slave" ? "Daddy" : "Queen";
   }
   return "slave";
 }
 
 /** Title used when referring to the dominant partner from the other side. */
-export function dominantDisplayTitle(profile: RoleIdentity): "Queen" | "King" {
-  // If I am switched into slave (home queen), the dominant is King.
-  if (profile.role === "slave" && homeRoleOf(profile) === "queen") {
-    return "King";
-  }
-  // If I am King (home slave as queen), I am the dominant.
-  if (profile.role === "queen" && homeRoleOf(profile) === "slave") {
-    return "King";
-  }
-  return "Queen";
+export function dominantDisplayTitle(profile: RoleIdentity): DominantDisplayTitle {
+  return isRolesSwitched(profile) ? "Daddy" : "Queen";
 }
 
+export function submissiveDisplayTitle(
+  profile: RoleIdentity
+): SubmissiveDisplayTitle {
+  return isRolesSwitched(profile) ? "slut" : "slave";
+}
+
+export function isDaddyPersona(profile: RoleIdentity): boolean {
+  return roleDisplayTitle(profile) === "Daddy";
+}
+
+/** @deprecated Use isDaddyPersona */
 export function isKingPersona(profile: RoleIdentity): boolean {
-  return roleDisplayTitle(profile) === "King";
+  return isDaddyPersona(profile);
 }

@@ -3,10 +3,10 @@
 import { TaskLaneGuard } from "@/components/tasks/task-lane-guard";
 import { NewTaskView } from "@/components/tasks/new-task-view";
 
-export default function NewTaskPage() {
+export default function SwitchNewTaskPage() {
   return (
-    <TaskLaneGuard lane="home" dest="new">
-      <NewTaskView lane="home" />
+    <TaskLaneGuard lane="switch" dest="new">
+      <NewTaskView lane="switch" />
     </TaskLaneGuard>
   );
 }

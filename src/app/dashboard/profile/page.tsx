@@ -25,7 +25,7 @@ export default function ProfilePage() {
     profile,
     role,
     isQueen,
-    isKing,
+    isDaddy,
     isSwitched,
     displayTitle,
     homeRole,
@@ -126,7 +126,8 @@ export default function ProfilePage() {
       const { data } = await supabase
         .from("tasks")
         .select("status")
-        .eq(column, profile.id);
+        .eq(column, profile.id)
+        .eq("lane", isSwitched ? "switch" : "home");
 
       const tasks = (data ?? []) as Pick<Task, "status">[];
       setStats({
@@ -138,7 +139,7 @@ export default function ProfilePage() {
       });
     };
     void loadStats();
-  }, [profile, role]);
+  }, [profile, role, isSwitched]);
 
   const onSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +215,7 @@ export default function ProfilePage() {
       router.refresh();
       toast.success(
         result.switched
-          ? "Switched — slave is King, Queen is slave"
+          ? "Switched — slave is Daddy, Queen is slut"
           : "Restored — Queen and slave as usual"
       );
     } catch (err) {
@@ -470,8 +471,8 @@ export default function ProfilePage() {
             <h2 className="font-heading text-xl text-ivory">Switch</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {isSwitched
-                ? "Roles are reversed. Switch again to restore Queen and slave."
-                : "Make the slave King and the Queen a slave. Everything stays saved — switch back anytime."}
+                ? "Roles are reversed (Daddy / slut). Switch again to restore Queen and slave."
+                : "Make the slave Daddy and the Queen a slut. Everything stays saved — switch back anytime."}
             </p>
           </div>
           <Button
@@ -487,9 +488,9 @@ export default function ProfilePage() {
                 ? "Restore original roles"
                 : "Switch roles"}
           </Button>
-          {isKing && (
+          {isDaddy && (
             <p className="text-xs text-muted-foreground">
-              You hold the throne as King until roles are restored.
+              You hold the throne as Daddy until roles are restored.
             </p>
           )}
         </div>
@@ -497,7 +498,7 @@ export default function ProfilePage() {
 
       <PushEnableCard />
 
-      {isQueen && !isKing && (
+      {isQueen && !isDaddy && (
         <>
           <QueenCyclePanel />
           <QueenWorkScheduleCard />

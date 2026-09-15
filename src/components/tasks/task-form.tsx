@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 import type { DifficultyLevel, RecurrencePattern, Task } from "@/lib/types"
 import { formatRoleSpeech } from "@/lib/role-speech"
+import { taskDetailHref, taskLaneOf, type TaskLane } from "@/lib/task-lane"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,6 +44,7 @@ type TaskFormValues = z.infer<typeof taskSchema>
 interface TaskFormProps {
   assigneeId: string
   task?: Task
+  lane?: TaskLane
   onSuccess?: (createdId?: string) => void
   className?: string
 }
@@ -54,8 +56,9 @@ function toDatetimeLocal(iso: string): string {
   return local.toISOString().slice(0, 16)
 }
 
-export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormProps) {
-  const { profile } = useAuth()
+export function TaskForm({ assigneeId, task, lane, onSuccess, className }: TaskFormProps) {
+  const { profile, dominantTitle } = useAuth()
+  const taskLane: TaskLane = lane ?? (task ? taskLaneOf(task) : "home")
   const [submitting, setSubmitting] = useState(false)
   const isEditing = !!task
   const isOccurrence = !!task?.parent_task_id
@@ -90,9 +93,9 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
 
     setSubmitting(true)
     const supabase = createClient()
-    const speechTitle = formatRoleSpeech(values.title, profile.role)
+    const speechTitle = formatRoleSpeech(values.title, profile.role, dominantTitle)
     const speechDescription = values.description
-      ? formatRoleSpeech(values.description, profile.role)
+      ? formatRoleSpeech(values.description, profile.role, dominantTitle)
       : null
 
     try {
@@ -135,7 +138,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           notifyPush({
             title: "Task updated",
             body: speechTitle,
-            url: `/dashboard/task/${task.id}`,
+            url: taskDetailHref(task.id, taskLane),
             target: "slave",
           })
         )
@@ -158,6 +161,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           updated_at: new Date().toISOString(),
           parent_task_id: null,
           occurrence_key: null,
+          lane: taskLane,
         })
           .select("id")
           .single()
@@ -179,7 +183,7 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           notifyPush({
             title: "New task",
             body: speechTitle,
-            url: `/dashboard/task/${created.id}`,
+            url: taskDetailHref(created.id, taskLane),
             target: "slave",
           })
         )
@@ -255,7 +259,8 @@ export function TaskForm({ assigneeId, task, onSuccess, className }: TaskFormPro
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Change this to extend or shorten how long D has to complete it.
+            Change this to extend or shorten how long{" "}
+            {taskLane === "switch" ? "slut" : "D"} has to complete it.
           </p>
         )}
         {errors.deadline && (

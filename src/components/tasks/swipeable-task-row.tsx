@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import type { Task } from "@/lib/types";
 import { recurrenceLabel } from "@/lib/tasks";
+import { taskDetailHref, taskLaneOf } from "@/lib/task-lane";
 import {
   canSwipeCompleteTask,
   deleteTask,
@@ -87,7 +88,7 @@ function TaskRowContent({ task }: { task: Task }) {
 
 export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
   const router = useRouter();
-  const { isQueen, isSlave, profile } = useAuth();
+  const { isQueen, isSlave, profile, dominantTitle, isSwitched } = useAuth();
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -163,14 +164,19 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
       supabase,
       task.id,
       profile.id,
-      profile.role
+      profile.role,
+      dominantTitle
     );
     setBusy(false);
     if (error) {
       toast.error("Could not mark complete");
       return;
     }
-    toast.success("Marked complete — awaiting Queen's review");
+    toast.success(
+      isSwitched
+        ? "Marked complete — awaiting Daddy's review"
+        : "Marked complete — awaiting Queen's review"
+    );
     onAction?.();
   };
 
@@ -227,7 +233,7 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
     resetSwipe();
 
     if (wasTap) {
-      router.push(`/dashboard/task/${task.id}`);
+      router.push(taskDetailHref(task.id, taskLaneOf(task)));
     }
   };
 
@@ -240,7 +246,7 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
   if (!swipeEnabled) {
     return (
       <Link
-        href={`/dashboard/task/${task.id}`}
+        href={taskDetailHref(task.id, taskLaneOf(task))}
         className={cn(
           cardClassName,
           "hover:border-gold/30 hover:bg-void/70",
@@ -304,7 +310,7 @@ export function SwipeableTaskRow({ task, onAction }: SwipeableTaskRowProps) {
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            router.push(`/dashboard/task/${task.id}`);
+            router.push(taskDetailHref(task.id, taskLaneOf(task)));
           }
         }}
       >

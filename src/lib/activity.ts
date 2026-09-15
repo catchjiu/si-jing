@@ -20,6 +20,7 @@ import {
   creepGalleryPageHref,
   queenWorkoutPageHref,
 } from "@/lib/inbox-deep-links";
+import { taskDetailHref } from "@/lib/task-lane";
 
 export type ActivityItem = {
   id: string;
@@ -55,6 +56,10 @@ const FETCH_LIMIT = 20;
 
 function otherPartyLabel(profile: ProfileRef): string {
   return profile.role === "queen" ? "D" : "Queen";
+}
+
+function activityTaskLane(task: { lane?: string | null } | null | undefined): "home" | "switch" {
+  return task?.lane === "switch" ? "switch" : "home";
 }
 
 function pushOtherPartyComment(
@@ -193,7 +198,8 @@ function directMessageActivityHref(dm: {
 export async function fetchRecentActivity(
   supabase: SupabaseClient,
   profile: ProfileRef,
-  limit = 20
+  limit = 20,
+  lane: "home" | "switch" = "home"
 ): Promise<ActivityItem[]> {
   const items: ActivityItem[] = [];
 
@@ -245,7 +251,7 @@ export async function fetchRecentActivity(
     ] = await Promise.all([
       supabase
         .from("submissions")
-        .select("id, status, submitted_at, task:tasks(title)")
+        .select("id, status, submitted_at, task:tasks(title, lane)")
         .order("submitted_at", { ascending: false })
         .limit(8),
       supabase
@@ -318,8 +324,9 @@ export async function fetchRecentActivity(
       slaveId
         ? supabase
             .from("tasks")
-            .select("id, title, status, started_at, updated_at")
+            .select("id, title, status, started_at, updated_at, lane")
             .eq("assigned_to", slaveId)
+            .eq("lane", lane)
             .in("status", ["in_progress", "submitted"])
             .order("updated_at", { ascending: false })
             .limit(8)
@@ -503,7 +510,7 @@ export async function fetchRecentActivity(
           at: t.started_at as string,
           title: "D started a task",
           body: t.title as string,
-          href: `/dashboard/task/${t.id}`,
+          href: taskDetailHref(t.id, lane),
           kind: "task_started",
         });
       } else if (t.status === "submitted") {
@@ -512,7 +519,7 @@ export async function fetchRecentActivity(
           at: t.updated_at as string,
           title: "D submitted proof",
           body: t.title as string,
-          href: `/dashboard/task/${t.id}`,
+          href: taskDetailHref(t.id, lane),
           kind: "task_submitted",
         });
       } else if (t.status === "failed") {
@@ -521,15 +528,16 @@ export async function fetchRecentActivity(
           at: t.updated_at as string,
           title: "D failed a task",
           body: t.title as string,
-          href: `/dashboard/task/${t.id}`,
+          href: taskDetailHref(t.id, lane),
           kind: "task_failed",
         });
       }
     }
 
     for (const s of submissions.data ?? []) {
-      const taskTitle =
-        (s.task as { title?: string } | null)?.title ?? "a task";
+      const related = s.task as { title?: string; lane?: string } | null;
+      if (activityTaskLane(related) !== lane) continue;
+      const taskTitle = related?.title ?? "a task";
       pushItem(items, {
         id: `sub-${s.id}`,
         at: s.submitted_at as string,
@@ -1218,13 +1226,14 @@ export async function fetchRecentActivity(
     ] = await Promise.all([
       supabase
         .from("tasks")
-        .select("id, title, status, created_at, updated_at, assigned_to, parent_task_id, is_recurring")
+        .select("id, title, status, created_at, updated_at, assigned_to, parent_task_id, is_recurring, lane")
         .eq("assigned_to", profile.id)
+        .eq("lane", lane)
         .order("created_at", { ascending: false })
         .limit(12),
       supabase
         .from("submissions")
-        .select("id, status, submitted_at, feedback, task_id, task:tasks(title)")
+        .select("id, status, submitted_at, feedback, task_id, task:tasks(title, lane)")
         .eq("submitted_by", profile.id)
         .in("status", ["approved", "rejected"])
         .order("submitted_at", { ascending: false })
@@ -1449,14 +1458,15 @@ export async function fetchRecentActivity(
         at: t.created_at as string,
         title: "New task",
         body: t.title as string,
-        href: `/dashboard/task/${t.id}`,
+        href: taskDetailHref(t.id, lane),
         kind: "task",
       });
     }
 
     for (const s of submissions.data ?? []) {
-      const taskTitle =
-        (s.task as { title?: string } | null)?.title ?? "your submission";
+      const related = s.task as { title?: string; lane?: string } | null;
+      if (activityTaskLane(related) !== lane) continue;
+      const taskTitle = related?.title ?? "your submission";
       pushItem(items, {
         id: `rev-${s.id}`,
         at: s.submitted_at as string,

@@ -41,6 +41,7 @@ import {
   type ActivityItem,
 } from "@/lib/activity";
 import type { UserRole } from "@/lib/types";
+import { taskLaneFromSwitch } from "@/lib/task-lane";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,7 +139,7 @@ export function DashboardActivityPanel({
   otherPartyName = role === "queen" ? "D" : "Queen",
   className,
 }: DashboardActivityPanelProps) {
-  const { profile } = useAuth();
+  const { profile, isSwitched } = useAuth();
   const [items, setItems] = useState(initialItems);
   const [seenAt, setSeenAt] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -149,10 +150,11 @@ export function DashboardActivityPanel({
     const feed = await fetchRecentActivity(
       supabase,
       { id: profile.id, role },
-      ACTIVITY_COUNT_LIMIT
+      ACTIVITY_COUNT_LIMIT,
+      taskLaneFromSwitch(isSwitched)
     );
     setItems(feed);
-  }, [profile, role]);
+  }, [profile, role, isSwitched]);
 
   useEffect(() => {
     setItems(initialItems);

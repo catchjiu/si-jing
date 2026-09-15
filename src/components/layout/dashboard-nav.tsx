@@ -32,6 +32,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { taskLaneFromSwitch, taskListHref } from "@/lib/task-lane"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -123,7 +124,7 @@ function TopicBadge({ count }: { count: number }) {
 
 export function DashboardNav() {
   const pathname = usePathname()
-  const { profile, role, displayTitle, signOut } = useAuth()
+  const { profile, role, displayTitle, isSwitched, signOut } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const unread = useInboxUnread()
   const flirtUnread = useFlirtUnread()
@@ -146,6 +147,11 @@ export function DashboardNav() {
   useEffect(() => {
     clearStoryComposerDraftIfLeaving(pathname)
   }, [pathname])
+
+  const tasksHref = taskListHref(taskLaneFromSwitch(isSwitched))
+  const navItems = navLinks.map((link) =>
+    link.href === "/dashboard/tasks" ? { ...link, href: tasksHref } : link
+  )
 
   const initials = profile?.username
     ?.split(" ")
@@ -197,10 +203,16 @@ export function DashboardNav() {
 
   const navLinksBlock = (
     <nav className="flex flex-col gap-1 px-3 py-4">
-      {navLinks.map(({ href, label, icon: Icon }) => {
-        const isActive =
-          pathname === href ||
-          (href !== "/dashboard" && pathname.startsWith(href))
+      {navItems.map(({ href, label, icon: Icon }) => {
+        const isTasks =
+          href === "/dashboard/tasks" || href === "/dashboard/switch/tasks"
+        const isActive = isTasks
+          ? isSwitched
+            ? pathname.startsWith("/dashboard/switch/task")
+            : pathname.startsWith("/dashboard/tasks") ||
+              pathname.startsWith("/dashboard/task/")
+          : pathname === href ||
+            (href !== "/dashboard" && pathname.startsWith(href))
         const isInbox = href === "/dashboard/inbox"
         const isFlirt = href === "/dashboard/flirt"
         const isCreep = href === "/dashboard/creep"

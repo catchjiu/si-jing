@@ -16,6 +16,7 @@ import type { SubmissionWithRelations } from "@/lib/types";
 import { VoiceNotes } from "@/components/voice/voice-notes";
 import { RoleSpeech } from "@/components/ui/role-speech";
 import { ShareLinkButton } from "@/components/ui/share-link-button";
+import { taskDetailHref, taskLaneOf } from "@/lib/task-lane";
 
 export default function SubmissionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -87,7 +88,10 @@ export default function SubmissionDetailPage() {
           </div>
           {submission.task && (
             <Link
-              href={`/dashboard/task/${submission.task_id}`}
+              href={taskDetailHref(
+                submission.task_id,
+                submission.task ? taskLaneOf(submission.task) : "home"
+              )}
               className="mt-2 inline-block text-sm text-gold/80 hover:text-gold"
             >
               Task: {submission.task.title}

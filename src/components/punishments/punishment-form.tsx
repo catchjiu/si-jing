@@ -9,6 +9,7 @@ import type { PunishmentType } from "@/lib/types";
 import { PUNISHMENT_TYPE_LABELS } from "@/lib/punishments";
 import { formatRoleSpeech } from "@/lib/role-speech";
 import { postToTopicThread } from "@/lib/inbox";
+import { taskLaneFromSwitch } from "@/lib/task-lane";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +65,7 @@ export function PunishmentForm({
   onSuccess,
   className,
 }: PunishmentFormProps) {
-  const { profile, isQueen } = useAuth();
+  const { profile, isQueen, isSwitched, dominantTitle } = useAuth();
   const [type, setType] = useState<PunishmentType>("contact_restriction");
   const [title, setTitle] = useState("");
   const [reason, setReason] = useState("");
@@ -161,7 +162,7 @@ export function PunishmentForm({
           .map((t) => t.trim())
           .filter(Boolean);
         const titles = Array.from({ length: debtCount }, (_, i) =>
-          formatRoleSpeech(customTitles[i] || `Debt ${i + 1}`, "queen")
+          formatRoleSpeech(customTitles[i] || `Debt ${i + 1}`, "queen", dominantTitle)
         );
         const deadline = new Date();
         deadline.setDate(deadline.getDate() + 7);
@@ -170,7 +171,8 @@ export function PunishmentForm({
             title: t,
             description: formatRoleSpeech(
               `Task debt for punishment: ${speechTitle}`,
-              "queen"
+              "queen",
+              dominantTitle
             ),
             assigned_by: profile.id,
             assigned_to: recipientId,
@@ -179,6 +181,7 @@ export function PunishmentForm({
             difficulty_level: "medium",
             is_recurring: false,
             punishment_id: punishment.id,
+            lane: taskLaneFromSwitch(isSwitched),
           }))
         );
         if (taskError) throw taskError;

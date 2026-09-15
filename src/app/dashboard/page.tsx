@@ -11,6 +11,8 @@ import { computeStreak } from "@/lib/streak";
 import { checkAndAwardStreakMilestones } from "@/lib/streak-milestones";
 import { fetchRecentActivity } from "@/lib/activity";
 import { fetchPrimaryQueenStatus } from "@/lib/queen";
+import { isRolesSwitched } from "@/lib/role-display";
+import { taskLaneFromSwitch, taskLaneOf } from "@/lib/task-lane";
 import type {
   DesireRequest,
   Profile,
@@ -61,9 +63,12 @@ export default async function DashboardPage() {
     .maybeSingle();
   const slaveId = (slaveRow?.id as string | undefined) ?? undefined;
 
+  const taskLane = taskLaneFromSwitch(isRolesSwitched(profile));
+
   let tasksQuery = supabase
     .from("tasks")
     .select("*, submissions(count)")
+    .eq("lane", taskLane)
     .order("deadline", { ascending: true });
 
   if (profile.role === "slave") {
@@ -150,7 +155,9 @@ export default async function DashboardPage() {
         : Promise.resolve({ data: null }),
     ]);
 
-    const submissions = (submissionsData ?? []) as SubmissionWithRelations[];
+    const submissions = ((submissionsData ?? []) as SubmissionWithRelations[]).filter(
+      (s) => !s.task || taskLaneOf(s.task) === taskLane
+    );
     const pendingRequests = (requestsData ?? []) as DesireRequest[];
     const nowIso = new Date().toISOString();
     const activePunishments = ((punishmentsData ?? []) as Punishment[]).filter(
@@ -193,7 +200,8 @@ export default async function DashboardPage() {
     const activity = await fetchRecentActivity(
       supabase,
       { id: profile.id, role: "queen" },
-      20
+      20,
+      taskLane
     );
 
     return (
@@ -289,7 +297,8 @@ export default async function DashboardPage() {
   const activity = await fetchRecentActivity(
     supabase,
     { id: profile.id, role: "slave" },
-    20
+    20,
+    taskLane
   );
 
   return (

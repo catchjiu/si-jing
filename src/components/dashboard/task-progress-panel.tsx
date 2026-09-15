@@ -5,9 +5,16 @@ import Link from "next/link";
 import { isSameDay, parseISO } from "date-fns";
 import { ChevronRight, Play, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/auth-context";
 import { dayProgress } from "@/lib/day-groups";
 import { formatRelative } from "@/lib/format";
 import type { Task, TaskWithRelations } from "@/lib/types";
+import {
+  taskDetailHref,
+  taskLaneFromSwitch,
+  taskLaneOf,
+  taskListHref,
+} from "@/lib/task-lane";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/tasks/status-badge";
 import { TaskElapsedDisplay } from "@/components/tasks/task-begin-button";
@@ -62,6 +69,9 @@ export function TaskProgressPanel({
   slaveId,
   className,
 }: TaskProgressPanelProps) {
+  const { isSwitched } = useAuth();
+  const lane = taskLaneFromSwitch(isSwitched);
+  const tasksHref = taskListHref(lane);
   const [tasks, setTasks] = useState(initialTasks);
 
   useEffect(() => {
@@ -85,6 +95,7 @@ export function TaskProgressPanel({
         (payload) => {
           const row = payload.new as Task | undefined;
           if (!row?.deadline) return;
+          if (taskLaneOf(row) !== lane) return;
 
           const today = new Date();
           if (!isSameDay(parseISO(row.deadline), today)) return;
@@ -107,7 +118,7 @@ export function TaskProgressPanel({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [slaveId]);
+  }, [slaveId, lane]);
 
   const todayTasks = sortByActivity(
     tasks.filter((t) => isSameDay(parseISO(t.deadline), new Date()))
@@ -153,7 +164,7 @@ export function TaskProgressPanel({
           </p>
         </div>
         <Link
-          href="/dashboard/tasks"
+          href={tasksHref}
           className="inline-flex shrink-0 items-center gap-1 text-xs text-gold hover:underline"
         >
           View all
@@ -173,7 +184,7 @@ export function TaskProgressPanel({
           {inProgress.map((task) => (
             <Link
               key={task.id}
-              href={`/dashboard/task/${task.id}`}
+              href={taskDetailHref(task.id, taskLaneOf(task))}
               className="flex items-center gap-3 rounded-lg border border-gold/25 bg-gold/5 px-3 py-3 transition-colors hover:border-gold/40"
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold/15">
@@ -201,7 +212,7 @@ export function TaskProgressPanel({
             return (
               <li key={task.id}>
                 <Link
-                  href={`/dashboard/task/${task.id}`}
+                  href={taskDetailHref(task.id, taskLaneOf(task))}
                   className="flex items-center gap-3 rounded-lg border border-gold/10 bg-charcoal/50 px-3 py-2.5 transition-colors hover:border-gold/25 hover:bg-charcoal/70"
                 >
                   <div

@@ -1,5 +1,8 @@
 import type { Tables } from "@/lib/database.types";
 import type { WorkoutBodyPart } from "@/lib/workout-exercises";
+import type { TaskLane } from "@/lib/task-lane";
+
+export type { TaskLane };
 
 export type UserRole = "queen" | "slave";
 
@@ -25,11 +28,12 @@ export type Profile = Omit<Tables<"users">, "role" | "home_role"> & {
 
 export type Task = Omit<
   Tables<"tasks">,
-  "status" | "difficulty_level" | "recurrence_pattern"
+  "status" | "difficulty_level" | "recurrence_pattern" | "lane"
 > & {
   status: TaskStatus;
   difficulty_level: DifficultyLevel | null;
   recurrence_pattern: RecurrencePattern | null;
+  lane?: TaskLane;
   parent_task_id?: string | null;
   occurrence_key?: string | null;
   punishment_id?: string | null;

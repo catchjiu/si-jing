@@ -9,6 +9,12 @@ import { createClient } from "@/lib/supabase/client";
 import type { Task } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
+  taskDetailHref,
+  taskEditHref,
+  taskLaneOf,
+  taskListHref,
+} from "@/lib/task-lane";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -34,7 +40,7 @@ export function TaskDetailActions({ task }: { task: Task }) {
     }
     toast.success("Task removed");
     setOpen(false);
-    router.push("/dashboard/tasks");
+    router.push(taskListHref(taskLaneOf(task)));
     router.refresh();
   };
 
@@ -45,7 +51,7 @@ export function TaskDetailActions({ task }: { task: Task }) {
         variant="outline"
         className="border-gold/40 text-gold hover:bg-gold/10"
       >
-        <Link href={`/dashboard/task/${task.id}/edit`}>
+        <Link href={taskEditHref(task.id, taskLaneOf(task))}>
           <Pencil className="mr-2 h-4 w-4" />
           Edit task
         </Link>

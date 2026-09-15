@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import type { TaskStatus, UserRole } from "@/lib/types";
+import type { RoleDisplayTitle } from "@/lib/role-display";
 import { formatRoleSpeech } from "@/lib/role-speech";
 
 type Client = SupabaseClient<Database>;
@@ -27,11 +28,13 @@ export async function markTaskComplete(
   supabase: Client,
   taskId: string,
   userId: string,
-  role: UserRole
+  role: UserRole,
+  dominantTitle: RoleDisplayTitle = "Queen"
 ): Promise<{ error: string | null }> {
   const submissionText = formatRoleSpeech(
     "Completed without evidence",
-    role
+    role,
+    dominantTitle
   );
 
   const { data: submission, error: submissionError } = await supabase

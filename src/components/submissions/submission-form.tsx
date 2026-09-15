@@ -23,6 +23,7 @@ import { resolveImageLocation } from "@/lib/location"
 import { presignAndUpload } from "@/lib/storage/client"
 import { formatRoleSpeech } from "@/lib/role-speech"
 import { notifyPush } from "@/lib/push-client"
+import { taskDetailHref, taskLaneFromSwitch } from "@/lib/task-lane"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,7 +54,7 @@ const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...VIDEO_TYPES, ...VIDEO_ACCEPT
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024
 
 export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormProps) {
-  const { profile } = useAuth()
+  const { profile, isSwitched } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [dragActive, setDragActive] = useState(false)
   const [submitting, setSubmitting] = useState<
@@ -217,7 +218,7 @@ export function SubmissionForm({ taskId, onSuccess, className }: SubmissionFormP
             0,
             120
           ),
-          url: `/dashboard/task/${taskId}`,
+          url: taskDetailHref(taskId, taskLaneFromSwitch(isSwitched)),
           target: "queen",
           kind: "task_failed",
         })

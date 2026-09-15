@@ -2960,6 +2960,7 @@ export type Database = {
           difficulty_level: string | null
           id: string
           is_recurring: boolean
+          lane: string
           occurrence_key: string | null
           parent_task_id: string | null
           punishment_id: string | null
@@ -2978,6 +2979,7 @@ export type Database = {
           difficulty_level?: string | null
           id?: string
           is_recurring?: boolean
+          lane?: string
           occurrence_key?: string | null
           parent_task_id?: string | null
           punishment_id?: string | null
@@ -2996,6 +2998,7 @@ export type Database = {
           difficulty_level?: string | null
           id?: string
           is_recurring?: boolean
+          lane?: string
           occurrence_key?: string | null
           parent_task_id?: string | null
           punishment_id?: string | null

@@ -1,11 +1,23 @@
 import type { UserRole } from "@/lib/types";
 import type { RoleDisplayTitle } from "@/lib/role-display";
 
+function isDaddyTitle(dominantTitle: RoleDisplayTitle): boolean {
+  return dominantTitle === "Daddy" || dominantTitle === "slut";
+}
+
+function dominantWord(dominantTitle: RoleDisplayTitle): "Queen" | "Daddy" {
+  return isDaddyTitle(dominantTitle) ? "Daddy" : "Queen";
+}
+
+function submissiveWord(dominantTitle: RoleDisplayTitle): "slave" | "slut" {
+  return isDaddyTitle(dominantTitle) ? "slut" : "slave";
+}
+
 /**
  * Role speech orthography for Queen Sisi.
  *
- * Dominant (Queen/King): self capitalized (I, Me, title); slave refs lowercase
- * Slave: self lowered (i, me) except role title Slave; dominant refs capitalized
+ * Dominant (Queen/Daddy): self capitalized (I, Me, title); submissive refs lowercase
+ * Submissive: self lowered (i, me) except home role title Slave; dominant refs capitalized
  */
 export function formatRoleSpeech(
   text: string,
@@ -14,12 +26,17 @@ export function formatRoleSpeech(
 ): string {
   if (!text || !role) return text;
 
-  const title = dominantTitle === "King" ? "King" : "Queen";
-  const titlePattern = dominantTitle === "King" ? /\bking\b/gi : /\bqueen\b/gi;
+  const title = dominantWord(dominantTitle);
+  const sub = submissiveWord(dominantTitle);
+  const titlePattern = isDaddyTitle(dominantTitle)
+    ? /\b(daddy|king|queen)\b/gi
+    : /\b(queen|daddy|king)\b/gi;
+  const subPattern = isDaddyTitle(dominantTitle)
+    ? /\b(slut|slave)\b/gi
+    : /\b(slave|slut)\b/gi;
 
   if (role === "queen") {
     return applyReplacements(text, [
-      // Contractionsions first
       [/\bi'm\b/gi, "I'm"],
       [/\bi'll\b/gi, "I'll"],
       [/\bi've\b/gi, "I've"],
@@ -27,13 +44,13 @@ export function formatRoleSpeech(
       [/\bi\b/g, "I"],
       [/\bme\b/gi, "Me"],
       [titlePattern, title],
-      // Force lowercase when referring to him/her as slave
       [/\byou\b/gi, "you"],
-      [/\bslave\b/gi, "slave"],
+      [subPattern, sub],
     ]);
   }
 
-  // slave
+  const selfTitle = sub === "slave" ? "Slave" : "slut";
+
   return applyReplacements(text, [
     [/\bi'm\b/gi, "i'm"],
     [/\bi'll\b/gi, "i'll"],
@@ -41,11 +58,9 @@ export function formatRoleSpeech(
     [/\bi'd\b/gi, "i'd"],
     [/\bi\b/gi, "i"],
     [/\bme\b/gi, "me"],
-    [/\bslave\b/gi, "Slave"],
+    [subPattern, selfTitle],
     [/\byou\b/gi, "You"],
     [titlePattern, title],
-    // Still normalize the unused dominant word if present
-    [dominantTitle === "King" ? /\bqueen\b/gi : /\bking\b/gi, title],
   ]);
 }
 
@@ -67,18 +82,22 @@ export function roleSpeechAiInstructions(
   role: UserRole | null | undefined,
   dominantTitle: RoleDisplayTitle = "Queen"
 ): string {
-  const title = dominantTitle === "King" ? "King" : "Queen";
+  const title = dominantWord(dominantTitle);
+  const sub = submissiveWord(dominantTitle);
   if (role === "queen") {
     return [
       "Role-speech orthography (required):",
       `Write as ${title}. Capitalize self-references: I, Me, I'm, I'll, I've, I'd, ${title}.`,
-      "Lowercase when referring to the slave: you, slave.",
+      `Lowercase when referring to the ${sub}: you, ${sub}.`,
     ].join(" ");
   }
   if (role === "slave") {
+    const self = sub === "slave" ? "Slave" : "slut";
     return [
       "Role-speech orthography (required):",
-      "Write as the slave. Lowercase self-references: i, me, i'm, i'll, i've, i'd — except capitalize the role title Slave.",
+      `Write as the ${sub}. Lowercase self-references: i, me, i'm, i'll, i've, i'd${
+        sub === "slave" ? ` — except capitalize the role title ${self}.` : "."
+      }`,
       `Capitalize ${title} references: You, ${title}, You're, You'll, You've, You'd.`,
     ].join(" ");
   }
@@ -91,15 +110,16 @@ export function roleSpeechAiInstructions(
 export function listenScriptAiInstructions(
   dominantTitle: RoleDisplayTitle = "Queen"
 ): string {
-  const title = dominantTitle === "King" ? "King" : "Queen";
+  const title = dominantWord(dominantTitle);
+  const speaker = submissiveWord(dominantTitle) === "slut" ? "slut" : "Slave";
   return [
     "Listen script rules (plain text after a LISTEN: marker — not HTML):",
     "Narration is unlabeled sentences/paragraphs.",
-    `Every spoken line is its own line starting with exactly ${title}: or Slave: then the spoken words.`,
+    `Every spoken line is its own line starting with exactly ${title}: or ${speaker}: then the spoken words.`,
     "Example:",
     "i waited by the door.",
     `${title}: Kneel.`,
-    `Slave: Yes, ${title}.`,
+    `${speaker}: Yes, ${title}.`,
     "No quotation marks. No she said / he said. Same story content as the reading version.",
   ].join("\n");
 }
