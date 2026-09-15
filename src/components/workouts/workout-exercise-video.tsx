@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Link2, Loader2, Trash2, Upload, Video } from "lucide-react";
+import { Link2, Loader2, Maximize2, Trash2, Upload, Video } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { removeObject } from "@/lib/storage/client";
@@ -12,6 +12,7 @@ import {
   parseYoutubeVideoId,
   uploadWorkoutMedia,
   youtubeEmbedUrl,
+  youtubeThumbUrl,
 } from "@/lib/workout-persist";
 import type { WorkoutBodyPart } from "@/lib/workout-exercises";
 import type { WorkoutMedia } from "@/lib/types";
@@ -49,6 +50,8 @@ export function WorkoutExerciseVideo({
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [watchingId, setWatchingId] = useState<string | null>(null);
+  const watching = videos.find((v) => v.id === watchingId) ?? null;
 
   const closePicker = () => {
     setPickerOpen(false);
@@ -123,56 +126,75 @@ export function WorkoutExerciseVideo({
 
   if (videos.length === 0 && !canUpload) return null;
 
+  const watchingYoutubeId = watching?.external_url
+    ? parseYoutubeVideoId(watching.external_url)
+    : null;
+
   return (
     <div className="space-y-2">
-      {videos.map((m) => {
-        const youtubeId = m.external_url
-          ? parseYoutubeVideoId(m.external_url)
-          : null;
-        return (
-          <div
-            key={m.id}
-            className="relative overflow-hidden rounded-lg border border-gold/15 bg-void/40"
-          >
-            {youtubeId ? (
-              <iframe
-                src={youtubeEmbedUrl(youtubeId)}
-                title={`${exerciseName} form video`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="aspect-video w-full"
-              />
-            ) : m.signedUrl ? (
-              <video
-                src={m.signedUrl}
-                controls
-                playsInline
-                className="max-h-56 w-full object-contain"
-              />
-            ) : (
-              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                Video unavailable
-              </p>
-            )}
-            {canUpload && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={removingId === m.id}
-                onClick={() => void remove(m)}
-                className="absolute right-2 top-2 h-8 w-8 bg-void/70 p-0 text-ivory hover:text-red-300"
-              >
-                {removingId === m.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
+      {videos.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {videos.map((m) => {
+            const youtubeId = m.external_url
+              ? parseYoutubeVideoId(m.external_url)
+              : null;
+            return (
+              <div key={m.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setWatchingId(m.id)}
+                  className="relative block w-36 overflow-hidden rounded-md border border-gold/20 bg-void text-left"
+                  aria-label={`Open ${exerciseName} form video fullscreen`}
+                >
+                  <span className="relative block aspect-video w-full">
+                    {youtubeId ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={youtubeThumbUrl(youtubeId)}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : m.signedUrl ? (
+                      <video
+                        src={m.signedUrl}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">
+                        Unavailable
+                      </span>
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-center bg-void/35">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-void/80 text-gold">
+                        <Maximize2 className="h-3.5 w-3.5" />
+                      </span>
+                    </span>
+                  </span>
+                </button>
+                {canUpload && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={removingId === m.id}
+                    onClick={() => void remove(m)}
+                    className="absolute -right-1.5 -top-1.5 h-7 w-7 bg-void/85 p-0 text-ivory hover:text-red-300"
+                  >
+                    {removingId === m.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
                 )}
-              </Button>
-            )}
-          </div>
-        );
-      })}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {canUpload && (
         <Button
           type="button"
@@ -287,6 +309,45 @@ export function WorkoutExerciseVideo({
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={watching != null}
+        onOpenChange={(open) => {
+          if (!open) setWatchingId(null);
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-4xl border-gold/20 bg-void p-3 sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="pr-8 text-gold">{exerciseName}</DialogTitle>
+            <DialogDescription>
+              Form video. Use the player fullscreen control if you need it larger.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-hidden rounded-lg border border-gold/15 bg-black">
+            {watchingYoutubeId ? (
+              <iframe
+                src={youtubeEmbedUrl(watchingYoutubeId, { autoplay: true })}
+                title={`${exerciseName} form video`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowFullScreen
+                className="aspect-video w-full max-h-[80vh]"
+              />
+            ) : watching?.signedUrl ? (
+              <video
+                src={watching.signedUrl}
+                controls
+                autoPlay
+                playsInline
+                className="aspect-video w-full max-h-[80vh] object-contain"
+              />
+            ) : (
+              <p className="px-3 py-10 text-center text-sm text-muted-foreground">
+                Video unavailable
+              </p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

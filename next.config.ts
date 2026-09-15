@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   // Allow video uploads through /api/storage/upload (default is too small)
   experimental: {
     proxyClientMaxBodySize: "55mb",
+    // Limit build parallelism so Coolify / low-memory hosts don't OOM
+    cpus: 1,
+    workerThreads: false,
   },
   images: {
     remotePatterns: [

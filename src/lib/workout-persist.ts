@@ -64,8 +64,18 @@ export function youtubeWatchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
-export function youtubeEmbedUrl(videoId: string): string {
-  return `https://www.youtube-nocookie.com/embed/${videoId}`;
+export function youtubeEmbedUrl(
+  videoId: string,
+  opts?: { autoplay?: boolean }
+): string {
+  const params = new URLSearchParams();
+  if (opts?.autoplay) params.set("autoplay", "1");
+  const query = params.toString();
+  return `https://www.youtube-nocookie.com/embed/${videoId}${query ? `?${query}` : ""}`;
+}
+
+export function youtubeThumbUrl(videoId: string): string {
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
 
 export function isYoutubeWorkoutMedia(media: {
@@ -297,7 +307,7 @@ export async function addWorkoutYoutubeMedia(
     exercise_name: opts.exerciseName,
     body_part: opts.bodyPart,
   });
-  if (error) throw error;
+  if (error) throw new Error(error.message);
 }
 
 export async function completeWorkoutSession(
