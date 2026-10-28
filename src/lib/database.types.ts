@@ -4154,6 +4154,11 @@ export type Database = {
       clear_expired_no_contact: { Args: never; Returns: number }
       get_slave_write_lock: { Args: never; Returns: Json }
       get_queen_love: { Args: never; Returns: Json }
+      get_queen_love_cooldown: { Args: never; Returns: Json }
+      set_queen_love_cooldown: {
+        Args: { p_seconds: number }
+        Returns: Json
+      }
       ensure_queen_love_day_rollover: { Args: never; Returns: undefined }
       slave_calendar_date: {
         Args: { p_ts?: string }

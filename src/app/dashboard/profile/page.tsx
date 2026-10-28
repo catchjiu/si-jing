@@ -15,6 +15,7 @@ import type { Task } from "@/lib/types";
 import { PushEnableCard } from "@/components/push/push-enable";
 import { QueenWorkScheduleCard } from "@/components/status/queen-work-schedule";
 import { QueenCyclePanel } from "@/components/dashboard/queen-cycle-panel";
+import { QueenLoveWaitSettings } from "@/components/dashboard/queen-love-wait-settings";
 import { SignedAvatarImage } from "@/components/ui/signed-avatar-image";
 import { presignAndUpload, signObjectUrl } from "@/lib/storage/client";
 import { isR2Path } from "@/lib/storage/paths";
@@ -26,6 +27,7 @@ export default function ProfilePage() {
     role,
     isQueen,
     isDaddy,
+    isHomeSlave,
     isSwitched,
     displayTitle,
     homeRole,
@@ -497,6 +499,8 @@ export default function ProfilePage() {
       )}
 
       <PushEnableCard />
+
+      {isHomeSlave ? <QueenLoveWaitSettings /> : null}
 
       {isQueen && !isDaddy && (
         <>
