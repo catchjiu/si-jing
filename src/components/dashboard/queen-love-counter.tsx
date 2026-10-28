@@ -10,6 +10,7 @@ import {
   fetchQueenLove,
   incrementQueenLove,
   loveCooldownRemainingMs,
+  queenLoveCooldownCopy,
   resetQueenLove,
   type QueenLoveState,
 } from "@/lib/queen-love";
@@ -35,7 +36,7 @@ function formatAverage(value: number): string {
 }
 
 export function QueenLoveCounter({ className, compact = false }: Props) {
-  const { profile, isSlave, isQueen } = useAuth();
+  const { profile, isSlave, isQueen, isHomeSlave } = useAuth();
   const [state, setState] = useState<QueenLoveState>({
     count: 0,
     lastIncrementAt: null,
@@ -44,6 +45,7 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
     dailyAverage: 0,
     daysTracked: 0,
     timezone: "Asia/Taipei",
+    cooldownSeconds: 300,
   });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -190,9 +192,11 @@ export function QueenLoveCounter({ className, compact = false }: Props) {
           </p>
           <p className="font-heading text-lg text-ivory">Hearts for Queen</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {isSlave
-              ? "Tap the heart — once every 5 minutes. Resets at midnight Taipei."
-              : "Today’s hearts. Resets at midnight on D’s day (Taipei)."}
+            {isSlave && isHomeSlave
+              ? `Tap the heart — ${queenLoveCooldownCopy(state.cooldownSeconds)}. Resets at midnight Taipei.`
+              : isSlave
+                ? "Tap the heart. Resets at midnight Taipei."
+                : "Today’s hearts. Resets at midnight on D’s day (Taipei)."}
           </p>
         </div>
         <Heart className="size-5 shrink-0 fill-rose-400/80 text-rose-300" />
